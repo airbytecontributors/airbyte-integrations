@@ -14,6 +14,7 @@ public class ConfigurationApi implements io.dataline.api.V1Api {
   private final SourceSpecificationsHandler sourceSpecificationsHandler;
   private final SourceImplementationsHandler sourceImplementationsHandler;
   private final DestinationsHandler destinationsHandler;
+  private final DestinationSpecificationsHandler destinationSpecificationsHandler;
 
   public ConfigurationApi() {
     ConfigPersistence configPersistence = ConfigPersistenceImpl.get();
@@ -22,6 +23,7 @@ public class ConfigurationApi implements io.dataline.api.V1Api {
     sourceSpecificationsHandler = new SourceSpecificationsHandler(configPersistence);
     sourceImplementationsHandler = new SourceImplementationsHandler(configPersistence);
     destinationsHandler = new DestinationsHandler(configPersistence);
+    destinationSpecificationsHandler = new DestinationSpecificationsHandler(configPersistence);
   }
 
   // WORKSPACE
@@ -111,15 +113,19 @@ public class ConfigurationApi implements io.dataline.api.V1Api {
     return destinationsHandler.getDestination(destinationIdRequestBody);
   }
 
-  @Override
-  public DestinationImplementationRead getDestinationImplementation(
-      @Valid DestinationImplementationIdRequestBody destinationImplementationIdRequestBody) {
-    return null;
-  }
+  // DESTINATION SPECIFICATION
 
   @Override
   public DestinationSpecificationRead getDestinationSpecification(
       @Valid DestinationIdRequestBody destinationIdRequestBody) {
+    return destinationSpecificationsHandler.getDestinationSpecification(destinationIdRequestBody);
+  }
+
+  // DESTINATION IMPLEMENTATION
+
+  @Override
+  public DestinationImplementationRead getDestinationImplementation(
+      @Valid DestinationImplementationIdRequestBody destinationImplementationIdRequestBody) {
     return null;
   }
 
