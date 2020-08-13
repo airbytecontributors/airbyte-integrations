@@ -45,7 +45,6 @@ class SourceImplementationsHandlerTest {
     final File implementationFile =
         new File("../dataline-server/src/test/resources/json/TestImplementation.json");
 
-    JsonNode implementationJson;
     try {
       return new ObjectMapper().readTree(implementationFile);
     } catch (IOException e) {
