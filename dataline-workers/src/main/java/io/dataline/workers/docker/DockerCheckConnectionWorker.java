@@ -22,12 +22,17 @@
  * SOFTWARE.
  */
 
-package io.dataline.workers;
+package io.dataline.workers.docker;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.dataline.config.StandardCheckConnectionInput;
 import io.dataline.config.StandardCheckConnectionOutput;
+import io.dataline.workers.CheckConnectionWorker;
+import io.dataline.workers.JobStatus;
+import io.dataline.workers.OutputAndStatus;
+import io.dataline.workers.WorkerUtils;
+import io.dataline.workers.utils.DockerUtils;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
@@ -60,18 +65,16 @@ public class DockerCheckConnectionWorker implements CheckConnectionWorker {
     } catch (JsonProcessingException e) {
       throw new RuntimeException(e);
     }
-    final Path configPath =
-        WorkerUtils.writeFileToWorkspace(workspacePath, INPUT, inputString); // wrong type
+    final Path configPath = WorkerUtils.writeFileToWorkspace(workspacePath, INPUT, inputString);
 
     // run it. patiently.
     try {
-      String[] tapCmd = {
-        "docker", "run", workspacePath.toString(), imageName, "--config", configPath.toString()
-      };
+      String[] cmd =
+          DockerUtils.getDockerCommand(workspacePath, imageName, "--config", configPath.toString());
 
-      LOGGER.debug("Tap command: {}", String.join(" ", tapCmd));
+      LOGGER.debug("Tap command: {}", String.join(" ", cmd));
 
-      tapProcess = new ProcessBuilder().command(tapCmd).start();
+      tapProcess = new ProcessBuilder().command(cmd).start();
 
       while (!tapProcess.waitFor(1, TimeUnit.MINUTES)) {
         LOGGER.debug("Waiting for worker");
