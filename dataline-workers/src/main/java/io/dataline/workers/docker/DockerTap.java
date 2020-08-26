@@ -50,10 +50,7 @@ import org.slf4j.LoggerFactory;
 public class DockerTap implements SyncTap<SingerProtocol> {
   private static final Logger LOGGER = LoggerFactory.getLogger(DockerTap.class);
 
-  private static final String CONFIG_JSON_FILENAME = "input.json";
-  private static final String CATALOG_JSON_FILENAME = "catalog.json";
-
-  private static final String STATE_JSON_FILENAME = "input_state.json";
+  private static final String INPUT_FILENAME = "input.json";
 
   private final String dockerImageName;
 
@@ -65,39 +62,15 @@ public class DockerTap implements SyncTap<SingerProtocol> {
   }
 
   @Override
-  public Iterator<SingerProtocol> run(StandardTapConfig input, Path workspaceRoot)
-      throws InvalidCredentialsException {
+  public Iterator<SingerProtocol> run(StandardTapConfig input, Path workspaceRoot) {
 
-    final ObjectMapper objectMapper = new ObjectMapper();
-    final String inputDotJson;
-
-    try {
-      inputDotJson = objectMapper.writeValueAsString(input);
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
-
-    // write config.json to disk
-    Path configPath =
-        WorkerUtils.writeFileToWorkspace(workspaceRoot, CONFIG_JSON_FILENAME, configDotJson);
-    Path catalogPath =
-        WorkerUtils.writeFileToWorkspace(workspaceRoot, CATALOG_JSON_FILENAME, catalogDotJson);
-    Path statePath =
-        WorkerUtils.writeFileToWorkspace(workspaceRoot, STATE_JSON_FILENAME, stateDotJson);
+    final Path inputPath =
+        WorkerUtils.writeObjectToJsonFileWorkspace(workspaceRoot, INPUT_FILENAME, input);
 
     try {
-
       String[] tapCmd =
           DockerUtils.getDockerCommand(
-              workspaceRoot,
-              dockerImageName,
-              "--config",
-              configPath.toString(),
-              // TODO support both --properties and --catalog depending on integration
-              "--properties",
-              catalogPath.toString(),
-              "--state",
-              statePath.toString());
+              workspaceRoot, dockerImageName, "--input", inputPath.toString());
 
       LOGGER.info("running command: {}", Arrays.toString(tapCmd));
 
@@ -140,15 +113,5 @@ public class DockerTap implements SyncTap<SingerProtocol> {
         throw new RuntimeException(e);
       }
     }
-  }
-
-  private OutputAndStatus<SingerCatalog> runDiscovery(StandardTapConfig input, Path workspaceRoot)
-      throws InvalidCredentialsException {
-    StandardDiscoverSchemaInput discoveryInput = new StandardDiscoverSchemaInput();
-    discoveryInput.setConnectionConfiguration(
-        input.getSourceConnectionImplementation().getConfiguration());
-    Path scopedWorkspace = workspaceRoot.resolve("discovery");
-    return new SingerDiscoverSchemaWorker(dockerImageName)
-        .runInternal(discoveryInput, scopedWorkspace);
   }
 }

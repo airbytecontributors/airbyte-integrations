@@ -58,21 +58,17 @@ public class DockerCheckConnectionWorker implements CheckConnectionWorker {
       StandardCheckConnectionInput standardCheckConnectionInput, Path workspacePath) {
     final ObjectMapper objectMapper = new ObjectMapper();
 
-    // write input struct to docker image
-    final String inputString;
-    try {
-      inputString = objectMapper.writeValueAsString(standardCheckConnectionInput);
-    } catch (JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
-    final Path configPath = WorkerUtils.writeFileToWorkspace(workspacePath, INPUT, inputString);
+    // mount input struct to known location on docker container.
+    final Path configPath =
+        WorkerUtils.writeObjectToJsonFileWorkspace(
+            workspacePath, INPUT, standardCheckConnectionInput);
 
-    // run it. patiently.
+    // run it.
     try {
       String[] cmd =
           DockerUtils.getDockerCommand(workspacePath, imageName, "--config", configPath.toString());
 
-      LOGGER.debug("Tap command: {}", String.join(" ", cmd));
+      LOGGER.debug("Command: {}", String.join(" ", cmd));
 
       tapProcess = new ProcessBuilder().command(cmd).start();
 
@@ -80,10 +76,10 @@ public class DockerCheckConnectionWorker implements CheckConnectionWorker {
         LOGGER.debug("Waiting for worker");
       }
 
-      // read output struct. assume it is written to correct place.
-      final String outputString = WorkerUtils.readFileFromWorkspace(workspacePath, OUTPUT);
+      // read output struct from known location on docker container.
       final StandardCheckConnectionOutput standardCheckConnectionOutput =
-          objectMapper.readValue(outputString, StandardCheckConnectionOutput.class);
+          WorkerUtils.readObjectFromJsonFileWorkspace(
+              workspacePath, OUTPUT, StandardCheckConnectionOutput.class);
 
       return new OutputAndStatus<>(JobStatus.SUCCESSFUL, standardCheckConnectionOutput);
     } catch (IOException | InterruptedException e) {
