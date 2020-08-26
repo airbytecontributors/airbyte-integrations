@@ -28,12 +28,12 @@ import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.dataline.config.SingerProtocol;
+import io.dataline.config.SingerMessage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
 
-public class SingerJsonIterator implements Iterator<SingerProtocol> {
+public class SingerJsonIterator implements Iterator<SingerMessage> {
   private final ObjectMapper objectMapper;
   private final JsonParser jsonParser;
 
@@ -65,9 +65,9 @@ public class SingerJsonIterator implements Iterator<SingerProtocol> {
   }
 
   @Override
-  public SingerProtocol next() {
+  public SingerMessage next() {
     try {
-      return objectMapper.readValue(jsonParser, SingerProtocol.class);
+      return objectMapper.readValue(jsonParser, SingerMessage.class);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }

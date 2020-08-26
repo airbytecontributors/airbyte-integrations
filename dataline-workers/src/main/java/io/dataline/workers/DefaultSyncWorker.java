@@ -24,7 +24,7 @@
 
 package io.dataline.workers;
 
-import io.dataline.config.SingerProtocol;
+import io.dataline.config.SingerMessage;
 import io.dataline.config.StandardSyncInput;
 import io.dataline.config.StandardSyncOutput;
 import io.dataline.config.StandardSyncSummary;
@@ -37,7 +37,9 @@ import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.UUID;
 import java.util.function.Consumer;
+import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.commons.lang3.mutable.MutableLong;
+import org.apache.commons.lang3.mutable.MutableObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,23 +75,29 @@ public class DefaultSyncWorker implements SyncWorker {
     targetConfig.setStandardSync(syncInput.getStandardSync());
 
     final MutableLong recordCount = new MutableLong();
-    Consumer<SingerProtocol> counter =
+    final Mutable<State> outputState = new MutableObject<>();
+    Consumer<SingerMessage> consumer =
         record -> {
-          if (record.getType().equals(SingerProtocol.Type.RECORD)) {
+          if (record.getType().equals(SingerMessage.Type.RECORD)) {
             recordCount.increment();
+          }
+          if (record.getType().equals(SingerMessage.Type.STATE)) {
+            final State state = new State();
+            state.setConnectionId(UUID.randomUUID()); // blah
+            state.setState(record);
+            outputState.setValue(state);
           }
         };
 
-    final State state;
-    try (SyncTap<SingerProtocol> tap = new SingerTap(tapDockerImage)) {
-      final Iterator<SingerProtocol> iterator = tap.run(tapConfig, workspacePath);
+    try (SyncTap<SingerMessage> tap = new SingerTap(tapDockerImage)) {
+      final Iterator<SingerMessage> iterator = tap.run(tapConfig, workspacePath);
       tapCloser = tap::close;
 
-      final Iterator<SingerProtocol> countingIterator = new ConsumerIterator<>(iterator, counter);
-      try (SyncTarget<SingerProtocol> target = new SingerTarget(targetDockerImage)) {
+      final Iterator<SingerMessage> syncIterator = new ConsumerIterator<>(iterator, consumer);
+      try (SyncTarget<SingerMessage> target = new SingerTarget(targetDockerImage)) {
         targetCloser = target::close;
 
-        state = target.run(countingIterator, targetConfig, workspacePath);
+        target.run(syncIterator, targetConfig, workspacePath);
       }
 
     } catch (Exception e) {
@@ -110,7 +118,7 @@ public class DefaultSyncWorker implements SyncWorker {
 
     final StandardSyncOutput output = new StandardSyncOutput();
     output.setStandardSyncSummary(summary);
-    output.setState(state);
+    output.setState(outputState.getValue());
 
     return new OutputAndStatus<>(JobStatus.SUCCESSFUL, output);
   }

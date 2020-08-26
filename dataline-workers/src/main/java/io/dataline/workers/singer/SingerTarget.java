@@ -27,9 +27,8 @@ package io.dataline.workers.singer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Charsets;
-import io.dataline.config.SingerProtocol;
+import io.dataline.config.SingerMessage;
 import io.dataline.config.StandardTargetConfig;
-import io.dataline.config.State;
 import io.dataline.workers.DefaultSyncWorker;
 import io.dataline.workers.SyncTarget;
 import io.dataline.workers.WorkerUtils;
@@ -43,7 +42,7 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SingerTarget implements SyncTarget<SingerProtocol> {
+public class SingerTarget implements SyncTarget<SingerMessage> {
   private static final Logger LOGGER = LoggerFactory.getLogger(SingerTarget.class);
 
   private static final String CONFIG_JSON_FILENAME = "target_config.json";
@@ -56,8 +55,8 @@ public class SingerTarget implements SyncTarget<SingerProtocol> {
   }
 
   @Override
-  public State run(
-      Iterator<SingerProtocol> data, StandardTargetConfig targetConfig, Path workspacePath) {
+  public void run(
+      Iterator<SingerMessage> data, StandardTargetConfig targetConfig, Path workspacePath) {
     final ObjectMapper objectMapper = new ObjectMapper();
     final String configDotJson;
 
@@ -111,11 +110,6 @@ public class SingerTarget implements SyncTarget<SingerProtocol> {
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
     }
-
-    State state = new State();
-    state.setState(WorkerUtils.readFileFromWorkspace(workspacePath, ));
-
-    return state;
   }
 
   @Override

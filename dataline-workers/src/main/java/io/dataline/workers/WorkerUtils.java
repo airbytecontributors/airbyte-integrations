@@ -26,7 +26,6 @@ package io.dataline.workers;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.dataline.config.StandardCheckConnectionOutput;
 import io.dataline.workers.singer.BaseSingerWorker;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

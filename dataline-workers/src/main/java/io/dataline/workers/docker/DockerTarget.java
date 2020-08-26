@@ -24,31 +24,27 @@
 
 package io.dataline.workers.docker;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Charsets;
-import io.dataline.config.SingerProtocol;
+import io.dataline.config.SingerMessage;
 import io.dataline.config.StandardTargetConfig;
-import io.dataline.config.State;
 import io.dataline.workers.DefaultSyncWorker;
 import io.dataline.workers.SyncTarget;
 import io.dataline.workers.WorkerUtils;
 import io.dataline.workers.utils.DockerUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class DockerTarget implements SyncTarget<SingerProtocol> {
+public class DockerTarget implements SyncTarget<SingerMessage> {
   private static final Logger LOGGER = LoggerFactory.getLogger(DockerTarget.class);
 
-  private static final String CONFIG_JSON_FILENAME = "target_config.json";
-  private static final String OUTPUT_STATE_FILENAME = "output_state.json";
+  private static final String CONFIG_JSON_FILENAME = "input.json";
 
   private final String dockerImageName;
   private Process targetProcess;
@@ -58,8 +54,8 @@ public class DockerTarget implements SyncTarget<SingerProtocol> {
   }
 
   @Override
-  public State run(
-      Iterator<SingerProtocol> data, StandardTargetConfig targetConfig, Path workspacePath) {
+  public void run(
+      Iterator<SingerMessage> data, StandardTargetConfig targetConfig, Path workspacePath) {
 
     final Path configPath =
         WorkerUtils.writeObjectToJsonFileWorkspace(
@@ -73,7 +69,6 @@ public class DockerTarget implements SyncTarget<SingerProtocol> {
       targetProcess =
           new ProcessBuilder()
               .command(dockerCmd)
-              .redirectOutput(workspacePath.resolve(OUTPUT_STATE_FILENAME).toFile())
               .redirectError(workspacePath.resolve(DefaultSyncWorker.TARGET_ERR_LOG).toFile())
               .start();
 
@@ -105,11 +100,6 @@ public class DockerTarget implements SyncTarget<SingerProtocol> {
     } catch (InterruptedException e) {
       throw new RuntimeException(e);
     }
-
-    State state = new State();
-    state.setState(WorkerUtils.readFileFromWorkspace(workspacePath, OUTPUT_STATE_FILENAME));
-
-    return state;
   }
 
   @Override

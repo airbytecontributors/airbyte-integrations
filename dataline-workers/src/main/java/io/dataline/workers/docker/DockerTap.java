@@ -24,19 +24,12 @@
 
 package io.dataline.workers.docker;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.dataline.config.SingerCatalog;
-import io.dataline.config.SingerProtocol;
-import io.dataline.config.StandardDiscoverSchemaInput;
+import io.dataline.config.SingerMessage;
 import io.dataline.config.StandardTapConfig;
 import io.dataline.workers.DefaultSyncWorker;
-import io.dataline.workers.InvalidCredentialsException;
-import io.dataline.workers.OutputAndStatus;
 import io.dataline.workers.SyncTap;
 import io.dataline.workers.WorkerUtils;
 import io.dataline.workers.protocol.SingerJsonIterator;
-import io.dataline.workers.singer.SingerDiscoverSchemaWorker;
 import io.dataline.workers.utils.DockerUtils;
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,7 +40,7 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DockerTap implements SyncTap<SingerProtocol> {
+public class DockerTap implements SyncTap<SingerMessage> {
   private static final Logger LOGGER = LoggerFactory.getLogger(DockerTap.class);
 
   private static final String INPUT_FILENAME = "input.json";
@@ -62,7 +55,7 @@ public class DockerTap implements SyncTap<SingerProtocol> {
   }
 
   @Override
-  public Iterator<SingerProtocol> run(StandardTapConfig input, Path workspaceRoot) {
+  public Iterator<SingerMessage> run(StandardTapConfig input, Path workspaceRoot) {
 
     final Path inputPath =
         WorkerUtils.writeObjectToJsonFileWorkspace(workspaceRoot, INPUT_FILENAME, input);
