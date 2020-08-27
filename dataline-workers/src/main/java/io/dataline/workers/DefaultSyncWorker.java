@@ -30,17 +30,12 @@ import io.dataline.config.StandardSyncOutput;
 import io.dataline.config.StandardSyncSummary;
 import io.dataline.config.StandardTapConfig;
 import io.dataline.config.StandardTargetConfig;
-import io.dataline.config.State;
 import io.dataline.workers.protocol.SingerMessageTracker;
 import io.dataline.workers.singer.SingerTap;
 import io.dataline.workers.singer.SingerTarget;
 import java.nio.file.Path;
 import java.util.UUID;
-import java.util.function.Consumer;
 import java.util.stream.Stream;
-import org.apache.commons.lang3.mutable.Mutable;
-import org.apache.commons.lang3.mutable.MutableLong;
-import org.apache.commons.lang3.mutable.MutableObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
