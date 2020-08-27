@@ -26,11 +26,9 @@ package io.dataline.workers;
 
 import io.dataline.config.StandardTargetConfig;
 import java.nio.file.Path;
-import java.util.Iterator;
+import java.util.stream.Stream;
 
 public interface SyncTarget<T> extends AutoCloseable {
-  void run(Iterator<T> data, StandardTargetConfig targetConfig, Path workspacePath)
+  void run(Stream<T> data, StandardTargetConfig targetConfig, Path workspacePath)
       throws SyncException;
-
-  void cancel();
 }

@@ -36,8 +36,8 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.file.Path;
-import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,7 +55,7 @@ public class DockerTarget implements SyncTarget<SingerMessage> {
 
   @Override
   public void run(
-      Iterator<SingerMessage> data, StandardTargetConfig targetConfig, Path workspacePath) {
+      Stream<SingerMessage> data, StandardTargetConfig targetConfig, Path workspacePath) {
 
     final Path configPath =
         WorkerUtils.writeObjectToJsonFileWorkspace(
@@ -77,7 +77,7 @@ public class DockerTarget implements SyncTarget<SingerMessage> {
               new OutputStreamWriter(targetProcess.getOutputStream(), Charsets.UTF_8))) {
 
         final ObjectMapper objectMapper = new ObjectMapper();
-        data.forEachRemaining(
+        data.forEach(
             record -> {
               try {
                 writer.write(objectMapper.writeValueAsString(record));
@@ -103,12 +103,7 @@ public class DockerTarget implements SyncTarget<SingerMessage> {
   }
 
   @Override
-  public void cancel() {
-    WorkerUtils.cancelHelper(targetProcess);
-  }
-
-  @Override
   public void close() {
-    // no op.
+    WorkerUtils.cancelHelper(targetProcess);
   }
 }

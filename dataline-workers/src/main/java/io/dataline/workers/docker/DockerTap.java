@@ -24,6 +24,7 @@
 
 package io.dataline.workers.docker;
 
+import com.google.common.collect.Streams;
 import io.dataline.config.SingerMessage;
 import io.dataline.config.StandardTapConfig;
 import io.dataline.workers.DefaultSyncWorker;
@@ -35,8 +36,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Iterator;
-import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,15 +47,16 @@ public class DockerTap implements SyncTap<SingerMessage> {
 
   private final String dockerImageName;
 
-  private Process tapProcess;
-  private InputStream stdout;
+  private Process tapProcess = null;
+  private InputStream stdout = null;
 
   public DockerTap(String dockerImageName) {
     this.dockerImageName = dockerImageName;
   }
 
+  @SuppressWarnings("UnstableApiUsage")
   @Override
-  public Iterator<SingerMessage> run(StandardTapConfig input, Path workspaceRoot) {
+  public Stream<SingerMessage> run(StandardTapConfig input, Path workspaceRoot) {
 
     final Path inputPath =
         WorkerUtils.writeObjectToJsonFileWorkspace(workspaceRoot, INPUT_FILENAME, input);
@@ -77,13 +78,8 @@ public class DockerTap implements SyncTap<SingerMessage> {
       throw new RuntimeException(e);
     }
 
-    final InputStream stdout = tapProcess.getInputStream();
-    return new SingerJsonIterator(stdout);
-  }
-
-  @Override
-  public void cancel() {
-    WorkerUtils.cancelHelper(tapProcess);
+    stdout = tapProcess.getInputStream();
+    return Streams.stream(new SingerJsonIterator(stdout));
   }
 
   @Override
@@ -92,19 +88,10 @@ public class DockerTap implements SyncTap<SingerMessage> {
       try {
         stdout.close();
       } catch (IOException e) {
-        throw new RuntimeException();
-      }
-    }
-
-    if (tapProcess != null) {
-      try {
-        while (!tapProcess.waitFor(1, TimeUnit.MINUTES)) {
-          LOGGER.debug(
-              "Waiting for sync worker (job:{}) target", ""); // TODO when job id is passed in
-        }
-      } catch (InterruptedException e) {
         throw new RuntimeException(e);
       }
     }
+
+    WorkerUtils.cancelHelper(tapProcess);
   }
 }

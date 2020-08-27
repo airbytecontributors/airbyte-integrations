@@ -38,13 +38,13 @@ public class SingerJsonIterator implements Iterator<SingerMessage> {
   private final JsonParser jsonParser;
 
   // https://cassiomolin.com/2019/08/19/combining-jackson-streaming-api-with-objectmapper-for-parsing-json/
-  public SingerJsonIterator(InputStream is) {
+  public SingerJsonIterator(InputStream inputStream) {
     this.objectMapper = new ObjectMapper();
     //      mapper.registerModule(new JavaTimeModule());
     objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
     try {
-      jsonParser = objectMapper.getFactory().createParser(is);
+      jsonParser = objectMapper.getFactory().createParser(inputStream);
 
       // Check the first token
       if (jsonParser.nextToken() != JsonToken.START_ARRAY) {

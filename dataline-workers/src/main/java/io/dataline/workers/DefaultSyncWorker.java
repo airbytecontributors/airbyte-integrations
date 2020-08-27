@@ -31,12 +31,13 @@ import io.dataline.config.StandardSyncSummary;
 import io.dataline.config.StandardTapConfig;
 import io.dataline.config.StandardTargetConfig;
 import io.dataline.config.State;
+import io.dataline.workers.protocol.SingerMessageTracker;
 import io.dataline.workers.singer.SingerTap;
 import io.dataline.workers.singer.SingerTarget;
 import java.nio.file.Path;
-import java.util.Iterator;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 import org.apache.commons.lang3.mutable.Mutable;
 import org.apache.commons.lang3.mutable.MutableLong;
 import org.apache.commons.lang3.mutable.MutableObject;
@@ -61,8 +62,7 @@ public class DefaultSyncWorker implements SyncWorker {
   }
 
   @Override
-  public OutputAndStatus<StandardSyncOutput> run(StandardSyncInput syncInput, Path workspacePath)
-      throws InvalidCredentialsException, InvalidCatalogException {
+  public OutputAndStatus<StandardSyncOutput> run(StandardSyncInput syncInput, Path workspacePath) {
     long startTime = System.currentTimeMillis();
 
     final StandardTapConfig tapConfig = new StandardTapConfig();
@@ -74,30 +74,17 @@ public class DefaultSyncWorker implements SyncWorker {
         syncInput.getDestinationConnectionImplementation());
     targetConfig.setStandardSync(syncInput.getStandardSync());
 
-    final MutableLong recordCount = new MutableLong();
-    final Mutable<State> outputState = new MutableObject<>();
-    Consumer<SingerMessage> consumer =
-        record -> {
-          if (record.getType().equals(SingerMessage.Type.RECORD)) {
-            recordCount.increment();
-          }
-          if (record.getType().equals(SingerMessage.Type.STATE)) {
-            final State state = new State();
-            state.setConnectionId(UUID.randomUUID()); // blah
-            state.setState(record);
-            outputState.setValue(state);
-          }
-        };
-
+    final SingerMessageTracker singerMessageTracker =
+        new SingerMessageTracker(syncInput.getStandardSync().getConnectionId());
     try (SyncTap<SingerMessage> tap = new SingerTap(tapDockerImage)) {
-      final Iterator<SingerMessage> iterator = tap.run(tapConfig, workspacePath);
+      final Stream<SingerMessage> tapStream = tap.run(tapConfig, workspacePath);
       tapCloser = tap::close;
 
-      final Iterator<SingerMessage> syncIterator = new ConsumerIterator<>(iterator, consumer);
+      final Stream<SingerMessage> peakedTapStream = tapStream.peek(singerMessageTracker);
       try (SyncTarget<SingerMessage> target = new SingerTarget(targetDockerImage)) {
         targetCloser = target::close;
 
-        target.run(syncIterator, targetConfig, workspacePath);
+        target.run(peakedTapStream, targetConfig, workspacePath);
       }
 
     } catch (Exception e) {
@@ -110,7 +97,7 @@ public class DefaultSyncWorker implements SyncWorker {
     }
 
     StandardSyncSummary summary = new StandardSyncSummary();
-    summary.setRecordsSynced(recordCount.getValue());
+    summary.setRecordsSynced(singerMessageTracker.getRecordCount());
     summary.setStartTime(startTime);
     summary.setEndTime(System.currentTimeMillis());
     summary.setJobId(UUID.randomUUID()); // TODO this is not input anywhere
@@ -118,7 +105,7 @@ public class DefaultSyncWorker implements SyncWorker {
 
     final StandardSyncOutput output = new StandardSyncOutput();
     output.setStandardSyncSummary(summary);
-    output.setState(outputState.getValue());
+    singerMessageTracker.getOutputState().ifPresent(output::setState);
 
     return new OutputAndStatus<>(JobStatus.SUCCESSFUL, output);
   }

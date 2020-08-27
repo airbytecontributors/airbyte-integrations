@@ -37,8 +37,8 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.file.Path;
-import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,7 +56,7 @@ public class SingerTarget implements SyncTarget<SingerMessage> {
 
   @Override
   public void run(
-      Iterator<SingerMessage> data, StandardTargetConfig targetConfig, Path workspacePath) {
+      Stream<SingerMessage> data, StandardTargetConfig targetConfig, Path workspacePath) {
     final ObjectMapper objectMapper = new ObjectMapper();
     final String configDotJson;
 
@@ -87,7 +87,7 @@ public class SingerTarget implements SyncTarget<SingerMessage> {
           new BufferedWriter(
               new OutputStreamWriter(targetProcess.getOutputStream(), Charsets.UTF_8))) {
 
-        data.forEachRemaining(
+        data.forEach(
             record -> {
               try {
                 writer.write(objectMapper.writeValueAsString(record));
@@ -113,12 +113,7 @@ public class SingerTarget implements SyncTarget<SingerMessage> {
   }
 
   @Override
-  public void cancel() {
-    WorkerUtils.cancelHelper(targetProcess);
-  }
-
-  @Override
   public void close() {
-    // no op.
+    WorkerUtils.cancelHelper(targetProcess);
   }
 }

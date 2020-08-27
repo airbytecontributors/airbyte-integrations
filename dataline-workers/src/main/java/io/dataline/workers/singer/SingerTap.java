@@ -26,6 +26,7 @@ package io.dataline.workers.singer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Streams;
 import io.dataline.config.SingerCatalog;
 import io.dataline.config.SingerMessage;
 import io.dataline.config.StandardDiscoverSchemaInput;
@@ -41,8 +42,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Iterator;
-import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,15 +56,16 @@ public class SingerTap implements SyncTap<SingerMessage> {
 
   private final String dockerImageName;
 
-  private Process tapProcess;
-  private InputStream stdout;
+  private Process tapProcess = null;
+  private InputStream stdout = null;
 
   public SingerTap(String dockerImageName) {
     this.dockerImageName = dockerImageName;
   }
 
+  @SuppressWarnings("UnstableApiUsage")
   @Override
-  public Iterator<SingerMessage> run(StandardTapConfig input, Path workspaceRoot)
+  public Stream<SingerMessage> run(StandardTapConfig input, Path workspaceRoot)
       throws InvalidCredentialsException {
     OutputAndStatus<SingerCatalog> discoveryOutput = runDiscovery(input, workspaceRoot);
 
@@ -120,13 +121,8 @@ public class SingerTap implements SyncTap<SingerMessage> {
       throw new RuntimeException(e);
     }
 
-    final InputStream stdout = tapProcess.getInputStream();
-    return new SingerJsonIterator(stdout);
-  }
-
-  @Override
-  public void cancel() {
-    WorkerUtils.cancelHelper(tapProcess);
+    stdout = tapProcess.getInputStream();
+    return Streams.stream(new SingerJsonIterator(stdout));
   }
 
   @Override
@@ -139,16 +135,7 @@ public class SingerTap implements SyncTap<SingerMessage> {
       }
     }
 
-    if (tapProcess != null) {
-      try {
-        while (!tapProcess.waitFor(1, TimeUnit.MINUTES)) {
-          LOGGER.debug(
-              "Waiting for sync worker (job:{}) target", ""); // TODO when job id is passed in
-        }
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
-    }
+    WorkerUtils.cancelHelper(tapProcess);
   }
 
   private OutputAndStatus<SingerCatalog> runDiscovery(StandardTapConfig input, Path workspaceRoot)
