@@ -8,37 +8,39 @@ import org.apache.commons.lang3.mutable.MutableObject;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 public class SingerMessageTracker implements Consumer<SingerMessage> {
-  private final MutableLong recordCount;
-  private final Mutable<State> outputState;
+  private final AtomicLong recordCount;
+  private final AtomicReference<State> outputState;
   private final UUID connectionId;
 
   public SingerMessageTracker(UUID connectionId) {
     this.connectionId = connectionId;
-    this.recordCount = new MutableLong();
-    this.outputState = new MutableObject<>();
+    this.recordCount = new AtomicLong();
+    this.outputState = new AtomicReference<>();
   }
 
   @Override
   public void accept(SingerMessage record) {
     if (record.getType().equals(SingerMessage.Type.RECORD)) {
-      recordCount.increment();
+      recordCount.incrementAndGet();
     }
     if (record.getType().equals(SingerMessage.Type.STATE)) {
       final State state = new State();
       state.setConnectionId(connectionId);
       state.setState(record);
-      outputState.setValue(state);
+      outputState.set(state);
     }
   }
 
   public long getRecordCount() {
-    return recordCount.getValue();
+    return recordCount.get();
   }
 
   public Optional<State> getOutputState() {
-    return Optional.ofNullable(outputState.getValue());
+    return Optional.ofNullable(outputState.get());
   }
 }
