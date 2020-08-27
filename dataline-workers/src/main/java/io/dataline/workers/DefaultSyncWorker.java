@@ -31,9 +31,10 @@ import io.dataline.config.StandardSyncSummary;
 import io.dataline.config.StandardTapConfig;
 import io.dataline.config.StandardTargetConfig;
 import io.dataline.workers.protocol.SingerMessageTracker;
-import io.dataline.workers.singer.SingerTap;
+import io.dataline.workers.singer.SingerTapFactory;
 import io.dataline.workers.singer.SingerTarget;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
@@ -48,8 +49,8 @@ public class DefaultSyncWorker implements SyncWorker {
   private final String tapDockerImage;
   private final String targetDockerImage;
 
-  AutoCloseable tapCloser = null;
-  AutoCloseable targetCloser = null;
+  Runnable tapCloser = null;
+  Runnable targetCloser = null;
 
   public DefaultSyncWorker(String tapDockerImage, String targetDockerImage) {
     this.tapDockerImage = tapDockerImage;
@@ -71,15 +72,15 @@ public class DefaultSyncWorker implements SyncWorker {
 
     final SingerMessageTracker singerMessageTracker =
         new SingerMessageTracker(syncInput.getStandardSync().getConnectionId());
-    try (SyncTap<SingerMessage> tap = new SingerTap(tapDockerImage)) {
-      final Stream<SingerMessage> tapStream = tap.run(tapConfig, workspacePath);
+    try (Stream<SingerMessage> tap =
+        new SingerTapFactory(tapDockerImage).create(tapConfig, workspacePath)) {
       tapCloser = tap::close;
 
-      final Stream<SingerMessage> peakedTapStream = tapStream.peek(singerMessageTracker);
-      try (SyncTarget<SingerMessage> target = new SingerTarget(targetDockerImage)) {
-        targetCloser = target::close;
+      final Stream<SingerMessage> peakedTapStream = tap.peek(singerMessageTracker);
+      try (Target<SingerMessage> target = new SingerTarget(targetDockerImage)) {
+        targetCloser = getTargetCloser(target);
 
-        target.run(peakedTapStream, targetConfig, workspacePath);
+        target.consume(peakedTapStream, targetConfig, workspacePath);
       }
 
     } catch (Exception e) {
@@ -105,17 +106,19 @@ public class DefaultSyncWorker implements SyncWorker {
     return new OutputAndStatus<>(JobStatus.SUCCESSFUL, output);
   }
 
+  private Runnable getTargetCloser(Target<SingerMessage> target) {
+    return () -> {
+      try {
+        target.close();
+      } catch (Exception e) {
+        LOGGER.error("Failed to close target", e);
+      }
+    };
+  }
+
   @Override
   public void cancel() {
-    try {
-      if (tapCloser != null) {
-        tapCloser.close();
-      }
-      if (targetCloser != null) {
-        targetCloser.close();
-      }
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
+    Optional.ofNullable(tapCloser).ifPresent(Runnable::run);
+    Optional.ofNullable(targetCloser).ifPresent(Runnable::run);
   }
 }

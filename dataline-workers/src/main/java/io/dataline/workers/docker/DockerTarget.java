@@ -29,7 +29,7 @@ import com.google.common.base.Charsets;
 import io.dataline.config.SingerMessage;
 import io.dataline.config.StandardTargetConfig;
 import io.dataline.workers.DefaultSyncWorker;
-import io.dataline.workers.SyncTarget;
+import io.dataline.workers.Target;
 import io.dataline.workers.WorkerUtils;
 import io.dataline.workers.utils.DockerUtils;
 import java.io.BufferedWriter;
@@ -41,7 +41,7 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DockerTarget implements SyncTarget<SingerMessage> {
+public class DockerTarget implements Target<SingerMessage> {
   private static final Logger LOGGER = LoggerFactory.getLogger(DockerTarget.class);
 
   private static final String CONFIG_JSON_FILENAME = "input.json";
@@ -54,7 +54,7 @@ public class DockerTarget implements SyncTarget<SingerMessage> {
   }
 
   @Override
-  public void run(
+  public void consume(
       Stream<SingerMessage> data, StandardTargetConfig targetConfig, Path workspacePath) {
 
     final Path configPath =

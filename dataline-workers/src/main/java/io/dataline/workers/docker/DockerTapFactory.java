@@ -28,7 +28,7 @@ import com.google.common.collect.Streams;
 import io.dataline.config.SingerMessage;
 import io.dataline.config.StandardTapConfig;
 import io.dataline.workers.DefaultSyncWorker;
-import io.dataline.workers.SyncTap;
+import io.dataline.workers.TapFactory;
 import io.dataline.workers.WorkerUtils;
 import io.dataline.workers.protocol.SingerJsonIterator;
 import io.dataline.workers.utils.DockerUtils;
@@ -40,8 +40,8 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class DockerTap implements SyncTap<SingerMessage> {
-  private static final Logger LOGGER = LoggerFactory.getLogger(DockerTap.class);
+public class DockerTapFactory implements TapFactory<SingerMessage> {
+  private static final Logger LOGGER = LoggerFactory.getLogger(DockerTapFactory.class);
 
   private static final String INPUT_FILENAME = "input.json";
 
@@ -50,13 +50,13 @@ public class DockerTap implements SyncTap<SingerMessage> {
   private Process tapProcess = null;
   private InputStream stdout = null;
 
-  public DockerTap(String dockerImageName) {
+  public DockerTapFactory(String dockerImageName) {
     this.dockerImageName = dockerImageName;
   }
 
   @SuppressWarnings("UnstableApiUsage")
   @Override
-  public Stream<SingerMessage> run(StandardTapConfig input, Path workspaceRoot) {
+  public Stream<SingerMessage> create(StandardTapConfig input, Path workspaceRoot) {
 
     final Path inputPath =
         WorkerUtils.writeObjectToJsonFileWorkspace(workspaceRoot, INPUT_FILENAME, input);
@@ -79,19 +79,20 @@ public class DockerTap implements SyncTap<SingerMessage> {
     }
 
     stdout = tapProcess.getInputStream();
-    return Streams.stream(new SingerJsonIterator(stdout));
+    return Streams.stream(new SingerJsonIterator(stdout)).onClose(getCloseFunction());
   }
 
-  @Override
-  public void close() {
-    if (stdout != null) {
-      try {
-        stdout.close();
-      } catch (IOException e) {
-        throw new RuntimeException(e);
+  public Runnable getCloseFunction() {
+    return () -> {
+      if (stdout != null) {
+        try {
+          stdout.close();
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
       }
-    }
 
-    WorkerUtils.cancelHelper(tapProcess);
+      WorkerUtils.cancelHelper(tapProcess);
+    };
   }
 }
