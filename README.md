@@ -4,12 +4,11 @@
 ![](docs/.gitbook/assets/dataline_light-background%20%281%29.svg)
 
 
-<div style="text-align: center;">**Data integration made simple, secure and reliable**</div>  
-<div style="text-align: center;"> The new open-source standard to sync data from applications & databases to warehouses.</div>
+**Data integration made simple, secure and reliable**  
+The new open-source standard to sync data from applications & databases to warehouses.
 
 
 # Getting Started
-
 [![](https://dataline.io/wp-content/uploads/2020/08/Deploy-with-Docker.png)](https://docs.dataline.io/deployment/deploying-dataline)
 
 ![](https://dataline.io/wp-content/uploads/2020/08/Sources_List.png)
