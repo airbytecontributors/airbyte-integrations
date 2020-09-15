@@ -1,11 +1,14 @@
-# Getting Started
 
  ![GitHub Workflow Status](https://img.shields.io/github/workflow/status/datalineio/dataline/Dataline%20CI) ![License](https://img.shields.io/github/license/datalineio/dataline)
 
 ![](docs/.gitbook/assets/dataline_light-background%20%281%29.svg)
 
-**Data integration made simple, secure and reliable**  
-The new open-source standard to sync data from applications & databases to warehouses.
+
+<div style="text-align: center;">**Data integration made simple, secure and reliable**</div>  
+<div style="text-align: center;"> The new open-source standard to sync data from applications & databases to warehouses.</div>
+
+
+# Getting Started
 
 [![](https://dataline.io/wp-content/uploads/2020/08/Deploy-with-Docker.png)](https://docs.dataline.io/deployment/deploying-dataline)
 
