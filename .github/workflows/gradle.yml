@@ -8,14 +8,14 @@ jobs:
       GRADLE_PATH: /tmp/gradle
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout Airbyte
+        uses: actions/checkout@v2
       - name: Setup key
         run: ./tools/ci/install_secrets.sh
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           GPG_KEY: ${{ secrets.GPG_KEY }}
 
-      - name: Checkout Airbyte
-        uses: actions/checkout@v2
 
       - name: Cache java deps
         uses: actions/cache@v2
