@@ -8,7 +8,7 @@ DOCKERFILE=tools/git-crypt/Dockerfile
 IMAGE=$(_docker_get_current_image $DOCKERFILE)
 
 function run_git-crypt() {
-  docker run --rm -it \
+  docker run --rm \
     -v ~/.gnupg:/root/.gnupg \
     -v "$(pwd)":/code \
     -w /code \
