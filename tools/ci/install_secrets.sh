@@ -20,6 +20,8 @@ function install_git-crypt() {
 #gpg --import ${TARBALL}.asc
 #gpg --verify ${TARBALL}.asc $TARBALL
 
+install_git
+
 $GIT_CRYPT_BIN
 
 #echo "$GPG_KEY" > private.key
