@@ -20,7 +20,7 @@ function install_git-crypt() {
 #gpg --import ${TARBALL}.asc
 #gpg --verify ${TARBALL}.asc $TARBALL
 
-install_git
+install_git-crypt
 
 $GIT_CRYPT_BIN
 
