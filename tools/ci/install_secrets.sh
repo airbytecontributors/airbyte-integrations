@@ -3,21 +3,24 @@
 set -ex
 
 WORKDIR=$(mktemp -d)
-APP=git-crypt-0.6.0
-SOURCES=https://www.agwa.name/projects/git-crypt/downloads/$APP.tar.gz
-TARBALL=$(basename $SOURCES)
+GIT_CRYPT_RELEASE=git-crypt-0.6.0
 
-cp tools/ci/${TARBALL}.asc "$WORKDIR"
-cd $WORKDIR
-wget $SOURCES
+GIT_CRYPT_BIN=
+
+function install_git-crypt() {
+  local tarball=$GIT_CRYPT_RELEASE.tar.gz
+  cd $WORKDIR
+  wget https://www.agwa.name/projects/git-crypt/downloads/$tarball
+  tar zxf $tarball
+  cd $GIT_CRYPT_RELEASE
+  make
+  GIT_CRYPT_BIN=$WORKDIR/$GIT_CRYPT_RELEASE/git-crypt
+}
+
 #gpg --import ${TARBALL}.asc
 #gpg --verify ${TARBALL}.asc $TARBALL
-tar  zxf $TARBALL
-cd $APP
-echo $PATH
-make && make install PREFIX=/usr/local
 
-git-crypt
+$GIT_CRYPT_BIN
 
 #echo "$GPG_KEY" > private.key
 #echo "$GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 --import private.key
