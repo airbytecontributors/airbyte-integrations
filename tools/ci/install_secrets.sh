@@ -9,7 +9,6 @@ GIT_CRYPT_BIN=
 
 function install_git-crypt() {
   local tarball=$GIT_CRYPT_RELEASE.tar.gz
-  cd $WORKDIR
   wget https://www.agwa.name/projects/git-crypt/downloads/$tarball
   tar zxf $tarball
   cd $GIT_CRYPT_RELEASE
@@ -20,7 +19,7 @@ function install_git-crypt() {
 #gpg --import ${TARBALL}.asc
 #gpg --verify ${TARBALL}.asc $TARBALL
 
-install_git-crypt
+( cd $WORKDIR && install_git-crypt )
 
 $GIT_CRYPT_BIN
 
