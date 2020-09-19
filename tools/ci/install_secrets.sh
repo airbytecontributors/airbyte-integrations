@@ -4,8 +4,7 @@ set -ex
 
 WORKDIR=$(mktemp -d)
 GIT_CRYPT_RELEASE=git-crypt-0.6.0
-
-GIT_CRYPT_BIN=
+GIT_CRYPT_BIN=$WORKDIR/$GIT_CRYPT_RELEASE/git-crypt
 
 function install_git-crypt() {
   local tarball=$GIT_CRYPT_RELEASE.tar.gz
@@ -13,7 +12,6 @@ function install_git-crypt() {
   tar zxf $tarball
   cd $GIT_CRYPT_RELEASE
   make
-  GIT_CRYPT_BIN=$WORKDIR/$GIT_CRYPT_RELEASE/git-crypt
 }
 
 #gpg --import ${TARBALL}.asc
