@@ -14,7 +14,8 @@ wget $SOURCES
 #gpg --verify ${TARBALL}.asc $TARBALL
 tar  zxf $TARBALL
 cd $APP
-make
+make && make install
+git-crypt
 
 #echo "$GPG_KEY" > private.key
 #echo "$GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 --import private.key
