@@ -2,6 +2,8 @@
 
 set -ex
 
+. tools/lib/lib.sh
+
 WORKDIR=$(mktemp -d)
 GIT_CRYPT_RELEASE=git-crypt-0.6.0
 GIT_CRYPT_BIN=$WORKDIR/$GIT_CRYPT_RELEASE/git-crypt
@@ -26,9 +28,9 @@ function install_gpg_key() {
 ( cd $WORKDIR && install_git-crypt )
 install_gpg_key
 
-cat secrets/encryption_probe
+[ "$(cat secrets/encryption_probe)" != "decrypted" ] || error "Secret shouldn't be visible. Something very wrong is happening."
 
 $GIT_CRYPT_BIN unlock
 
-cat secrets/encryption_probe
+[ "$(cat secrets/encryption_probe)" == "decrypted" ] || error "Secret should now be visible."
 
