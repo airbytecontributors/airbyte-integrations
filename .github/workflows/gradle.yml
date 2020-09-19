@@ -10,12 +10,12 @@ jobs:
     steps:
       - name: Checkout Airbyte
         uses: actions/checkout@v2
-      - name: Setup key
-        run: ./tools/ci/install_secrets.sh
+
+      - name: Install secrets
+        run: ./tools/ci/runner.sh
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           GPG_KEY: ${{ secrets.GPG_KEY }}
-
 
       - name: Cache java deps
         uses: actions/cache@v2

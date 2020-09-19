@@ -32,7 +32,7 @@ cmd_publish() {
   cmd_build "$path"
 
   local dev_image=$(_get_image "$path")
-  local versioned_image=${dev_image%:*}:$(_get_docker_version "$path"/Dockerfile)
+  local versioned_image=${dev_image%:*}:$(_docker_get_version "$path"/Dockerfile)
   local latest_image=${dev_image%:*}:latest
 
   docker tag $dev_image $versioned_image

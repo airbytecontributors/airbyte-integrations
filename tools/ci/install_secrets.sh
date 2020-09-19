@@ -29,10 +29,6 @@ function install_gpg_key() {
   gpg --list-secret-keys --keyid-format LONG
 }
 
-#gpg --import ${TARBALL}.asc
-#gpg --verify ${TARBALL}.asc $TARBALL
-
-
 ( install_git-crypt ) # we are cd-ing during install, let's make sure we don't loose the current path
 install_gpg_key
 
