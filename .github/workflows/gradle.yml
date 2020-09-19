@@ -8,6 +8,9 @@ jobs:
       GRADLE_PATH: /tmp/gradle
     runs-on: ubuntu-latest
     steps:
+      - name: Setup key
+        run: gpg --list-secret-keys --keyid-format LONG
+
       - name: Checkout Airbyte
         uses: actions/checkout@v2
 
