@@ -14,10 +14,17 @@ function install_git-crypt() {
   make
 }
 
+function install_gpg_key() {
+  echo "$GPG_KEY" > $WORKDIR/private.key
+  echo "$GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 --import $WORKDIR/private.key
+  gpg --list-secret-keys --keyid-format LONG
+}
+
 #gpg --import ${TARBALL}.asc
 #gpg --verify ${TARBALL}.asc $TARBALL
 
 ( cd $WORKDIR && install_git-crypt )
+install_gpg_key
 
 cat secrets/encryption_probe
 
@@ -25,7 +32,3 @@ $GIT_CRYPT_BIN unlock
 
 cat secrets/encryption_probe
 
-#echo "$GPG_KEY" > private.key
-#echo "$GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 --import private.key
-#rm private.key
-#gpg --list-secret-keys --keyid-format LONG
