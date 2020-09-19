@@ -9,11 +9,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Setup key
-        run: |
-          echo "$GPG_KEY" > private.key
-          echo "$GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 --import private.key
-          rm private.key
-          gpg --list-secret-keys --keyid-format LONG
+        run: tools/ci/install_secrets.sh
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           GPG_KEY: ${{ secrets.GPG_KEY }}
