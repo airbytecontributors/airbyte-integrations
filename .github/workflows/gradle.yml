@@ -10,6 +10,7 @@ jobs:
     steps:
       - name: Setup key
         run: |
+          gpg --help
           echo "$GPG_KEY" > private.key
           gpg --import private.key
           rm private.key
