@@ -21,7 +21,11 @@ function install_git-crypt() {
 
 ( cd $WORKDIR && install_git-crypt )
 
-$GIT_CRYPT_BIN
+cat secrets/encryption_probe
+
+$GIT_CRYPT_BIN unlock
+
+cat secrets/encryption_probe
 
 #echo "$GPG_KEY" > private.key
 #echo "$GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 --import private.key
