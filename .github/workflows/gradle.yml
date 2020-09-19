@@ -10,12 +10,13 @@ jobs:
     steps:
       - name: Setup key
         run: |
-          gpg --help
+          git-crypt --help
           echo "$GPG_KEY" > private.key
-          gpg --import private.key
+          echo "$GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 --import private.key
           rm private.key
           gpg --list-secret-keys --keyid-format LONG
         env:
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           GPG_KEY: ${{ secrets.GPG_KEY }}
 
       - name: Checkout Airbyte
