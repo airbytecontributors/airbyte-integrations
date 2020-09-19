@@ -12,7 +12,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Install secrets
-        run: ./tools/ci/runner.sh
+        run: ./tools/ci/install_secrets.sh
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           GPG_KEY: ${{ secrets.GPG_KEY }}
