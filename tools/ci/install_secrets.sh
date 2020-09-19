@@ -15,6 +15,7 @@ function install_git-crypt() {
 
   cd $WORKDIR
   wget https://www.agwa.name/projects/git-crypt/downloads/$tarball
+  gpg --keyserver hkp://pool.sks-keyservers.net --recv-key 0xEF5D84C1838F2EB6D8968C0410378EFC2080080C
   gpg --verify $tarball.asc $tarball
 
   tar zxf $tarball
