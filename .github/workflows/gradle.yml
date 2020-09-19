@@ -10,7 +10,7 @@ jobs:
     steps:
       - name: Setup key
         run: |
-          git-crypt --help
+#          git-crypt --help
           echo "$GPG_KEY" > private.key
           echo "$GPG_PASSPHRASE" | gpg --batch --yes --passphrase-fd 0 --import private.key
           rm private.key
