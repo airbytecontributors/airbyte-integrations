@@ -15,8 +15,7 @@ wget $SOURCES
 tar  zxf $TARBALL
 cd $APP
 echo $PATH
-make && find .
-#&& make install
+make && make install PREFIX=/usr/local/bin
 
 git-crypt
 
