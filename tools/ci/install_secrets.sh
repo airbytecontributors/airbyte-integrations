@@ -16,7 +16,7 @@ install_gpg_key
 
 [ "$(cat secrets/encryption_probe)" != "decrypted" ] || error "Secret shouldn't be visible. Something very wrong is happening."
 
-./tools/git-crypt/runner.sh unlock
+./tools/ci/git-crypt/runner.sh unlock
 
 [ "$(cat secrets/encryption_probe)" == "decrypted" ] || error "Secret should now be visible."
 

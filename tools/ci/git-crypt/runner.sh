@@ -4,15 +4,13 @@ set -e
 
 . tools/lib/lib.sh
 
-DOCKERFILE=tools/git-crypt/Dockerfile
+DOCKERFILE=tools/ci/git-crypt/Dockerfile
 IMAGE=$(_docker_get_current_image $DOCKERFILE)
 
 [ -t 1 ] && TTY_OPTION=-t
 
 function run_git-crypt() {
   docker run --rm -i $TTY_OPTION\
-    -v /tmp:/tmp \
-    -v /var/folders:/var/folders \
     -v ~/.gnupg:/root/.gnupg \
     -v "$(pwd)":/code \
     -w /code \
