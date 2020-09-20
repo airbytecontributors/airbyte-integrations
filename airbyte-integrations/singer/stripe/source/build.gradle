@@ -44,6 +44,13 @@ task buildImage(type: DockerBuildImage) {
 }
 
 task integrationTest(type: Test) {
+    def credFile = project.file("config/config.json")
+    if (!credFile.exists()) {
+        credFile = project.file("secrets/config.json")
+    }
+
+    environment "STRIPE_CREDENTIALS", credFile.absolutePath
+
     testClassesDirs += sourceSets.integrationTest.output.classesDirs
     classpath += sourceSets.integrationTest.runtimeClasspath
 

@@ -58,14 +58,12 @@ import org.slf4j.LoggerFactory;
 
 public class SingerStripeSourceTest {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(SingerStripeSourceTest.class);
-
   private static final Path TESTS_PATH = Path.of("/tmp/airbyte_integration_tests");
   private static final String IMAGE_NAME = "airbyte/integration-singer-stripe-source:dev";
 
   private static final String CATALOG = "catalog.json";
   private static final String CONFIG = "config.json";
-  private static final String CONFIG_PATH = "config/config.json";
+  private static final String CONFIG_PATH = System.getenv("STRIPE_CREDENTIALS");
   private static final String INVALID_CONFIG = "invalid_config.json";
 
   protected Path jobRoot;
