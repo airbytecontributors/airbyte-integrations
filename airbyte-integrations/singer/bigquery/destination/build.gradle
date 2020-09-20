@@ -46,13 +46,10 @@ task buildImage(type: DockerBuildImage) {
 
 task integrationTest(type: Test) {
     def credFile = project.file("config/credentials.json")
-    def creds = [:]
-    try {
-        creds = new JsonSlurper().parse(credFile)
-    } catch (Exception ignored) {
+    if (!credFile.exists()) {
+        credFile = project.file("secrets/credentials.json")
     }
 
-    environment "GOOGLE_CLOUD_PROJECT", creds["project_id"]
     environment "GOOGLE_APPLICATION_CREDENTIALS", credFile.absolutePath
 
     testClassesDirs += sourceSets.integrationTest.output.classesDirs

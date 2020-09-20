@@ -52,8 +52,12 @@ public class IOs {
   }
 
   public static String readFile(Path path, String fileName) {
+    return readFile(path.resolve(fileName));
+  }
+
+  public static String readFile(Path path) {
     try {
-      return Files.readString(path.resolve(fileName), StandardCharsets.UTF_8);
+      return Files.readString(path, StandardCharsets.UTF_8);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
