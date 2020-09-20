@@ -7,8 +7,12 @@ set -e
 DOCKERFILE=tools/git-crypt/Dockerfile
 IMAGE=$(_docker_get_current_image $DOCKERFILE)
 
+[ -t 1 ] && TTY_OPTION=-t
+
 function run_git-crypt() {
-  docker run --rm -it\
+  docker run --rm -i $TTY_OPTION\
+    -v /tmp:/tmp \
+    -v /var/folders:/var/folders \
     -v ~/.gnupg:/root/.gnupg \
     -v "$(pwd)":/code \
     -w /code \
