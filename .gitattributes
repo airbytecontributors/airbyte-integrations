@@ -1,2 +1,2 @@
-*.secret filter=./tools/git-crypt/runner.sh diff=./tools/git-crypt/runner.sh
-secrets/** filter=./tools/git-crypt/runner.sh diff=./tools/git-crypt/runner.sh
+*.secret filter=git-crypt diff=git-crypt
+secrets/** filter=git-crypt diff=git-crypt
