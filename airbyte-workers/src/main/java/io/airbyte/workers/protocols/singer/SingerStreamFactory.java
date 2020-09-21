@@ -28,8 +28,8 @@ import io.airbyte.singer.SingerMessage;
 import java.io.BufferedReader;
 import java.util.stream.Stream;
 
-public interface SingerStreamFactory {
+public interface SingerStreamFactory<T> {
 
-  Stream<SingerMessage> create(BufferedReader bufferedReader);
+  Stream<T> create(BufferedReader bufferedReader);
 
 }

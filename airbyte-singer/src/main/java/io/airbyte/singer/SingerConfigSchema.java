@@ -36,7 +36,8 @@ import java.util.stream.Collectors;
 // todo (cgardens) - dedupe this with ConfigSchema.
 public enum SingerConfigSchema {
 
-  SINGER_MESSAGE("SingerMessage.json");
+  SINGER_MESSAGE("SingerMessage.json"),
+  SINGER_CATALOG("SingerCatalog.json");
 
   static final Path KNOWN_SCHEMAS_ROOT = prepareSchemas();
   private static final String RESOURCE_DIR = "singer_json";

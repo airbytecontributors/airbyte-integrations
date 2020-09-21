@@ -1,7 +1,13 @@
 package io.airbyte.singer_base;
 
+import com.google.common.base.Charsets;
 import com.google.common.base.Preconditions;
 import io.airbyte.commons.io.IOs;
+import io.airbyte.config.Schema;
+import io.airbyte.commons.json.Jsons;
+import io.airbyte.singer.SingerCatalog;
+import io.airbyte.workers.protocols.singer.DefaultSingerStreamFactory;
+import io.airbyte.workers.protocols.singer.SingerCatalogConverters;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
@@ -15,18 +21,28 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 public class SingerBase {
+
   private static final Logger LOGGER = LoggerFactory.getLogger(SingerBase.class);
   private static final String SINGER_EXECUTABLE = "SINGER_EXECUTABLE";
 
   private enum Command {
     SPEC, CHECK, DISCOVER, READ, WRITE
+  }
+
+  private enum Inputs {
+    CONFIG, SCHEMA, STATE
   }
 
   private static final OptionGroup commandGroup = new OptionGroup();
@@ -56,19 +72,20 @@ public class SingerBase {
   }
 
   public void run(final String[] args) throws IOException {
+    final String singerExecutable = System.getenv(SINGER_EXECUTABLE);
+
     final Command command = parseCommand(args);
     final Map<String, String> options = parseOptions(args, command);
-    final Map<String, String> newOptions = transformInput(options); // mapping from airbyte to singer structs, field mapping, etc.
+    final Map<String, String> newOptions = transformInput(options, singerExecutable); // mapping from airbyte to singer structs, field mapping, etc.
     final String newArgs = toCli(newOptions);
 
-    final String singerExecutable = System.getenv(SINGER_EXECUTABLE);
     Preconditions.checkNotNull(singerExecutable, SINGER_EXECUTABLE + " environment variable cannot be null.");
 
     final String cmd = singerExecutable + newArgs;
     final ProcessBuilder processBuilder = new ProcessBuilder(cmd);
     final Process process = processBuilder.start();
 
-    transformOutput(process.getInputStream(), options); // mapping from singer structs back to airbyte and then pipe to stdout.
+    transformOutput(process.getInputStream(), command); // mapping from singer structs back to airbyte and then pipe to stdout.
   }
 
   private static String toCli(Map<String, String> newArgs) {
@@ -77,16 +94,85 @@ public class SingerBase {
   }
 
   // no-op for now.
-  private Map<String, String> transformInput(Map<String, String> parsedArgs) {
-    return parsedArgs;
+  private Map<String, String> transformInput(Map<String, String> parsedArgs, String singerExecutable) throws IOException {
+    final Map<String, String> outputArgs = new HashMap<>();
+    for (Map.Entry<String, String> entry : parsedArgs.entrySet()) {
+      switch (Inputs.valueOf(entry.getKey())) {
+        case SCHEMA:
+          final SingerCatalog singerCatalog = runDiscover(singerExecutable, parsedArgs);
+          final Schema discoveredCatalog = Jsons.deserialize(IOs.readFile(Path.of(entry.getValue())), Schema.class);
+          final SingerCatalog catalog = SingerCatalogConverters.applySchemaToDiscoveredCatalog(singerCatalog, discoveredCatalog);
+          final Path processedCatalogPath = Path.of("processed_catalog.json");
+          IOs.writeFile(processedCatalogPath, Jsons.serialize(catalog));
+          outputArgs.put("properties", processedCatalogPath.toString());
+        case CONFIG: // todo (cgardens) - allow field mapping.
+        case STATE:
+        default:
+          LOGGER.info("Unrecognized input {}. Not transforming.", entry.getKey());
+          outputArgs.put(entry.getKey(), entry.getValue());
+      }
+    }
+    return outputArgs;
+  }
+
+  private SingerCatalog runDiscover(String singerExecutable, Map<String, String> options) throws IOException {
+    final Set<String> commandSet = Arrays.stream(Command.values()).map(cmd -> cmd.toString().toLowerCase()).collect(Collectors.toSet());
+    final Map<String, String> discoverOptions =
+        options.entrySet()
+            .stream()
+            .filter(entry -> !commandSet.contains(entry.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+    final String cmd = singerExecutable + toCli(discoverOptions);
+    final ProcessBuilder processBuilder = new ProcessBuilder(cmd);
+    final Process process = processBuilder.start();
+
+    return getCatalogFromDiscoverInputStream(process.getInputStream()).orElseThrow(() -> new RuntimeException("No catalog found"));
   }
 
   // no-op for now.
-  private void transformOutput(InputStream inputStream, Map<String, String> parsedArgs) throws IOException {
+  private void transformOutput(InputStream inputStream, Command command) throws IOException {
+    switch (command) {
+      case DISCOVER:
+        convertCatalogStreamToSchemaStream(inputStream);
+        break;
+      case SPEC:
+      case CHECK:
+      case READ:
+      case WRITE:
+        toStdout(inputStream);
+        break;
+      default:
+        throw new IllegalArgumentException("Unrecognized command: " + command);
+    }
+  }
+
+  private void toStdout(InputStream inputStream) throws IOException {
     int ch;
-    while ((ch = inputStream.read()) != -1)
+    while ((ch = inputStream.read()) != -1) {
       System.out.write(ch);
+    }
     System.out.flush();
+  }
+
+  private Optional<SingerCatalog> getCatalogFromDiscoverInputStream(InputStream inputStream) {
+    final Iterator<SingerCatalog> iterator = discoverInputStreamToIterator(inputStream);
+    if (iterator.hasNext()) {
+      return Optional.of(iterator.next());
+    }
+    return Optional.empty();
+  }
+
+  private Iterator<SingerCatalog> discoverInputStreamToIterator(InputStream inputStream) {
+    final DefaultSingerStreamFactory<SingerCatalog> streamFactory = DefaultSingerStreamFactory.catalog();
+    return streamFactory.create(IOs.newBufferedReader(inputStream)).iterator();
+  }
+
+  private void convertCatalogStreamToSchemaStream(InputStream inputStream) throws IOException {
+    final Iterator<SingerCatalog> iterator = discoverInputStreamToIterator(inputStream);
+    while (iterator.hasNext()) {
+      System.out.write(Jsons.serialize(iterator).getBytes(Charsets.UTF_8));
+    }
   }
 
   private static Command parseCommand(String[] args) {
@@ -115,22 +201,51 @@ public class SingerBase {
     options.addOptionGroup(commandGroup); // so that the parser does not throw an exception when encounter command args.
 
     if (command.equals(Command.CHECK)) {
-      options.addOption(Option.builder().longOpt("config").desc("path to the json configuration file").hasArg(true).required(true).build());
+      options.addOption(Option.builder()
+          .longOpt(Inputs.CONFIG.toString().toLowerCase())
+          .desc("path to the json configuration file")
+          .hasArg(true)
+          .required(true)
+          .build());
     }
 
     if (command.equals(Command.DISCOVER)) {
-      options.addOption(Option.builder().longOpt("config").desc("path to the json configuration file").hasArg(true).required(true).build());
-      options.addOption(Option.builder().longOpt("schema").desc("output path for the discovered schema").hasArg(true).build());
+      options.addOption(Option.builder()
+          .longOpt(Inputs.CONFIG.toString().toLowerCase())
+          .desc("path to the json configuration file")
+          .hasArg(true)
+          .required(true)
+          .build());
+      options.addOption(Option.builder()
+          .longOpt(Inputs.SCHEMA.toString().toLowerCase())
+          .desc("output path for the discovered schema")
+          .hasArg(true)
+          .build());
     }
 
     if (command.equals(Command.READ)) {
-      options.addOption(Option.builder().longOpt("config").desc("path to the json configuration file").hasArg(true).required(true).build());
-      options.addOption(Option.builder().longOpt("schema").desc("input path for the schema").hasArg(true).build());
-      options.addOption(Option.builder().longOpt("state").desc("path to the json-encoded state file").hasArg(true).build());
+      options.addOption(Option.builder()
+          .longOpt(Inputs.CONFIG.toString().toLowerCase()).desc("path to the json configuration file")
+          .hasArg(true)
+          .required(true)
+          .build());
+      options.addOption(Option.builder()
+          .longOpt(Inputs.SCHEMA.toString().toLowerCase()).desc("input path for the schema")
+          .hasArg(true)
+          .build());
+      options.addOption(Option.builder()
+          .longOpt(Inputs.STATE.toString().toLowerCase()).desc("path to the json-encoded state file")
+          .hasArg(true)
+          .build());
     }
 
     if (command.equals(Command.READ)) {
-      options.addOption(Option.builder().longOpt("config").desc("path to the json configuration file").hasArg(true).required(true).build());
+      options.addOption(Option.builder()
+          .longOpt(Inputs.CONFIG.toString().toLowerCase())
+          .desc("path to the json configuration file")
+          .hasArg(true)
+          .required(true)
+          .build());
     }
 
     try {
@@ -139,7 +254,7 @@ public class SingerBase {
     } catch (ParseException e) {
       LOGGER.error(e.toString());
       helpFormatter.printHelp(command.toString().toLowerCase(), options);
-      return null;
+      throw new IllegalArgumentException();
     }
   }
 

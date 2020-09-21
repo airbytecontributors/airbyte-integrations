@@ -60,7 +60,7 @@ public class DefaultSingerTap implements SingerTap {
 
   private final String imageName;
   private final ProcessBuilderFactory pbf;
-  private final SingerStreamFactory streamFactory;
+  private final SingerStreamFactory<SingerMessage> streamFactory;
   private final SingerDiscoverSchemaWorker discoverSchemaWorker;
 
   private Process tapProcess = null;
@@ -69,13 +69,13 @@ public class DefaultSingerTap implements SingerTap {
   public DefaultSingerTap(final String imageName,
                           final ProcessBuilderFactory pbf,
                           final SingerDiscoverSchemaWorker discoverSchemaWorker) {
-    this(imageName, pbf, new DefaultSingerStreamFactory(), discoverSchemaWorker);
+    this(imageName, pbf, DefaultSingerStreamFactory.message(), discoverSchemaWorker);
   }
 
   @VisibleForTesting
   DefaultSingerTap(final String imageName,
                    final ProcessBuilderFactory pbf,
-                   final SingerStreamFactory streamFactory,
+                   final SingerStreamFactory<SingerMessage> streamFactory,
                    final SingerDiscoverSchemaWorker discoverSchemaWorker) {
     this.imageName = imageName;
     this.pbf = pbf;

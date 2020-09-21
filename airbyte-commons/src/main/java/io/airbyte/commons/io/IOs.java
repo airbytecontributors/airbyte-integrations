@@ -41,11 +41,28 @@ import org.apache.commons.io.input.ReversedLinesFileReader;
 
 public class IOs {
 
+  public static Path writeFile(Path path, String contents) {
+    try {
+      Files.writeString(path, contents, StandardCharsets.UTF_8);
+      return path;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
   public static Path writeFile(Path path, String fileName, String contents) {
     try {
       Path filePath = path.resolve(fileName);
       Files.writeString(filePath, contents, StandardCharsets.UTF_8);
       return filePath;
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  public static String readFile(Path path) {
+    try {
+      return Files.readString(path, StandardCharsets.UTF_8);
     } catch (IOException e) {
       throw new RuntimeException(e);
     }

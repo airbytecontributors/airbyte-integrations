@@ -34,9 +34,9 @@ public class SingerProtocolPredicate implements Predicate<JsonNode> {
   private final JsonSchemaValidator jsonSchemaValidator;
   private final JsonNode schema;
 
-  public SingerProtocolPredicate() {
-    jsonSchemaValidator = new JsonSchemaValidator();
-    schema = JsonSchemaValidator.getSchema(SingerConfigSchema.SINGER_MESSAGE.getFile());
+  public SingerProtocolPredicate(SingerConfigSchema schema) {
+    this.jsonSchemaValidator = new JsonSchemaValidator();
+    this.schema = JsonSchemaValidator.getSchema(schema.getFile());
   }
 
   @Override

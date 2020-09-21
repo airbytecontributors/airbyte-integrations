@@ -26,6 +26,8 @@ package io.airbyte.workers.protocols.singer;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.airbyte.commons.json.Jsons;
+import io.airbyte.singer.SingerCatalog;
+import io.airbyte.singer.SingerConfigSchema;
 import io.airbyte.singer.SingerMessage;
 import java.io.BufferedReader;
 import java.util.Optional;
@@ -43,23 +45,28 @@ import org.slf4j.LoggerFactory;
  * will still be parsed. If there are multiple SingerMessage records on the same line, only the
  * first will be parsed.
  */
-public class DefaultSingerStreamFactory implements SingerStreamFactory {
-
+public class DefaultSingerStreamFactory<T> implements SingerStreamFactory<T> {
   private static final Logger LOGGER = LoggerFactory.getLogger(DefaultSingerStreamFactory.class);
 
   private final SingerProtocolPredicate singerProtocolValidator;
   private final Logger logger;
+  private final Class<T> clazz;
 
-  public DefaultSingerStreamFactory() {
-    this(new SingerProtocolPredicate(), LOGGER);
+  public static DefaultSingerStreamFactory<SingerMessage> message() {
+    return new DefaultSingerStreamFactory<>(new SingerProtocolPredicate(SingerConfigSchema.SINGER_MESSAGE), LOGGER, SingerMessage.class);
   }
 
-  DefaultSingerStreamFactory(final SingerProtocolPredicate singerProtocolPredicate, final Logger logger) {
+  public static DefaultSingerStreamFactory<SingerCatalog> catalog() {
+    return new DefaultSingerStreamFactory<>(new SingerProtocolPredicate(SingerConfigSchema.SINGER_CATALOG), LOGGER, SingerCatalog.class);
+  }
+
+  DefaultSingerStreamFactory(final SingerProtocolPredicate singerProtocolPredicate, final Logger logger, Class<T> clazz) {
     singerProtocolValidator = singerProtocolPredicate;
     this.logger = logger;
+    this.clazz = clazz;
   }
 
-  public Stream<SingerMessage> create(BufferedReader bufferedReader) {
+  public Stream<T> create(BufferedReader bufferedReader) {
     return bufferedReader
         .lines()
         .map(s -> {
@@ -82,7 +89,7 @@ public class DefaultSingerStreamFactory implements SingerStreamFactory {
           return res;
         })
         .map(j -> {
-          Optional<SingerMessage> m = Jsons.tryObject(j, SingerMessage.class);
+          Optional<T> m = Jsons.tryObject(j, clazz);
           if (m.isEmpty()) {
             logger.error("Deserialization failed: {}", Jsons.serialize(j));
           }
