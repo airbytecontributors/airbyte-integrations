@@ -34,20 +34,20 @@ servers:
 tags:
   - name: workspace
     description: Workspace related resources.
-  - name: source
-    description: Source related resources.
+  - name: source_definition
+    description: Source definition related resources.
   - name: source_specification
     description: Source specification related resources.
   - name: source_implementation
     description: Source implementation related resources.
-  - name: destination
-    description: Destination related resources.
+  - name: destination_definition
+    description: Destination definition related resources.
   - name: destination_specification
     description: Destination specification related resources.
   - name: destination_implementation
     description: Destination implementation related resources.
   - name: connection
-    description: Connection between sources and destinations.
+    description: Connection between source and destination.
   - name: web_backend
     description: Connection between sources and destinations.
 
@@ -121,30 +121,30 @@ paths:
           description: Workspace not found
         "422":
           $ref: "#/components/responses/InvalidInput"
-  /v1/sources/list:
+  /v1/source_definitions/list:
     post:
       tags:
-        - source
-      summary: List all of the sources that Airbyte supports
-      operationId: listSources
+        - source_definition
+      summary: List all of the source definitions that Airbyte supports
+      operationId: listSourceDefinitions
       responses:
         "200":
           description: Successful operation
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SourceReadList"
-  /v1/sources/get:
+                $ref: "#/components/schemas/SourceDefinitionReadList"
+  /v1/source_definitions/get:
     post:
       tags:
-        - source
-      summary: Get source
-      operationId: getSource
+        - source_definition
+      summary: Get source definition
+      operationId: getSourceDefinition
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SourceIdRequestBody"
+              $ref: "#/components/schemas/SourceDefinitionIdRequestBody"
         required: true
       responses:
         "200":
@@ -152,9 +152,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SourceRead"
+                $ref: "#/components/schemas/SourceDefinitionRead"
         "404":
-          description: Source not found
+          description: Source definition not found
         "422":
           $ref: "#/components/responses/InvalidInput"
   # todo (cgardens) - rename to source_specifications/get_latest_from_source_id
@@ -168,7 +168,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SourceIdRequestBody"
+              $ref: "#/components/schemas/SourceDefinitionIdRequestBody"
         required: true
       responses:
         "200":
@@ -337,30 +337,30 @@ paths:
           description: Source Implementation not found
         "422":
           $ref: "#/components/responses/InvalidInput"
-  /v1/destinations/list:
+  /v1/destination_definitions/list:
     post:
       tags:
-        - destination
-      summary: List all of the destinations that Airbyte supports
-      operationId: listDestinations
+        - destination_definition
+      summary: List all of the destination definitions that Airbyte supports
+      operationId: listDestinationDefinitions
       responses:
         "200":
           description: Successful operation
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DestinationReadList"
-  /v1/destinations/get:
+                $ref: "#/components/schemas/DestinationDefinitionReadList"
+  /v1/destination_definitions/get:
     post:
       tags:
-        - destination
-      summary: Get destination
-      operationId: getDestination
+        - destination_definition
+      summary: Get destination definition
+      operationId: getDestinationDefinition
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/DestinationIdRequestBody"
+              $ref: "#/components/schemas/DestinationDefinitionIdRequestBody"
         required: true
       responses:
         "200":
@@ -368,9 +368,9 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DestinationRead"
+                $ref: "#/components/schemas/DestinationDefinitionRead"
         "404":
-          description: Destination not found
+          description: Destination definition not found
         "422":
           $ref: "#/components/responses/InvalidInput"
   /v1/destination_specifications/get:
@@ -383,7 +383,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/DestinationIdRequestBody"
+              $ref: "#/components/schemas/DestinationDefinitionIdRequestBody"
         required: true
       responses:
         "200":
@@ -864,36 +864,36 @@ components:
       properties:
         slug:
           type: string
-    # SOURCE
-    SourceId:
+    # SOURCE DEFINITION
+    SourceDefinitionId:
       type: string
       format: uuid
-    SourceIdRequestBody:
+    SourceDefinitionIdRequestBody:
       type: object
       required:
-        - sourceId
+        - sourceDefinitionId
       properties:
-        sourceId:
-          $ref: "#/components/schemas/SourceId"
-    SourceRead:
+        sourceDefinitionId:
+          $ref: "#/components/schemas/SourceDefinitionId"
+    SourceDefinitionRead:
       type: object
       required:
-        - sourceId
+        - sourceDefinitionId
         - name
       properties:
-        sourceId:
-          $ref: "#/components/schemas/SourceId"
+        sourceDefinitionId:
+          $ref: "#/components/schemas/SourceDefinitionId"
         name:
           type: string
-    SourceReadList:
+    SourceDefinitionReadList:
       type: object
       required:
-        - sources
+        - sourceDefinitions
       properties:
-        sources:
+        sourceDefinitions:
           type: array
           items:
-            $ref: "#/components/schemas/SourceRead"
+            $ref: "#/components/schemas/SourceDefinitionRead"
     # SOURCE SPECIFICATION
     SourceSpecificationId:
       type: string
@@ -905,13 +905,13 @@ components:
       type: object
       required:
         - sourceSpecificationId
-        - sourceId
+        - sourceDefinitionId
         - specification
       properties:
         sourceSpecificationId:
           $ref: "#/components/schemas/SourceSpecificationId"
-        sourceId:
-          $ref: "#/components/schemas/SourceId"
+        sourceDefinitionId:
+          $ref: "#/components/schemas/SourceDefinitionId"
         documentationUrl:
           type: string
         connectionSpecification:
@@ -923,7 +923,7 @@ components:
     SourceImplementationIdRequestBody:
       type: object
       required:
-        - sourceId
+        - sourceImplementationId
       properties:
         sourceImplementationId:
           $ref: "#/components/schemas/SourceImplementationId"
@@ -962,7 +962,7 @@ components:
     SourceImplementationRead:
       type: object
       required:
-        - sourceId
+        - sourceDefinitionId
         - sourceImplementationId
         - workspaceId
         - sourceSpecificationId
@@ -970,8 +970,8 @@ components:
         - name
         - sourceName
       properties:
-        sourceId:
-          $ref: "#/components/schemas/SourceId"
+        sourceDefinitionId:
+          $ref: "#/components/schemas/SourceDefinitionId"
         sourceImplementationId:
           $ref: "#/components/schemas/SourceImplementationId"
         workspaceId:
@@ -1000,36 +1000,36 @@ components:
       properties:
         schema:
           $ref: "#/components/schemas/SourceSchema"
-    # DESTINATION
-    DestinationId:
+    # DESTINATION DEFINITION
+    DestinationDefinitionId:
       type: string
       format: uuid
-    DestinationIdRequestBody:
+    DestinationDefinitionIdRequestBody:
       type: object
       required:
-        - destinationId
+        - destinationDefinitionId
       properties:
-        destinationId:
-          $ref: "#/components/schemas/DestinationId"
-    DestinationRead:
+        destinationDefinitionId:
+          $ref: "#/components/schemas/DestinationDefinitionId"
+    DestinationDefinitionRead:
       type: object
       required:
-        - destinationId
+        - destinatioDefinitionId
         - name
       properties:
-        destinationId:
-          $ref: "#/components/schemas/DestinationId"
+        destinationDefinitionId:
+          $ref: "#/components/schemas/DestinationDefinitionId"
         name:
           type: string
-    DestinationReadList:
+    DestinationDefinitionReadList:
       type: object
       required:
-        - destinations
+        - destinationDefinitions
       properties:
-        destinations:
+        destinationDefinitions:
           type: array
           items:
-            $ref: "#/components/schemas/DestinationRead"
+            $ref: "#/components/schemas/DestinationDefinitionRead"
     # DESTINATION SPECIFICATION
     DestinationSpecificationId:
       type: string
@@ -1041,13 +1041,13 @@ components:
       type: object
       required:
         - destinationSpecificationId
-        - destinationId
+        - destinationDefinitionId
         - specification
       properties:
         destinationSpecificationId:
           $ref: "#/components/schemas/DestinationSpecificationId"
-        destinationId:
-          $ref: "#/components/schemas/DestinationId"
+        destinationDefinitionId:
+          $ref: "#/components/schemas/DestinationDefinitionId"
         documentationUrl:
           type: string
         connectionSpecification:
@@ -1097,7 +1097,7 @@ components:
     DestinationImplementationRead:
       type: object
       required:
-        - destinationId
+        - destinationDefinitionId
         - destinationImplementationId
         - workspaceId
         - destinationSpecificationId
@@ -1105,8 +1105,8 @@ components:
         - name
         - destinationName
       properties:
-        destinationId:
-          $ref: "#/components/schemas/DestinationId"
+        destinationDefinitionId:
+          $ref: "#/components/schemas/DestinationDefinitionId"
         destinationImplementationId:
           $ref: "#/components/schemas/DestinationImplementationId"
         workspaceId:
