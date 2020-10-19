@@ -55,6 +55,11 @@ spotless {
 
         dbeaver().configFile(rootProject.file('tools/gradle/codestyle/sql-dbeaver.properties'))
     }
+    python {
+        target '**/*.py'
+        targetExclude "**/build/**/*", "**/.gradle/**/*"
+        licenseHeaderFile createLicenseWith(rootProject.file('LICENSE')), '(import|from|__all__|""")'
+    }
     format 'styling', {
         target '**/*.json', '**/*.yaml'
         targetExclude "**/build/**/*", "**/node_modules/**/*", "**/.gradle/**/*"
