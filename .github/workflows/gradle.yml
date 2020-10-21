@@ -40,6 +40,7 @@ jobs:
         continue-on-error: true
         with:
           key: foo-docker-cache-{hash}
+          concurrency: 2
           restore-keys: |
             foo-docker-cache-
 
