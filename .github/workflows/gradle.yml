@@ -36,6 +36,13 @@ jobs:
         with:
           node-version: '14.7'
 
+      - uses: satackey/action-docker-layer-caching@v0.0.8
+        continue-on-error: true
+        with:
+          key: foo-docker-cache-{hash}
+          restore-keys: |
+            foo-docker-cache-
+
       - name: Write Integration Test Credentials
         run: ./tools/bin/ci_credentials.sh
         env:
