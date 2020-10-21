@@ -15,6 +15,10 @@ configurations {
     integrationTestRuntimeOnly.extendsFrom testRuntimeOnly
 }
 
+dependencies {
+    integrationTest
+}
+
 task integrationTest(type: Test) {
     testClassesDirs += sourceSets.integrationTest.output.classesDirs
     classpath += sourceSets.integrationTest.runtimeClasspath

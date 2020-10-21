@@ -20,16 +20,13 @@ jobs:
           restore-keys: |
             gradle-
 
-      - name: generaterandomfiles
-        run:  openssl rand -hex 12 > r1.txt
-
-      - name: cache-docker-layers
-        uses: satackey/action-docker-layer-caching@v0.0.8
-        continue-on-error: true
+      - name: Cache node deps
+        uses: actions/cache@v2
         with:
-          key: airbyte-docker-cache-{hash}
+          path: ~/.npm
+          key: node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            airbyte-docker-cache-
+            node-
 
-      - name: build docker
-        run: docker build .
+      - name: build
+        run: ./gradlew build
