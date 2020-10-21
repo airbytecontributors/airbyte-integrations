@@ -37,4 +37,4 @@ jobs:
           node-version: '14.7'
 
       - name: build
-        run: ./gradlew -g ${{ env.GRADLE_HOME }} build --console verbose
+        run: ./gradlew -g ${{ env.GRADLE_PATH }} build --console verbose
