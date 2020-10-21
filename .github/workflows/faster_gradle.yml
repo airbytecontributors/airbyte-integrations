@@ -28,5 +28,13 @@ jobs:
           restore-keys: |
             node-
 
+      - uses: actions/setup-java@v1
+        with:
+          java-version: '14'
+
+      - uses: actions/setup-node@v1
+        with:
+          node-version: '14.7'
+
       - name: build
-        run: ./gradlew build
+        run: ./gradlew build --console verbose
