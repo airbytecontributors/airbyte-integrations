@@ -20,14 +20,6 @@ jobs:
           restore-keys: |
             gradle-
 
-      - name: Cache node_modules
-        uses: actions/cache@v2
-        with:
-          path: ./airbyte-webapp/node_modules
-          key: webapp-node-modules
-          restore-keys: |
-            webapp-node-modules
-
       - name: Cache node deps
         uses: actions/cache@v2
         with:
