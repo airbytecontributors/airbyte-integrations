@@ -1,9 +1,18 @@
 plugins {
+    id 'com.gradle.build-scan'
     id 'base'
     id 'java'
     id 'pmd'
     id 'com.diffplug.spotless' version '5.6.1'
     // id 'de.aaschmid.cpd' version '3.1'
+}
+
+// Allow build scans
+gradleEnterprise {
+    buildScan {
+        termsOfServiceUrl = "https://gradle.com/terms-of-service"
+        termsOfServiceAgree = "yes"
+    }
 }
 
 repositories {
