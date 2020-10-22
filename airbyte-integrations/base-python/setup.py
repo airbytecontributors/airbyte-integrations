@@ -25,7 +25,7 @@ SOFTWARE.
 import setuptools
 
 setuptools.setup(
-    name='airbyte-protocol',
+    name='airbyte_base',
     description='Contains classes representing the schema of the Airbyte protocol.',
     author='Airbyte',
     author_email='contact@airbyte.io',
@@ -33,7 +33,6 @@ setuptools.setup(
 
     packages=setuptools.find_packages(),
     package_data={
-        '': ['models/yaml/*.yaml']
     },
 
     install_requires=[

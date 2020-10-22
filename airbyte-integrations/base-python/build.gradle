@@ -1,5 +1,12 @@
 apply from: rootProject.file('tools/gradle/commons/integrations/image.gradle')
 
+apply plugin: "idea"
+idea {
+    module {
+        sourceDirs += file('.')
+    }
+}
+
 task generateProtocolClassFiles(type: Exec) {
     environment 'ROOT_DIR', rootDir.absolutePath
     commandLine 'bin/generate-protocol-files.sh'

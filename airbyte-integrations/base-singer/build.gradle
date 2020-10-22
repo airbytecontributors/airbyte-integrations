@@ -2,3 +2,9 @@ apply from: rootProject.file('tools/gradle/commons/integrations/image.gradle')
 
 buildImage.dependsOn ':airbyte-integrations:base-python:buildImage'
 
+apply plugin: "idea"
+idea {
+    module {
+        sourceDirs += file('.')
+    }
+}
