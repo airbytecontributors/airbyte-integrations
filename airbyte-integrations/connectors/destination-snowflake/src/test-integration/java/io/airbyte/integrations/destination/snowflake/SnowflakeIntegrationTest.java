@@ -25,21 +25,31 @@
 package io.airbyte.integrations.destination.snowflake;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.ImmutableMap;
+import io.airbyte.commons.io.IOs;
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.db.DatabaseHelper;
 import io.airbyte.integrations.base.TestDestination;
+
+import java.nio.file.Path;
 import java.util.AbstractMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.stream.Collectors;
+
+import net.snowflake.client.jdbc.SnowflakeDriver;
+import org.apache.commons.dbcp2.BasicDataSource;
 import org.jooq.Record;
+import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.PostgreSQLContainer;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class SnowflakeIntegrationTest extends TestDestination {
 
   private static final String COLUMN_NAME = "data";
-  private PostgreSQLContainer<?> db;
 
   @Override
   protected String getImageName() {
@@ -48,33 +58,41 @@ public class SnowflakeIntegrationTest extends TestDestination {
 
   @Override
   protected JsonNode getConfig() {
-    return Jsons.jsonNode(ImmutableMap.builder()
-        .put("host", db.getHost())
-        .put("username", db.getUsername())
-        .put("password", db.getPassword())
-        .put("schema", "public")
-        .put("port", db.getFirstMappedPort())
-        .put("database", db.getDatabaseName())
-        .build());
+    return Jsons.deserialize(IOs.readFile(Path.of("secrets/config.json")));
   }
 
   @Override
   protected JsonNode getFailCheckConfig() {
-    return Jsons.jsonNode(ImmutableMap.builder()
-        .put("host", db.getHost())
-        .put("username", db.getUsername())
-        .put("password", "wrong password")
-        .put("schema", "public")
-        .put("port", db.getFirstMappedPort())
-        .put("database", db.getDatabaseName())
-        .build());
+    ObjectNode node = (ObjectNode) getConfig();
+    node.put("password", "wrong password");
+    return node;
+  }
+
+  @Test
+  public void testIt() {
+    assertTrue(true);
+  }
+
+  // todo: DRY
+  private BasicDataSource getConnectionPool(JsonNode config) {
+    final String connectUrl = String.format("jdbc:snowflake://%s/?warehouse=%s&db=%s&role=%s",
+            config.get("host").asText(),
+            config.get("warehouse").asText(),
+            config.get("database").asText(),
+            config.get("role").asText());
+
+    return DatabaseHelper.getConnectionPool(
+            config.get("username").asText(),
+            config.get("password").asText(),
+            connectUrl,
+            SnowflakeDriver.class.getName()
+    );
   }
 
   @Override
   protected List<JsonNode> retrieveRecords(TestDestinationEnv env, String streamName) throws Exception {
-
     return DatabaseHelper.query(
-        DatabaseHelper.getConnectionPool(db.getUsername(), db.getPassword(), db.getJdbcUrl()),
+        getConnectionPool(getConfig()),
         ctx -> ctx
             .fetch(String.format("SELECT * FROM %s ORDER BY emitted_at ASC;", streamName))
             .stream()
@@ -93,15 +111,13 @@ public class SnowflakeIntegrationTest extends TestDestination {
   }
 
   @Override
-  protected void setup(TestDestinationEnv testEnv) {
-    db = new PostgreSQLContainer<>("postgres:13-alpine");
-    db.start();
+  protected void setup(TestDestinationEnv testEnv) throws Exception {
+    // todo
   }
 
   @Override
-  protected void tearDown(TestDestinationEnv testEnv) {
-    db.stop();
-    db.close();
+  protected void tearDown(TestDestinationEnv testEnv) throws Exception {
+    // todo
   }
 
 }

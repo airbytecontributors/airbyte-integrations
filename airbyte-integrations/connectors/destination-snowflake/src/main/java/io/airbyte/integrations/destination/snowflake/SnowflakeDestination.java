@@ -49,7 +49,11 @@ import io.airbyte.queue.BigQueue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -57,10 +61,13 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import net.snowflake.client.jdbc.SnowflakeDriver;
 import org.apache.commons.dbcp2.BasicDataSource;
 import org.jooq.DSLContext;
 import org.jooq.InsertValuesStep3;
@@ -76,7 +83,6 @@ public class SnowflakeDestination implements Destination {
 
   @Override
   public ConnectorSpecification spec() throws IOException {
-    // return a jsonschema representation of the spec for the integration.
     final String resourceString = MoreResources.readResource("spec.json");
     return Jsons.deserialize(resourceString, ConnectorSpecification.class);
   }
@@ -85,15 +91,10 @@ public class SnowflakeDestination implements Destination {
   public AirbyteConnectionStatus check(JsonNode config) {
     try {
       final BasicDataSource connectionPool = getConnectionPool(config);
-      DatabaseHelper.query(connectionPool, ctx -> ctx.execute(
-          "SELECT *\n"
-              + "FROM pg_catalog.pg_tables\n"
-              + "WHERE schemaname != 'pg_catalog' AND schemaname != 'information_schema' LIMIT 1;"));
-
+      DatabaseHelper.query(connectionPool, ctx -> ctx.execute("SELECT 1;"));
       connectionPool.close();
       return new AirbyteConnectionStatus().withStatus(Status.SUCCEEDED);
     } catch (Exception e) {
-      // todo (cgardens) - better error messaging for common cases. e.g. wrong password.
       return new AirbyteConnectionStatus().withStatus(Status.FAILED).withMessage(e.getMessage());
     }
   }
@@ -171,7 +172,6 @@ public class SnowflakeDestination implements Destination {
       this.writeConfigs = writeConfigs;
       this.catalog = catalog;
       this.writerPool = Executors.newSingleThreadScheduledExecutor();
-      // todo (cgardens) - how long? boh.
       Runtime.getRuntime().addShutdownHook(new GracefulShutdownHandler(Duration.ofMinutes(GRACEFUL_SHUTDOWN_MINUTES), writerPool));
 
       writerPool.scheduleWithFixedDelay(
@@ -324,13 +324,18 @@ public class SnowflakeDestination implements Destination {
   }
 
   private BasicDataSource getConnectionPool(JsonNode config) {
+    final String connectUrl = String.format("jdbc:snowflake://%s/?warehouse=%s&db=%s&role=%s",
+            config.get("host").asText(),
+            config.get("warehouse").asText(),
+            config.get("database").asText(),
+            config.get("role").asText());
+
     return DatabaseHelper.getConnectionPool(
         config.get("username").asText(),
         config.get("password").asText(),
-        String.format("jdbc:postgresql://%s:%s/%s",
-            config.get("host").asText(),
-            config.get("port").asText(),
-            config.get("database").asText()));
+        connectUrl,
+        SnowflakeDriver.class.getName()
+      );
   }
 
   public static void main(String[] args) throws Exception {

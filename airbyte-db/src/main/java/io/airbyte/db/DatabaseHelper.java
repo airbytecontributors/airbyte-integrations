@@ -33,12 +33,32 @@ import org.jooq.impl.DSL;
 
 public class DatabaseHelper {
 
+  /**
+   * @param username postgres username
+   * @param password postgres password
+   * @param jdbcConnectionString postgres connection string
+   * @return postgres connection pool
+   */
   public static BasicDataSource getConnectionPool(String username,
                                                   String password,
                                                   String jdbcConnectionString) {
+    return getConnectionPool(username, password, jdbcConnectionString, "org.postgresql.Driver");
+  }
+
+  /**
+   * @param username jdbc username
+   * @param password jdbc password
+   * @param jdbcConnectionString jdbc connection string
+   * @param driverClassName jdbc driver used for the connection
+   * @return connection pool
+   */
+  public static BasicDataSource getConnectionPool(String username,
+                                                  String password,
+                                                  String jdbcConnectionString,
+                                                  String driverClassName) {
 
     BasicDataSource connectionPool = new BasicDataSource();
-    connectionPool.setDriverClassName("org.postgresql.Driver");
+    connectionPool.setDriverClassName(driverClassName);
     connectionPool.setUsername(username);
     connectionPool.setPassword(password);
     connectionPool.setUrl(jdbcConnectionString);
