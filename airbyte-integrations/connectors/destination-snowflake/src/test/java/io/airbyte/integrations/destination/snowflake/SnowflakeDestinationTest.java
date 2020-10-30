@@ -51,7 +51,7 @@ class SnowflakeDestinationTest {
     node.put("password", "wrong password");
     return node;
   }
-
+// todo: remove the duplicate tests here for the integration tests
   @Test
   void testSpec() throws IOException {
     final ConnectorSpecification actual = new SnowflakeDestination().spec();
