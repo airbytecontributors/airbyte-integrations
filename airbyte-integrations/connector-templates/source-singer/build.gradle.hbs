@@ -15,12 +15,11 @@ standardSourceTestPython {
 
 task installTestDeps(type: PythonTask){
     module = "pip"
-    command = "install .[tests]"
+    command = "install ".[tests]"
 }
 
 task unitTest(type: PythonTask){
-    module = "pytest"
-    command = "unit_tests"
+    command = "pytest unit_tests"
 }
 
 unitTest.dependsOn(installTestDeps)

@@ -19,7 +19,7 @@ to tell Airbyte to use the latest version of your integration.
     ```
 1. Publish the new version to Docker Hub. 
     ```
-    ./tools/integrations/manage.sh publish airbyte-integrations/connectors/source-postgres-singer
+    ./tools/integrations/manage.sh publish airbyte-integrations/connectors/source-postgres-signer
     ```
 1. Update the connector version inside the `STANDARD_SOURCE` (or `STANDARD_DESTINATION` directory) to the one you just published. 
 This will update Airbyte to use this new version by default. 
