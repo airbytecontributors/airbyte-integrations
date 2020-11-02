@@ -23,6 +23,29 @@ SOFTWARE.
 """
 
 import json
+import pkgutil
 
-def test_example_method():
-    assert json.loads('{"key":"value"}') == {"key":"value"}
+from airbyte_protocol import AirbyteCatalog, ConnectorSpecification
+from base_python_test import StandardSourceTestIface
+
+
+class SourceSingerTemplateSingerStandardTest(StandardSourceTestIface):
+    def __init__(self):
+        pass
+
+    def get_spec(self) -> ConnectorSpecification:
+        raw_spec = pkgutil.get_data(self.__class__.__module__.split(".")[0], "spec.json")
+        return ConnectorSpecification.parse_obj(json.loads(raw_spec))
+
+    def get_config(self) -> object:
+        return {"fakekey": "fakevalue"}
+
+    def get_catalog(self) -> AirbyteCatalog:
+        raw_catalog = pkgutil.get_data(self.__class__.__module__.split(".")[0], "catalog.json")
+        return AirbyteCatalog.parse_obj(json.loads(raw_catalog))
+
+    def setup(self) -> None:
+        pass
+
+    def teardown(self) -> None:
+        pass

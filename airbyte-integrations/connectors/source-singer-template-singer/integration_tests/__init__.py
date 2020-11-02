@@ -22,7 +22,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-import json
+from .standard_source_test import SourceSingerTemplateSingerStandardTest
 
-def test_example_method():
-    assert json.loads('{"key":"value"}') == {"key":"value"}
+__all__ = ["SourceSingerTemplateSingerStandardTest"]

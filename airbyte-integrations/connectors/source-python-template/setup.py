@@ -22,7 +22,23 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-import json
+from setuptools import find_packages, setup
 
-def test_example_method():
-    assert json.loads('{"key":"value"}') == {"key":"value"}
+setup(
+    name="source_python_template",
+    description="Source implementation for Python Template.",
+    author="Airbyte",
+    author_email="contact@airbyte.io",
+    packages=find_packages(),
+    install_requires=["airbyte-protocol", "base-python"],
+    package_data={"": ["*.json"]},
+    setup_requires=["pytest-runner"],
+    tests_require=["pytest"],
+    extras_require={
+        # Dependencies required by the main package but not integration tests should go in main. Deps required by
+        # integration tests but not the main package go in integration_tests. Deps required by both should go in
+        # install_requires.
+        "main": [],
+        "tests": ["airbyte_python_test", "pytest"],
+    },
+)

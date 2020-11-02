@@ -24,5 +24,6 @@ SOFTWARE.
 
 import json
 
+
 def test_example_method():
-    assert json.loads('{"key":"value"}') == {"key":"value"}
+    assert json.loads('{"key":"value"}') == {"key": "value"}

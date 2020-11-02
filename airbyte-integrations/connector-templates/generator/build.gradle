@@ -8,4 +8,35 @@ node {
     version = "14.11.0"
 }
 
-// TODO add gradle tasks which generate one module for each generator we support and tests that the resulting code is valid.
+def generateModuleFromTemplate(generatorName, outputConnectorName, connectorDirName){
+    def connectorsRootDir = "${projectDir.absolutePath}/../../connectors"
+    def cleanTaskName = "clean${outputConnectorName}"
+    task(cleanTaskName) {
+        doFirst {
+            delete "${connectorsRootDir}/${connectorDirName}"
+        }
+    }
+
+    def generateTaskName = "generate${outputConnectorName}"
+    task (generateTaskName, type: NpmTask){
+        args = ["run", "generate", "${generatorName}", "${outputConnectorName}"]
+    }
+
+    def generateTask = tasks.named(generateTaskName).get()
+    generateTask.dependsOn(cleanTaskName)
+    check.dependsOn(generateTaskName)
+}
+
+generateModuleFromTemplate("Java Destination", "java-template", "destination-java-template")
+generateModuleFromTemplate("Python Source", "python-template", "source-python-template")
+generateModuleFromTemplate("Singer-based Python Source", "singer-template", "source-singer-template-singer")
+
+
+/*
+ 1. create an empty connector inside build/ and make sure it compiles
+ 2. make sure that it compiles as part of the build
+ 3. but since gradle registers tasks before running the build, we can't generate this only during the build. it has to exist when the gradle command
+    is run.
+ 4. So we'll check-in a generated template ahead of time and build against that. Also as part of the build we'll delete and recreate it and make sure there is no diff.
+
+*/

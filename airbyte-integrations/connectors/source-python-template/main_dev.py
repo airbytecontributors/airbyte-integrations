@@ -22,7 +22,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-import json
+import sys
 
-def test_example_method():
-    assert json.loads('{"key":"value"}') == {"key":"value"}
+from base_python.entrypoint import launch
+from source_python_template import SourcePythonTemplate
+
+if __name__ == "__main__":
+    source = SourcePythonTemplate()
+    launch(source, sys.argv[1:])
