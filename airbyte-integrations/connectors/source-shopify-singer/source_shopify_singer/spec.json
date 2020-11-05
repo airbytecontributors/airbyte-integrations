@@ -1,15 +1,27 @@
 {
-  "documentationUrl": "https://docsurl.com",
+  "documentationUrl": "https://docs.airbyte.io/integrations/sources/shopify",
   "connectionSpecification": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "Source Shopify Singer Spec",
     "type": "object",
-    "required": ["fix-me"],
+    "required": [
+      "start_date",
+      "api_key",
+      "shop"
+    ],
     "additionalProperties": false,
     "properties": {
-      "fix-me": {
+      "start_date": {
         "type": "string",
-        "description": "describe me"
+        "description": "Specifies the date at which the source will begin pulling data for API resources which support it."
+      },
+      "api_key": {
+        "type": "string",
+        "description": "The API key for your Shopify shop."
+      },
+      "shop": {
+        "type": "string",
+        "description": "The name of your shop e.g: \"myshop\" if your shop URL is myshop.shopify.com. For custom domain name shops (e.g: myshop.com), this will be the whole domain name i.e: myshop.com"
       }
     }
   }
