@@ -727,6 +727,29 @@ paths:
           description: Workspace not found
         "422":
           $ref: "#/components/responses/InvalidInput"
+  /v1/web_backend/connections/list_filtered:
+    post:
+      tags:
+        - web_backend
+      summary: Returns all connections which match filter params for a workspace.
+      operationId: webBackendListConnectionsForWorkspace
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConnectionListParams"
+        required: true
+      responses:
+        "200":
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WbConnectionReadList"
+        "404":
+          description: Workspace not found
+        "422":
+          $ref: "#/components/responses/InvalidInput"
   /v1/web_backend/connections/get:
     post:
       tags:
@@ -1344,6 +1367,17 @@ components:
           $ref: "#/components/schemas/ConnectionSchedule"
         status:
           $ref: "#/components/schemas/ConnectionStatus"
+    ConnectionListParams:
+      type: object
+      required:
+        - workspaceId
+      properties:
+        workspaceId:
+          $ref: "#/components/schemas/WorkspaceId"
+        sourceId:
+          $ref: "#/components/schemas/SourceId"
+        destinationId:
+          $ref: "#/components/schemas/DestinationId"
     ConnectionUpdate:
       type: object
       required:
