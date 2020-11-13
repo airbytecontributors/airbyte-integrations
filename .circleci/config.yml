@@ -1,0 +1,16 @@
+# Java Gradle CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/language-java/ for more details
+#
+version: 2.1
+jobs:
+  build:
+    machine: # run the steps with Docker
+      image: ubuntu-2004:202010-01
+      docker_layer_caching: true
+    resource_class: xlarge
+    
+    steps:
+      - checkout
+      - run: ls
+      
