@@ -25,7 +25,12 @@ jobs:
       - restore_cache:
           key: npm-{{ checksum "/tmp/npm.hashes" }}
           name: Cache Node deps
-      
+      - run:
+          name: "Set Python Version"
+          command: |
+            pyenv global 3.7.0
+            sudo python -m pip install --upgrade pip setuptools wheel
+            sudo python -m pip install pipenv      
       - run:
           name: Install OpenJDK 14
           command: |
@@ -33,12 +38,6 @@ jobs:
             sudo update-alternatives --set java /usr/lib/jvm/java-14-openjdk-amd64/bin/java
             sudo update-alternatives --set javac /usr/lib/jvm/java-14-openjdk-amd64/bin/javac
             java -version
-      - run:
-          name: "Set Python Version"
-          command: |
-            pyenv global 3.7
-            sudo python -m pip install --upgrade pip setuptools wheel
-            sudo python -m pip install pipenv
       - node/install:
           node-version: "14.7"
       
