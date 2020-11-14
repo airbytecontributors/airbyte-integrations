@@ -36,7 +36,7 @@ jobs:
       - run:
           name: "Set Python Version"
           command: |
-            pyenv global 3.7.9
+            pyenv global 3.7
             sudo python -m pip install --upgrade pip setuptools wheel
             sudo python -m pip install pipenv
       - node/install:
