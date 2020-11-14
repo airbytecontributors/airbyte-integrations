@@ -40,6 +40,6 @@ jobs:
             sudo python -m pip install --upgrade pip setuptools wheel
             sudo python -m pip install pipenv
       - node/install:
-          node-version: 14.7
+          node-version: "14.7"
       
       
