@@ -3,7 +3,10 @@
 # Check https://circleci.com/docs/2.0/language-java/ for more details
 #
 version: 2.1
-    
+
+orbs:
+  node: circleci/node@4.1.0
+  
 jobs:
   build:
     machine: # run the steps with Docker
@@ -22,7 +25,21 @@ jobs:
       - restore_cache:
           key: npm-{{ checksum "/tmp/npm.hashes" }}
           name: Cache Node deps
-        
       
+      - run:
+          name: Install OpenJDK 14
+          command: |
+            sudo apt-get update && sudo apt-get install openjdk-14-jdk
+            sudo update-alternatives --set java /usr/lib/jvm/java-14-openjdk-amd64/bin/java
+            sudo update-alternatives --set javac /usr/lib/jvm/java-14-openjdk-amd64/bin/javac
+            java -version
+      - run:
+          name: "Set Python Version"
+          command: |
+            pyenv global 3.7.9
+            sudo python -m pip install --upgrade pip setuptools wheel
+            sudo python -m pip install pipenv
+      - node/install:
+          node-version: 14.7
       
       
