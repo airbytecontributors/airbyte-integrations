@@ -15,13 +15,11 @@ jobs:
       - checkout
       - run: find . | grep -e '**gradle$' | md5sum > build/gradle.hashes
       - restore_cache:
-        path: ~/.gradle
         key: gradle-{{ checksum "build/gradle.hashes" }}
         name: Cache Gradle deps      
 
       - run: find . | grep -e '**package-lock.json$' | md5sum > build/npm.hashes
       - restore_cache:
-        path: ~/.npm
         key: npm-{{ checksum "build/npm.hashes" }}
         name: Cache Node deps
         
