@@ -30,8 +30,6 @@ jobs:
           command: |
             pyenv install 3.7.0
             pyenv global 3.7.0
-            sudo python -m pip install --upgrade pip setuptools wheel
-            sudo python -m pip install pipenv      
       - run:
           name: Install OpenJDK 14
           command: |
