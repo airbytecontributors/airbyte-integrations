@@ -28,8 +28,8 @@ jobs:
       - run:
           name: "Set Python Version"
           command: |
-            pyenv install 3.7.0
-            pyenv global 3.7.0
+            pyenv install 3.7.9
+            pyenv global 3.7.9
       - run:
           name: Install OpenJDK 14
           command: |
@@ -38,6 +38,7 @@ jobs:
             sudo update-alternatives --set javac /usr/lib/jvm/java-14-openjdk-amd64/bin/javac
             java -version
       - node/install:
-          node-version: "14.7"
+          node-version: "14.7.0"
+      - run: node --version
       
       
