@@ -68,4 +68,4 @@ jobs:
           command: ./gradlew --no-daemon composeBuild --scan
           name: Build core docker images
           environment:
-            GIT_REVISION: {{ .Revision }}
+              GIT_REVISION: {{ .Revision }}
