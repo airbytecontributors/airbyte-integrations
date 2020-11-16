@@ -26,8 +26,8 @@ jobs:
           key: npm-{{ checksum "/tmp/npm.hashes" }}
           name: Cache Node deps
 
-      - run: circleci-install nodejs 14.7.0
-      - run: nvm alias default 14.7.0
+      - run: node/install
+        node-version: "14.7.0"
 
       - run:
           name: "Set Python Version"
@@ -42,4 +42,3 @@ jobs:
             sudo update-alternatives --set javac /usr/lib/jvm/java-14-openjdk-amd64/bin/javac
             java -version
 
-  
