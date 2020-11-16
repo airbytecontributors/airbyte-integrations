@@ -52,3 +52,16 @@ jobs:
           command: ./tools/bin/ci_credentials.sh
           name: Write CI creds
 
+      - run:
+          command: ./gradlew --no-daemon build --scan
+          name: Build
+
+      - run:
+          command: ./gradlew --no-daemon integrationTest --scan
+          name: Run Integration Tests (Master)
+
+      - run:
+          command: ./gradlew --no-daemon standardSourceTestPython --scan
+          name:  Run Standard Source Tests (Master)
+
+
