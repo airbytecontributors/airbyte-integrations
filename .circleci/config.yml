@@ -68,4 +68,18 @@ jobs:
           command: ./gradlew --no-daemon composeBuild --scan
           name: Build core docker images
           environment:
-              GIT_REVISION: test
+              GIT_REVISION: $CIRCLE_SHA1
+
+
+      - save_cache:
+          name: Save gradle cache
+          key: gradle-{{ checksum "/tmp/gradle.hashes" }}
+          paths:
+            - ~/.gradle
+
+      - save_cache:
+          name: Save Node cache
+          key: npm-{{ checksum "/tmp/npm.hashes" }}
+          paths:
+            - ~/.npm
+  
