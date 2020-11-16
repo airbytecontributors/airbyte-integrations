@@ -44,22 +44,24 @@ jobs:
             sudo update-alternatives --set javac /usr/lib/jvm/java-14-openjdk-amd64/bin/javac
             java -version
 
-      - run: ./tools/bin/ci_credentials.sh
+      - run:
+          command: ./tools/bin/ci_credentials.sh
           name: Write CI creds
 
-      - run: ./gradlew --no-daemon build --scan
+      - run:
+          command: ./gradlew --no-daemon build --scan
           name: Build
 
-      - run: git status --porcelain && test -z "$(git status --porcelain)"
-          name: No file change
-
-      - run: ./gradlew --no-daemon integrationTest --scan
+      - run:
+          command: ./gradlew --no-daemon integrationTest --scan
           name: Run Integration Tests (Master)
 
-      - run: ./gradlew --no-daemon standardSourceTestPython --scan
+      - run:
+          command: ./gradlew --no-daemon standardSourceTestPython --scan
           name:  Run Standard Source Tests (Master)
 
-      run: ./gradlew --no-daemon composeBuild --scan
+      run:
+          command: ./gradlew --no-daemon composeBuild --scan
           name: Build core docker images
 
       - save_cache:
