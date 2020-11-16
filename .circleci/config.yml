@@ -26,8 +26,8 @@ jobs:
           key: npm-{{ checksum "/tmp/npm.hashes" }}
           name: Cache Node deps
 
-      - node/install:
-          node-version: "14.7.0"
+      - run: nvm install 14.7.0
+      - run: nvm alias default 14.7.0
 
       - run:
           name: "Set Python Version"
