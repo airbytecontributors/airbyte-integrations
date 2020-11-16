@@ -26,7 +26,7 @@ jobs:
           key: npm-{{ checksum "/tmp/npm.hashes" }}
           name: Cache Node deps
 
-      - run: node/install
+      - node/install:
           node-version: "14.7.0"
 
       - run:
