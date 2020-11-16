@@ -13,7 +13,9 @@ jobs:
       image: ubuntu-2004:202010-01
       docker_layer_caching: true
     resource_class: xlarge
-    
+    environment:
+      GIT_REVISION: {{ .Revision }}
+
     steps:
       - checkout
       - run: find . | grep -e '**gradle$' | md5sum > /tmp/gradle.hashes
@@ -42,3 +44,32 @@ jobs:
             sudo update-alternatives --set javac /usr/lib/jvm/java-14-openjdk-amd64/bin/javac
             java -version
 
+      - run: ./tools/bin/ci_credentials.sh
+          name: Write CI creds
+
+      - run: ./gradlew --no-daemon build --scan
+          name: Build
+
+      - run: git status --porcelain && test -z "$(git status --porcelain)"
+          name: No file change
+
+      - run: ./gradlew --no-daemon integrationTest --scan
+          name: Run Integration Tests (Master)
+
+      - run: ./gradlew --no-daemon standardSourceTestPython --scan
+          name:  Run Standard Source Tests (Master)
+
+      run: ./gradlew --no-daemon composeBuild --scan
+          name: Build core docker images
+
+      - save_cache:
+          name: Save gradle cache
+          key: gradle-{{ checksum "/tmp/gradle.hashes" }}
+          paths:
+            - ~/.gradle
+
+      - save_cache:
+          name: Save Node cache
+          key: npm-{{ checksum "/tmp/npm.hashes" }}
+          paths:
+            - ~/.npm
