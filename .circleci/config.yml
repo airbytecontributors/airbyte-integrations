@@ -70,6 +70,9 @@ jobs:
           environment:
               GIT_REVISION: $CIRCLE_SHA1
 
+      - run:
+          name: Acceptance Tests
+          command: ./tools/bin/acceptance_test.sh
 
       - save_cache:
           name: Save gradle cache
