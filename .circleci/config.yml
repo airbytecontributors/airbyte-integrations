@@ -64,4 +64,8 @@ jobs:
           command: ./gradlew --no-daemon standardSourceTestPython --scan
           name:  Run Standard Source Tests (Master)
 
-
+      - run:
+          command: ./gradlew --no-daemon composeBuild --scan
+          name: Build core docker images
+          environment:
+            GIT_REVISION: {{ .Revision }}
