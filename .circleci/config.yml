@@ -30,6 +30,7 @@ jobs:
 
       - run:
           command: nvm install 14.7.0
+
       - run:
           command: nvm alias default 14.7.0
 
@@ -38,6 +39,7 @@ jobs:
           command: |
             pyenv install 3.7.9
             pyenv global 3.7.9
+
       - run:
           name: Install OpenJDK 14
           command: |
