@@ -27,7 +27,7 @@ jobs:
           name: Cache Node deps
 
       - run: node/install
-        node-version: "14.7.0"
+          node-version: "14.7.0"
 
       - run:
           name: "Set Python Version"
