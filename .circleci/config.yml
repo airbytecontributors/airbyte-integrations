@@ -16,18 +16,22 @@ jobs:
 
     steps:
       - checkout
-      - run: find . | grep -e '**gradle$' | md5sum > /tmp/gradle.hashes
+      - run:
+          command: find . | grep -e '**gradle$' | md5sum > /tmp/gradle.hashes
       - restore_cache:
           key: gradle-{{ checksum "/tmp/gradle.hashes" }}
           name: Cache Gradle deps      
 
-      - run: find . | grep -e '**package-lock.json$' | md5sum > /tmp/npm.hashes
+      - run:
+          command: find . | grep -e '**package-lock.json$' | md5sum > /tmp/npm.hashes
       - restore_cache:
           key: npm-{{ checksum "/tmp/npm.hashes" }}
           name: Cache Node deps
 
-      - run: nvm install 14.7.0
-      - run: nvm alias default 14.7.0
+      - run:
+          command: nvm install 14.7.0
+      - run:
+          command: nvm alias default 14.7.0
 
       - run:
           name: "Set Python Version"
