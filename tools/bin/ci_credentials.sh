@@ -43,10 +43,10 @@ echo "$SOURCE_MARKETO_SINGER_INTEGRATION_TEST_CONFIG" > "${MKTO_SECRETS_DIR}/con
 mkdir airbyte-integrations/connectors/source-shopify-singer/secrets
 echo "$SHOPIFY_INTEGRATION_TEST_CREDS" > airbyte-integrations/connectors/source-shopify-singer/secrets/config.json
 
-SOURCEFILE_DIR=airbyte-integrations/connectors/source-file/secrets
-mkdir $SOURCEFILE_DIR
-echo "$BIGQUERY_INTEGRATION_TEST_CREDS" > "${SOURCEFILE_DIR}/gcs.json"
-echo "$AWS_S3_INTEGRATION_TEST_CREDS" > "${SOURCEFILE_DIR}/aws.json"
+#SOURCEFILE_DIR=airbyte-integrations/connectors/source-file/secrets
+#mkdir $SOURCEFILE_DIR
+#echo "$BIGQUERY_INTEGRATION_TEST_CREDS" > "${SOURCEFILE_DIR}/gcs.json"
+#echo "$AWS_S3_INTEGRATION_TEST_CREDS" > "${SOURCEFILE_DIR}/aws.json"
 
 MAILCHIMP_SECRETS_DIR=airbyte-integrations/connectors/source-mailchimp/secrets
 mkdir $MAILCHIMP_SECRETS_DIR
