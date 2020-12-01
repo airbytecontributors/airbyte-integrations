@@ -22,6 +22,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+import os
 from setuptools import find_packages, setup
 
 setup(
@@ -32,9 +33,9 @@ setup(
     packages=find_packages(),
     package_data={"": ["*.json"]},
     install_requires=[
+        f"airbyte-protocol @ file:///Users/jrhizor/code/airbyte/airbyte-integrations/bases/airbyte-protocol",
+        f"base-singer @ file:///Users/jrhizor/code/airbyte/airbyte-integrations/bases/base-singer",
         "tap-exchangeratesapi==0.1.1",
         "pydantic==1.6.1",
-        "airbyte-protocol",
-        "base-singer",
     ],
 )
