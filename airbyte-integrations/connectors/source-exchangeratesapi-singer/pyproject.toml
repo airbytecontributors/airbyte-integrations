@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "source-exchangeratesapi-singer"
+version = "0.1.0"
+description = "Source implementation for the exchange rates API."
+license = "MIT"
+authors = ["Airbyte <contact@airbyte.io>"]
+readme = 'README.md'
+include = ["*.json"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+toml = "^0.9"
+PyYAML = "5.3.1"
+pydantic = "1.6.1"
+
+tap-exchangeratesapi = "0.1.1"
+
+airbyte-protocol = { path = "../../bases/airbyte-protocol", develop = true }
+base-singer = { path = "../../bases/base-singer", develop = true }

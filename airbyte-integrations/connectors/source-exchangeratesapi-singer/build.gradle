@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'airbyte-python'
+    id 'airbyte-python-poetry'
     id 'airbyte-docker'
     id 'airbyte-integration-test-java'
     // todo: implement source test
