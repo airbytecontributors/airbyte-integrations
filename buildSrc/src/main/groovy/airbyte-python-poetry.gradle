@@ -2,14 +2,14 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import ru.vyarus.gradle.plugin.python.task.PythonTask;
 
-class AirbytePythonConfiguration {
+class AirbytePythonPoetryConfiguration {
     String moduleDirectory
 }
 
-class AirbytePythonPlugin implements Plugin<Project> {
+class AirbytePythonPoetryPlugin implements Plugin<Project> {
 
     void apply(Project project) {
-        def extension = project.extensions.create('airbytePython', AirbytePythonConfiguration)
+        def extension = project.extensions.create('airbytePython', AirbytePythonPoetryConfiguration)
 
         project.plugins.apply 'ru.vyarus.use-python'
 
@@ -24,6 +24,8 @@ class AirbytePythonPlugin implements Plugin<Project> {
             pip 'isort:5.6.4'
             pip 'pytest:6.1.2'
             pip 'pip:20.3'
+            pip 'poetry:1.1.4'
+            pip 'pex:2.1.21'
         }
 
         project.task('blackFormat', type: PythonTask) {
@@ -43,12 +45,10 @@ class AirbytePythonPlugin implements Plugin<Project> {
             command = ". --config ${project.rootProject.file('tools/python/.flake8').absolutePath}"
         }
 
-        // attempt to install anything in requirements.txt. by convention this should only be dependencies whose source is located in the project.
-        project.task('installLocalReqs', type: PythonTask) {
-            module = "pip"
-            command = "install ." // -r requirements.txt" REMOVED FOR TESTING
-            inputs.file('requirements.txt')
-            outputs.file('build/installedlocalreqs.txt')
+        project.task('installReqs1', type: PythonTask) {
+            module = "poetry"
+            command = "install"
+            inputs.file('pyproject.toml')
 
             // HACK: makes all integrations depend on installing requirements for bases. long term we should resolve deps and install in order.
             if(project.getPath().startsWith(":airbyte-integrations:connectors")) {
@@ -56,24 +56,20 @@ class AirbytePythonPlugin implements Plugin<Project> {
             }
         }
 
-        project.task('installReqs', type: PythonTask, dependsOn: project.installLocalReqs) {
-            module = "pip"
-            command = "install .[main]"
-            inputs.file('setup.py')
-            outputs.file('build/installedreqs.txt')
+        project.task('installReqs2', type: PythonTask, dependsOn: project.installReqs1) {
+            module = "poetry"
+            command = "run pip freeze > requirements.txt"
         }
 
-        project.task('installTestReqs', type: PythonTask, dependsOn: project.installReqs) {
-            module = "pip"
-            command = "install .[tests]"
-            inputs.file('setup.py')
-            outputs.file('build/installedtestreqs.txt')
+        project.task('installReqs', type: PythonTask, dependsOn: project.installReqs2) {
+            module = "pex"
+            command = "--requirement=requirements.txt --sources-directory=. --output-file=service.pex"
         }
 
         if(project.file('unit_tests').exists()) {
             project.task('unitTest', type: PythonTask, dependsOn: project.installTestReqs) {
-                module = "pytest"
-                command = "unit_tests"
+                module = "pip"
+                command = "poetry run python -m pytest unit_tests"
             }
         } else {
             project.task('unitTest') {
@@ -100,7 +96,7 @@ class AirbytePythonPlugin implements Plugin<Project> {
 
         project.task('airbytePythonTest', type: DefaultTask) {
             dependsOn project.airbytePythonApply
-            dependsOn project.installTestReqs
+            dependsOn project.installReqs
             dependsOn project.unitTest
         }
 

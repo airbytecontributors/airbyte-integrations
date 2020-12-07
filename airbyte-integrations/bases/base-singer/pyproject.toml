@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "base-singer"
+version = "0.1.0"
+description = "Contains helpers for handling Singer sources and destinations."
+license = "MIT"
+authors = ["Airbyte <contact@airbyte.io>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+toml = "^0.9"
+PyYAML = "5.3.1"
+pydantic = "1.6.1"
+
+airbyte-protocol = { path = "../../bases/airbyte-protocol", develop = true }
+base-python = { path = "../../bases/base-python", develop = true }
+
+[tool.poetry.scripts]
+console_scripts = "base-python=base_python.entrypoint:main"

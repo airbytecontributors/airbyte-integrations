@@ -14,6 +14,8 @@ __pycache__
 .eggs
 .venv
 .mypy_cache
+dist
+poetry.lock
 
 # dbt
 profiles.yml

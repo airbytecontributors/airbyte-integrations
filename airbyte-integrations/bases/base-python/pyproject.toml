@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "base-python"
+version = "0.1.0"
+description = "Contains machinery to make it easy to write an integration in python."
+license = "MIT"
+authors = ["Airbyte <contact@airbyte.io>"]
+include = ["models/yaml/*.yaml"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+toml = "^0.9"
+PyYAML = "5.3.1"
+pydantic = "1.6.1"
+
+airbyte-protocol = { path = "../../bases/airbyte-protocol", develop = true }
+
+[tool.poetry.scripts]
+console_scripts = "base-python=base_python.entrypoint:main"

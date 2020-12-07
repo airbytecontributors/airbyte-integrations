@@ -1,0 +1,13 @@
+[tool.poetry]
+name = "airbyte-protocol"
+version = "0.1.0"
+description = "Contains classes representing the schema of the Airbyte protocol."
+license = "MIT"
+authors = ["Airbyte <contact@airbyte.io>"]
+include = ["models/yaml/*.yaml"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+toml = "^0.9"
+PyYAML = "5.3.1"
+pydantic = "1.6.1"

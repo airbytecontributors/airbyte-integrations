@@ -1,5 +1,5 @@
 plugins {
-    id 'airbyte-python'
+    id 'airbyte-python-poetry'
     id 'airbyte-docker'
 }
 

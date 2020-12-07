@@ -1,6 +1,6 @@
 plugins {
     id 'airbyte-docker'
-    id 'airbyte-python'
+    id 'airbyte-python-poetry'
 }
 
 airbytePython {
