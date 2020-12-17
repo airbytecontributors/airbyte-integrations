@@ -50,7 +50,7 @@
   * [On Your Workstation](deploying-airbyte/on-your-workstation.md)
   * [On AWS \(EC2\)](deploying-airbyte/on-aws-ec2.md)
   * [On GCP \(Compute Engine\)](deploying-airbyte/on-gcp-compute-engine.md)
-* [Architecture](architecture/README.md)
+* [standard-source-test 0.8.0-alpha API](architecture/README.md)
   * [High-level View](architecture/high-level-view.md)
   * [Airbyte Specification](architecture/airbyte-specification.md)
   * [Technical Stack](architecture/tech-stack.md)
