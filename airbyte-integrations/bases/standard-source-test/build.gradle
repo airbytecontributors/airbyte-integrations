@@ -63,6 +63,7 @@ task generateSourceTestDocs(type: Javadoc) {
         outputDoc.append "Test methods start with `test`. Other methods are internal helpers in the java class implementing the test suite.\n"
         outputDoc.append md
     }
+    outputs.upToDateWhen {false}
 }
 
 project.build.dependsOn(generateSourceTestDocs)
