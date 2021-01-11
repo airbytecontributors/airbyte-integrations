@@ -1,5 +1,10 @@
 # Changelog
 
+**Platform:** If you're interested in our progress on the Airbyte platform, please go to [Platform Changelog](platform.md).  
+**Connectors:** If you're interested in the connectors we support, please go to [Connectors Changelog](connectors.md).
+
+If you're interested in getting to know how we release our different versions, please read below!
+
 ## Airbyte Core Releases
 
 Airbyte Core is any non-connector code. This includes the scheduler, workers, api, web app, and the Airbyte protocol.
