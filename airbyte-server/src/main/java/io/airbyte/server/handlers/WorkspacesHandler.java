@@ -66,7 +66,7 @@ public class WorkspacesHandler {
       persistedWorkspace.withEmail(workspaceUpdate.getEmail());
     }
     persistedWorkspace
-        .withOnboardingComplete(workspaceUpdate.getOnboardingComplete())
+        .withOnboardingComplete(workspaceUpdate.getOnboardingComplete() != null ? workspaceUpdate.getOnboardingComplete() : false)
         .withInitialSetupComplete(workspaceUpdate.getInitialSetupComplete())
         .withAnonymousDataCollection(workspaceUpdate.getAnonymousDataCollection())
         .withNews(workspaceUpdate.getNews())
