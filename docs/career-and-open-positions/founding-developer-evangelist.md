@@ -40,13 +40,6 @@ This is a function-founding role: you'll have a large ownership over building ou
 
 North America.
 
-## **We provide**
-
-* Unlimited PTO
-* Remote friendly
-* Equipment stipend
-* For countries where it applies: Health Insurance, Retirement \(401k, etc\)
-
 ## **Applying**
 
 Email us at [join-us@airbyte.io](mailto:join-us@airbyte.io) with a link to your LinkedIn / Resume / GitHub \(optional\).
