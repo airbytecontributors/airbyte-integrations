@@ -67,7 +67,7 @@ class MssqlSourceTest {
     db.start();
   }
 
-  // how to interact with the mssql test container manaully.
+  // how to interact with the mssql test container manually.
   // 1. exec into mssql container (not the test container container)
   // 2. /opt/mssql-tools/bin/sqlcmd -S localhost -U SA -P "A_Str0ng_Required_Password"
   @BeforeEach
