@@ -30,6 +30,12 @@
         "type": "string",
         "order": 2
       },
+      "schema": {
+        "title": "Schema Name",
+        "description": "Name of the schema.",
+        "type": "string",
+        "order": 3
+      },
       "username": {
         "title": "User",
         "description": "Username to use to access the database.",

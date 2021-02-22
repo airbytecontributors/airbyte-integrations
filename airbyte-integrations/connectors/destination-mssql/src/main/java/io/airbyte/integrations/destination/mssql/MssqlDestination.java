@@ -52,7 +52,8 @@ public class MssqlDestination extends AbstractJdbcDestination implements Destina
             .put("jdbc_url", String.format("jdbc:sqlserver://%s:%s;databaseName=%s",
                     config.get("host").asText(),
                     config.get("port").asText(),
-                    config.get("database").asText()));
+                    config.get("database").asText()))
+            .put("schema", config.get("schema"));
 
     if (config.has("password")) {
       configBuilder.put("password", config.get("password").asText());

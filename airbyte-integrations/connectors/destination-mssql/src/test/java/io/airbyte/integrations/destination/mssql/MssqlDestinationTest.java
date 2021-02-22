@@ -120,6 +120,7 @@ class MssqlDestinationTest {
             .put("username", container.getUsername())
             .put("password", container.getPassword())
             .put("port", container.getFirstMappedPort())
+            .put("schema", "dest_schema")
             .build());
 
     final String dbName = "dest";
