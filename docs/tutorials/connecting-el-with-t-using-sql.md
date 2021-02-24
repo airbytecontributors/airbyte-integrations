@@ -1,51 +1,38 @@
-# (ELT) Connecting Airbyte's EL with T steps using SQL
+# Connecting EL with T using SQL \(part 1/2\)
 
 ## Overview
 
 This tutorial will describe how to integrate SQL based transformations with Airbyte syncs using plain SQL queries.
 
-This is the first part of ELT tutorial.
-The second part goes deeper with [connecting EL with T using DBT](connecting-EL-with-T-using-DBT.md).
+This is the first part of ELT tutorial. The second part goes deeper with [connecting EL with T using DBT](connecting-el-with-t-using-dbt.md).
 
 ## First transformation step: Normalization
 
-At its core, Airbyte is geared to handle the EL (Extract Load) steps of an ELT process.
-These steps can also be referred in Airbyte's dialect as "Source" and "Destination".
+At its core, Airbyte is geared to handle the EL \(Extract Load\) steps of an ELT process. These steps can also be referred in Airbyte's dialect as "Source" and "Destination".
 
-However, this is actually producing a table in the destination with a JSON blob column...
-For the typical analytics use case, you probably want this json blob normalized so that each field is its own column.
+However, this is actually producing a table in the destination with a JSON blob column... For the typical analytics use case, you probably want this json blob normalized so that each field is its own column.
 
-So, after EL, comes the T (transformation) and the first T step that Airbyte actually applies on top of
-the extracted data is called "Normalization".
-You can find more information about it [here](../architecture/basic-normalization.md).
+So, after EL, comes the T \(transformation\) and the first T step that Airbyte actually applies on top of the extracted data is called "Normalization". You can find more information about it [here](../architecture/basic-normalization.md).
 
 Airbyte runs this step before handing the final data over to other tools that will manage further transformation down the line.
 
-To summarize, we can represent the ELT process in the diagram below.
-These are steps that happens between your "Source Database or API" and the final "Replicated Tables"
-with examples of implementation underneath:
+To summarize, we can represent the ELT process in the diagram below. These are steps that happens between your "Source Database or API" and the final "Replicated Tables" with examples of implementation underneath:
 
 ![](../.gitbook/assets/connecting-EL-with-T-4.png)
 
-Anyway, it is possible to short-circuit this process (no vendor lock-in) and handle it yourself by turning this option
-off in the destination settings page.
+Anyway, it is possible to short-circuit this process \(no vendor lock-in\) and handle it yourself by turning this option off in the destination settings page.
 
-This could be useful if:
-1. you have different usage than analytics that could be handled with these initial data in raw JSON format.
-1. you can implement your own Transformer (even in a different language such as Java or in Spark for example, or another transformation tool: DBT or Dataform)
-1. you want to customize and change how the data is normalized with your own queries (add deduplication logic since Airbyte is not doing it natively yet?)
+This could be useful if: 1. you have different usage than analytics that could be handled with these initial data in raw JSON format. 1. you can implement your own Transformer \(even in a different language such as Java or in Spark for example, or another transformation tool: DBT or Dataform\) 1. you want to customize and change how the data is normalized with your own queries \(add deduplication logic since Airbyte is not doing it natively yet?\)
 
-In order to do so, we will now describe how you can leverage the basic normalization outputs that Airbyte
-generates to build your own transformations if you don't want to start from scratch.
+In order to do so, we will now describe how you can leverage the basic normalization outputs that Airbyte generates to build your own transformations if you don't want to start from scratch.
 
 Note: We will rely on docker commands that we've gone over as part of another [Tutorial on Exploring Docker Volumes](exploring-workspace-folder.md).
 
-## (Optional) Configure some Covid \(data\) source and Postgres destinations
+## \(Optional\) Configure some Covid \(data\) source and Postgres destinations
 
 If you have sources and destinations already setup on your instance, you can skip to the next section.
 
-For the sake of this tutorial, let's create some source and destination as an example that we can refer to afterward.
-We'll be using a file accessible from a public API, so you can easily reproduce this setup:
+For the sake of this tutorial, let's create some source and destination as an example that we can refer to afterward. We'll be using a file accessible from a public API, so you can easily reproduce this setup:
 
 ```text
 Here are some examples of public API CSV:
@@ -66,8 +53,7 @@ Notice that the process ran in the `/tmp/workspace/5/0` folder.
 
 ## Identify Workspace ID with Normalize steps
 
-If you went through the previous setup of source/destination section and run a sync, you were able
-to identify which workspace was used, let's define some environment variables to remember this:
+If you went through the previous setup of source/destination section and run a sync, you were able to identify which workspace was used, let's define some environment variables to remember this:
 
 ```bash
 NORMALIZE_WORKSPACE="5/0/"
@@ -92,7 +78,9 @@ Therefore, it is possible to extract these SQL files, modify them and run it you
 
 You would be able to find these at the following location inside the server's docker container:
 
-    /tmp/workspace/${NORMALIZE_WORKSPACE}/build/run/airbyte_utils/models/generated/<your_table_name>.sql
+```text
+/tmp/workspace/${NORMALIZE_WORKSPACE}/build/run/airbyte_utils/models/generated/<your_table_name>.sql
+```
 
 In order to extract them, you can run:
 
@@ -100,6 +88,7 @@ In order to extract them, you can run:
 docker cp airbyte-server:/tmp/workspace/${NORMALIZE_WORKSPACE}/build/run/airbyte_utils/models/generated/* models/
 ls models
 ```
+
 Example Output:
 
 ```text
@@ -107,6 +96,7 @@ covid_epidemiology.sql
 ```
 
 Let's inspect the generated SQL file by running:
+
 ```bash
 cat models/covid_epidemiology.sql
 ```
@@ -195,8 +185,7 @@ select * from covid_epidemiology_with_id
 
 ### Simple SQL Query
 
-We could simplify the SQL query by removing some parts that may be unnecessary for your current usage
-(such as generating a md5 column; [Why exactly would I want to use that?!](https://blog.getdbt.com/the-most-underutilized-function-in-sql/)).
+We could simplify the SQL query by removing some parts that may be unnecessary for your current usage \(such as generating a md5 column; [Why exactly would I want to use that?!](https://blog.getdbt.com/the-most-underutilized-function-in-sql/)\).
 
 It would turn into a simpler query:
 
@@ -224,17 +213,19 @@ as (
 ### Customize SQL Query
 
 Feel free to:
-- Rename the columns as you desire
-    - avoiding using keywords such as `"key"` or `"date"`
-- You can tweak the column data type if the ones generated by Airbyte are not the ones you favor
-    - For example, let's use `Integer` instead of `Float` for the number of Covid cases...
-- Add deduplicating logic
-    - if you can identify which columns to use as Primary Keys
-  (since airbyte isn't able to detect those automatically yet...)
-    - (Note: actually I am not even sure if I can tell the proper primary key in this dataset...)
-- Create a View (or materialized views) instead of a Table.
-- etc
 
+* Rename the columns as you desire
+  * avoiding using keywords such as `"key"` or `"date"`
+* You can tweak the column data type if the ones generated by Airbyte are not the ones you favor
+  * For example, let's use `Integer` instead of `Float` for the number of Covid cases...
+* Add deduplicating logic
+  * if you can identify which columns to use as Primary Keys
+
+    \(since airbyte isn't able to detect those automatically yet...\)
+
+  * \(Note: actually I am not even sure if I can tell the proper primary key in this dataset...\)
+* Create a View \(or materialized views\) instead of a Table.
+* etc
 
 ```sql
 create view "postgres"."public"."covid_epidemiology" as (
@@ -283,5 +274,5 @@ create view "postgres"."public"."covid_epidemiology" as (
 
 Then you can run in your preferred SQL editor or tool!
 
-If you are familiar with DBT or want to learn more about it, you can continue with the following
-[tutorial using DBT](connecting-EL-with-T-using-DBT.md)...
+If you are familiar with DBT or want to learn more about it, you can continue with the following [tutorial using DBT](connecting-el-with-t-using-dbt.md)...
+
