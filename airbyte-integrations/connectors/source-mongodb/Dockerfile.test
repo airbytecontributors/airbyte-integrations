@@ -1,0 +1,11 @@
+FROM mongo:4.0.23
+
+RUN mkdir /testdata
+RUN apt-get update && \
+    apt-get install -y curl && \
+    curl -o /testdata/sampledata.archive https://atlas-education.s3.amazonaws.com/sampledata.archive
+
+RUN echo "mongorestore --archive=/testdata/sampledata.archive" > /docker-entrypoint-initdb.d/init.sh
+
+LABEL io.airbyte.version=0.1.0
+LABEL io.airbyte.name=airbyte/mongodb-integration-test-seed
