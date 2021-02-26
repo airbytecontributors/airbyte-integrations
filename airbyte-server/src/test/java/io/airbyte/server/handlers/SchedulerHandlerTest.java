@@ -452,9 +452,7 @@ class SchedulerHandlerTest {
     when(completedJob.getConfig()).thenReturn(jobConfig);
     when(jobConfig.getConfigType()).thenReturn(ConfigType.SYNC);
 
-    final JobInfoRead jobStatusRead = schedulerHandler.syncConnection(request);
-
-    assertEquals(io.airbyte.api.model.JobStatus.SUCCEEDED, jobStatusRead.getJob().getStatus());
+    schedulerHandler.syncConnection(request);
     verify(configRepository).getStandardSync(standardSync.getConnectionId());
     verify(configRepository).getSourceConnection(standardSync.getSourceId());
     verify(configRepository).getDestinationConnection(standardSync.getDestinationId());

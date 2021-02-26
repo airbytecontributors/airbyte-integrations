@@ -227,7 +227,7 @@ public class SchedulerHandler {
     return specFetcher.execute(dockerImage);
   }
 
-  public JobInfoRead syncConnection(final ConnectionIdRequestBody connectionIdRequestBody)
+  public void syncConnection(final ConnectionIdRequestBody connectionIdRequestBody)
       throws ConfigNotFoundException, IOException, JsonValidationException {
     final UUID connectionId = connectionIdRequestBody.getConnectionId();
     final StandardSync standardSync = configRepository.getStandardSync(connectionId);
@@ -241,14 +241,12 @@ public class SchedulerHandler {
     final StandardDestinationDefinition destinationDef = configRepository.getStandardDestinationDefinition(destination.getDestinationDefinitionId());
     final String destinationImageName = DockerUtils.getTaggedImageName(destinationDef.getDockerRepository(), destinationDef.getDockerImageTag());
 
-    final Job job = schedulerJobClient.createOrGetActiveSyncJob(
+    schedulerJobClient.createOrGetActiveSyncJob(
         source,
         destination,
         standardSync,
         sourceImageName,
         destinationImageName);
-
-    return JobConverter.getJobInfoRead(job);
   }
 
   public JobInfoRead resetConnection(final ConnectionIdRequestBody connectionIdRequestBody)

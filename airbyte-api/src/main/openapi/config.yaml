@@ -783,11 +783,7 @@ paths:
         required: true
       responses:
         "200":
-          description: Successful operation
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/JobInfoRead"
+          description: Successfully requested sync
         "404":
           description: Connection not found
         "422":
