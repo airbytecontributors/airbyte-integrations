@@ -79,7 +79,11 @@ public class JobSubmitter implements Runnable {
 
       nextJob.ifPresent(job -> {
         trackSubmission(job);
-        submitJob(job);
+        try {
+          submitJob(job);
+        } catch (Exception e) {
+          throw new RuntimeException(e);
+        }
         LOGGER.info("Job-Submitter Summary. Submitted job with scope {}", job.getScope());
       });
 
@@ -90,7 +94,7 @@ public class JobSubmitter implements Runnable {
   }
 
   @VisibleForTesting
-  void submitJob(Job job) {
+  void submitJob(Job job) throws Exception {
     final WorkerRun workerRun = workerRunFactory.create(job);
     // we need to know the attempt number before we begin the job lifecycle. thus we state what the
     // attempt number should be. if it is not, that the lifecycle will fail. this should not happen as

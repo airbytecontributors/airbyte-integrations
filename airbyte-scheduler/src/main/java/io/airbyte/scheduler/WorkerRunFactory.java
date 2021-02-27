@@ -81,7 +81,7 @@ public class WorkerRunFactory {
     this.creator = creator;
   }
 
-  public WorkerRun create(final Job job) {
+  public WorkerRun create(final Job job) throws Exception {
     final int currentAttempt = job.getAttemptsCount();
     LOGGER.info("job id: {} attempt: {} scope: {} type: {}", job.getId(), currentAttempt, job.getScope(), job.getConfig().getConfigType());
 
@@ -98,13 +98,8 @@ public class WorkerRunFactory {
     };
   }
 
-  private WorkerRun createGetSpecWorker(long jobId, int attempt, JobGetSpecConfig config, Path jobRoot) {
-    final IntegrationLauncher launcher = createLauncher(jobId, attempt, config.getDockerImage());
-
-    return creator.create(
-        jobRoot,
-        config,
-        new JobOutputGetSpecWorker(new DefaultGetSpecWorker(launcher)));
+  private WorkerRun createGetSpecWorker(long jobId, int attempt, JobGetSpecConfig config, Path jobRoot) throws Exception {
+    return new GetSpecWorkerRun(pbf, creator, jobRoot).create(jobId, attempt, config);
   }
 
   private WorkerRun createConnectionCheckWorker(long jobId, int attempt, JobCheckConnectionConfig config, Path jobRoot) {
