@@ -1,2 +1,6 @@
 NEW_SOURCE_CHECKLIST.md
 dist
+.eggs
+*.egg-info
+.pytest_cache
+.venv

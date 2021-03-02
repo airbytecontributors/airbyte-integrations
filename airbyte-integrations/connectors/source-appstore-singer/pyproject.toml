@@ -1,3 +1,13 @@
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 140
+
+
+[tool.flake8]
+
 [tool.poetry]
 name = "source-appstore-singer"
 version = "0.1.0"
@@ -17,7 +27,7 @@ airbyte-python-test = {path = "../../bases/base-python-test", develop = true}
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.2"
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+flake8 = "^3.8.4"
+black = "^20.8b1"
+mypy = "^0.812"
+isort = "^5.7.0"
