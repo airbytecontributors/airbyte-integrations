@@ -1,0 +1,82 @@
+import org.gradle.api.Plugin
+import org.gradle.api.Project
+import org.gradle.api.tasks.Exec
+
+class AirbytePolyglotPythonConfiguration {
+    String moduleDirectory = 'source_appstore_singer'
+}
+
+class AirbytePolyglotPythonPlugin implements Plugin<Project> {
+
+    void apply(Project project) {
+        def extension = project.extensions.create('airbytePolyglotPython', AirbytePolyglotPythonConfiguration)
+
+//            // HACK: makes all integrations depend on installing requirements for bases. long term we should resolve deps and install in order.
+//            if(project.getPath().startsWith(":airbyte-integrations:connectors")) {
+//                dependsOn project.rootProject.getTasksByName("airbytePythonApply", true).findAll { it.project.getPath().startsWith(":airbyte-integrations:bases")}
+
+        def configFiles = ['.python-version', 'poetry.toml', 'poetry.lock', 'pyproject.toml']
+        def sourcesFiles = project.fileTree('.').include('**/*.py').exclude('.*')
+        def librariesFiles = project.fileTree('.').include('.venv')
+
+        sourcesFiles.collect().forEach {println(it)}
+
+
+        project.task('pythonSetup', type: Exec) {
+            inputs.files configFiles
+
+            workingDir project.rootDir
+            commandLine project.rootProject.file('tools/polyglot/python/builder.sh'), project.projectDir, 'setup'
+
+            outputs.files librariesFiles
+        }
+
+        project.task('pythonFormat', type: Exec) {
+            inputs.files configFiles
+            inputs.files sourcesFiles
+            inputs.files librariesFiles
+
+            workingDir project.rootDir
+            commandLine project.rootProject.file('tools/polyglot/python/builder.sh'), project.projectDir, 'format'
+
+            outputs.files sourcesFiles
+
+            dependsOn project.pythonSetup
+        }
+
+        project.task('pythonAssemble', type: Exec) {
+            inputs.files configFiles
+            inputs.files sourcesFiles
+            inputs.files librariesFiles
+
+            workingDir project.rootDir
+            commandLine project.rootProject.file('tools/polyglot/python/builder.sh'), project.projectDir, 'build', extension.moduleDirectory
+
+            outputs.files sourcesFiles
+
+            dependsOn project.pythonFormat
+        }
+
+        if (project.file('unit_tests').exists()) {
+            project.task('pythonTest', type: Exec) {
+                inputs.files configFiles
+                inputs.files sourcesFiles
+                inputs.files librariesFiles
+
+                workingDir project.rootDir
+                commandLine project.rootProject.file('tools/polyglot/python/builder.sh'), project.projectDir, 'test'
+
+                outputs.files sourcesFiles
+
+                dependsOn project.pythonSetup
+            }
+        } else {
+            project.task('pythonTest') {
+                logger.info "Skipping Python unit tests because unit_tests directory doesn't exist."
+            }
+        }
+
+        project.assemble.dependsOn project.pythonAssemble
+        project.test.dependsOn project.pythonTest
+    }
+}

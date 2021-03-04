@@ -7,6 +7,10 @@ assert_root() {
   [ -f .root ] || error "Must run from root"
 }
 
+check_binary() {
+  command -v "$1" > /dev/null || error "$1 is required. Please install it."
+}
+
 _script_directory() {
   local base; base=$(dirname $0)
 
