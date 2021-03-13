@@ -29,8 +29,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.commons.resources.MoreResources;
-import io.airbyte.db.Database;
 import io.airbyte.db.Databases;
+import io.airbyte.db.jdbc.JdbcDatabase;
 import io.airbyte.integrations.standardtest.source.StandardSourceTest;
 import io.airbyte.protocol.models.CatalogHelpers;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
@@ -39,11 +39,11 @@ import io.airbyte.protocol.models.ConnectorSpecification;
 import io.airbyte.protocol.models.Field;
 import io.airbyte.protocol.models.Field.JsonSchemaPrimitive;
 import io.airbyte.protocol.models.SyncMode;
+import org.testcontainers.containers.OracleContainer;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import org.jooq.SQLDialect;
-import org.testcontainers.containers.OracleContainer;
 
 public class OracleSourceStandardTest extends StandardSourceTest {
 
@@ -66,22 +66,19 @@ public class OracleSourceStandardTest extends StandardSourceTest {
         .put("password", container.getPassword())
         .build());
 
-    final Database database = Databases.createDatabase(
-        config.get("username").asText(),
+    JdbcDatabase database = Databases.createJdbcDatabase(config.get("username").asText(),
         config.get("password").asText(),
         String.format("jdbc:oracle://%s:%s/%s",
             config.get("host").asText(),
             config.get("port").asText(),
             config.get("database").asText()),
-        "org.oracle.Driver",
-        SQLDialect.POSTGRES);
+        "org.oracle.Driver");
 
-    database.query(ctx -> {
-      ctx.fetch("CREATE TABLE id_and_name(id INTEGER, name VARCHAR(200));");
-      ctx.fetch("INSERT INTO id_and_name (id, name) VALUES (1,'picard'),  (2, 'crusher'), (3, 'vash');");
-      ctx.fetch("CREATE TABLE starships(id INTEGER, name VARCHAR(200));");
-      ctx.fetch("INSERT INTO starships (id, name) VALUES (1,'enterprise-d'),  (2, 'defiant'), (3, 'yamato');");
-      return null;
+    database.execute(connection -> {
+      connection.createStatement().execute("CREATE TABLE id_and_name(id INTEGER, name VARCHAR(200));");
+      connection.createStatement().execute("INSERT INTO id_and_name (id, name) VALUES (1,'picard'),  (2, 'crusher'), (3, 'vash');");
+      connection.createStatement().execute("CREATE TABLE starships(id INTEGER, name VARCHAR(200));");
+      connection.createStatement().execute("INSERT INTO starships (id, name) VALUES (1,'enterprise-d'),  (2, 'defiant'), (3, 'yamato');");
     });
 
     database.close();
@@ -137,5 +134,4 @@ public class OracleSourceStandardTest extends StandardSourceTest {
   protected JsonNode getState() {
     return Jsons.jsonNode(new HashMap<>());
   }
-
 }
