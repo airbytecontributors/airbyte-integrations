@@ -28,9 +28,6 @@ import io.airbyte.config.StandardCheckConnectionInput;
 import io.airbyte.config.StandardCheckConnectionOutput;
 import io.airbyte.scheduler.models.IntegrationLauncherConfig;
 import io.airbyte.scheduler.models.JobRunConfig;
-import io.airbyte.workers.DefaultCheckConnectionWorker;
-import io.airbyte.workers.process.AirbyteIntegrationLauncher;
-import io.airbyte.workers.process.IntegrationLauncher;
 import io.airbyte.workers.process.ProcessBuilderFactory;
 import io.temporal.activity.ActivityInterface;
 import io.temporal.activity.ActivityMethod;
@@ -92,15 +89,16 @@ public interface CheckConnectionWorkflow {
                                              IntegrationLauncherConfig launcherConfig,
                                              StandardCheckConnectionInput connectionConfiguration)
         throws TemporalJobException {
-      return new TemporalAttemptExecution<>(workspaceRoot, jobRunConfig, (jobRoot) -> {
-        final IntegrationLauncher integrationLauncher = new AirbyteIntegrationLauncher(
-            launcherConfig.getJobId(),
-            Math.toIntExact(launcherConfig.getAttemptId()),
-            launcherConfig.getDockerImage(),
-            pbf);
-
-        return new DefaultCheckConnectionWorker(integrationLauncher).run(connectionConfiguration, jobRoot);
-      }).get();
+      throw new TemporalJobException(Path.of(""));
+//      return new TemporalAttemptExecution<>(workspaceRoot, jobRunConfig, (jobRoot) -> {
+//        final IntegrationLauncher integrationLauncher = new AirbyteIntegrationLauncher(
+//            launcherConfig.getJobId(),
+//            Math.toIntExact(launcherConfig.getAttemptId()),
+//            launcherConfig.getDockerImage(),
+//            pbf);
+//
+//        return new DefaultCheckConnectionWorker(integrationLauncher).run(connectionConfiguration, jobRoot);
+//      }).get();
     }
 
   }
