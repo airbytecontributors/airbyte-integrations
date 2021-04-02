@@ -53,19 +53,19 @@ import com.google.common.collect.ImmutableMap;
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.commons.lang.Exceptions;
 import io.airbyte.commons.resources.MoreResources;
+import io.airbyte.integrations.base.AirbyteMessageConsumer;
 import io.airbyte.integrations.base.Destination;
-import io.airbyte.integrations.base.DestinationConsumer;
-import io.airbyte.integrations.base.FailureTrackingConsumer;
+import io.airbyte.integrations.base.FailureTrackingAirbyteMessageConsumer;
 import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.base.JavaBaseConstants;
 import io.airbyte.integrations.destination.StandardNameTransformer;
 import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteConnectionStatus.Status;
-import io.airbyte.protocol.models.AirbyteMessage;
+import io.airbyte.protocol.models.AirbyteRecordMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.ConfiguredAirbyteStream;
-import io.airbyte.protocol.models.ConfiguredAirbyteStream.DestinationSyncMode;
 import io.airbyte.protocol.models.ConnectorSpecification;
+import io.airbyte.protocol.models.DestinationSyncMode;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -205,7 +205,7 @@ public class BigQueryDestination implements Destination {
    * @return consumer that writes singer messages to the database.
    */
   @Override
-  public DestinationConsumer<AirbyteMessage> write(JsonNode config, ConfiguredAirbyteCatalog catalog) {
+  public AirbyteMessageConsumer getConsumer(JsonNode config, ConfiguredAirbyteCatalog catalog) {
     final BigQuery bigquery = getBigQuery(config);
     Map<String, WriteConfig> writeConfigs = new HashMap<>();
     final String datasetId = config.get(CONFIG_DATASET_ID).asText();
@@ -291,7 +291,7 @@ public class BigQueryDestination implements Destination {
     }
   }
 
-  public static class RecordConsumer extends FailureTrackingConsumer<AirbyteMessage> implements DestinationConsumer<AirbyteMessage> {
+  public static class RecordConsumer extends FailureTrackingAirbyteMessageConsumer {
 
     private final BigQuery bigquery;
     private final Map<String, WriteConfig> writeConfigs;
@@ -309,30 +309,28 @@ public class BigQueryDestination implements Destination {
     }
 
     @Override
-    public void acceptTracked(AirbyteMessage message) {
+    public void acceptTracked(AirbyteRecordMessage message) {
       // ignore other message types.
-      if (message.getType() == AirbyteMessage.Type.RECORD) {
-        if (!writeConfigs.containsKey(message.getRecord().getStream())) {
-          throw new IllegalArgumentException(
-              String.format("Message contained record from a stream that was not in the catalog. \ncatalog: %s , \nmessage: %s",
-                  Jsons.serialize(catalog), Jsons.serialize(message)));
-        }
+      if (!writeConfigs.containsKey(message.getStream())) {
+        throw new IllegalArgumentException(
+            String.format("Message contained record from a stream that was not in the catalog. \ncatalog: %s , \nmessage: %s",
+                Jsons.serialize(catalog), Jsons.serialize(message)));
+      }
 
-        // Bigquery represents TIMESTAMP to the microsecond precision, so we convert to microseconds then
-        // use BQ helpers to string-format correctly.
-        long emittedAtMicroseconds = TimeUnit.MICROSECONDS.convert(message.getRecord().getEmittedAt(), TimeUnit.MILLISECONDS);
-        final String formattedEmittedAt = QueryParameterValue.timestamp(emittedAtMicroseconds).getValue();
+      // Bigquery represents TIMESTAMP to the microsecond precision, so we convert to microseconds then
+      // use BQ helpers to string-format correctly.
+      long emittedAtMicroseconds = TimeUnit.MICROSECONDS.convert(message.getEmittedAt(), TimeUnit.MILLISECONDS);
+      final String formattedEmittedAt = QueryParameterValue.timestamp(emittedAtMicroseconds).getValue();
 
-        final JsonNode data = Jsons.jsonNode(ImmutableMap.of(
-            JavaBaseConstants.COLUMN_NAME_AB_ID, UUID.randomUUID().toString(),
-            JavaBaseConstants.COLUMN_NAME_DATA, Jsons.serialize(message.getRecord().getData()),
-            JavaBaseConstants.COLUMN_NAME_EMITTED_AT, formattedEmittedAt));
-        try {
-          writeConfigs.get(message.getRecord().getStream()).getWriter()
-              .write(ByteBuffer.wrap((Jsons.serialize(data) + "\n").getBytes(Charsets.UTF_8)));
-        } catch (IOException e) {
-          throw new RuntimeException(e);
-        }
+      final JsonNode data = Jsons.jsonNode(ImmutableMap.of(
+          JavaBaseConstants.COLUMN_NAME_AB_ID, UUID.randomUUID().toString(),
+          JavaBaseConstants.COLUMN_NAME_DATA, Jsons.serialize(message.getData()),
+          JavaBaseConstants.COLUMN_NAME_EMITTED_AT, formattedEmittedAt));
+      try {
+        writeConfigs.get(message.getStream()).getWriter()
+            .write(ByteBuffer.wrap((Jsons.serialize(data) + "\n").getBytes(Charsets.UTF_8)));
+      } catch (IOException e) {
+        throw new RuntimeException(e);
       }
     }
 

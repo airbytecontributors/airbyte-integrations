@@ -22,19 +22,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-from setuptools import find_packages, setup
+# format anchor
 
-setup(
-    name="source_google_adwords_singer",
-    description="Source implementation for Google Adwords, built on the Singer tap implementation.",
-    author="Airbyte",
-    author_email="contact@airbyte.io",
-    packages=find_packages(),
-    install_requires=[
-        "airbyte-protocol",
-        "base-singer",
-        "base-python",
-        "pytest==6.1.2"
-    ],
-    package_data={"": ["*.json"]}
-)
+
+def test_example_method():
+    assert True
