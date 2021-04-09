@@ -263,8 +263,8 @@ class IntegrationRunnerTest {
   @Test
   void testme() throws IOException {
     String s = MoreResources.readResource("testfile.json");
-    System.out.println(s);
-    System.out.println(Jsons.tryDeserialize(s, AirbyteMessage.class).orElseGet(() -> new AirbyteMessage()));
+//    System.out.println(s);
+    System.out.println(Jsons.deserialize(s, AirbyteMessage.class));
   }
 
 }
