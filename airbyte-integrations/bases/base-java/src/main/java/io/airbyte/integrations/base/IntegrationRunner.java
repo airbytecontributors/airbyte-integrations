@@ -127,9 +127,9 @@ public class IntegrationRunner {
       consumer.start();
       while (input.hasNextLine()) {
         final String inputString = input.nextLine();
-        final Optional<AirbyteMessage> singerMessageOptional = Jsons.tryDeserialize(inputString, AirbyteMessage.class);
-        if (singerMessageOptional.isPresent()) {
-          consumer.accept(singerMessageOptional.get());
+        final Optional<AirbyteMessage> airbyteMessageOptional = Jsons.tryDeserialize(inputString, AirbyteMessage.class);
+        if (airbyteMessageOptional.isPresent()) {
+          consumer.accept(airbyteMessageOptional.get());
         } else {
           // todo (cgardens) - decide if we want to throw here instead.
           LOGGER.error(inputString);
