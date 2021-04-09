@@ -37,6 +37,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import io.airbyte.commons.io.IOs;
 import io.airbyte.commons.json.Jsons;
+import io.airbyte.commons.resources.MoreResources;
 import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.commons.util.MoreIterators;
 import io.airbyte.protocol.models.AirbyteCatalog;
@@ -257,6 +258,13 @@ class IntegrationRunnerTest {
     inOrder.verify(airbyteMessageConsumerMock).accept(singerMessage1);
     inOrder.verify(airbyteMessageConsumerMock).close();
     inOrder.verifyNoMoreInteractions();
+  }
+
+  @Test
+  void testme() throws IOException {
+    String s = MoreResources.readResource("testfile.json");
+    System.out.println(s);
+    System.out.println(Jsons.tryDeserialize(s, AirbyteMessage.class).orElseGet(() -> new AirbyteMessage()));
   }
 
 }

@@ -132,7 +132,7 @@ public class IntegrationRunner {
           consumer.accept(airbyteMessageOptional.get());
         } else {
           // todo (cgardens) - decide if we want to throw here instead.
-          LOGGER.error(inputString);
+          LOGGER.error("Unable to deserialize input record as AirbyteMessage: {}", inputString);
         }
       }
     }
