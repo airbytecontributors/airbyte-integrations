@@ -60,6 +60,12 @@
         "airbyte_secret": true,
         "title": "Password"
       },
+      "authenticator": {
+        "title": "Authenticator",
+        "description": "Optional field. Specifies the authenticator to use for verifying user login credentials.",
+        "examples": ["https://<okta_account_name>.okta.com"],
+        "type": "string"
+      },
       "basic_normalization": {
         "type": "boolean",
         "default": true,

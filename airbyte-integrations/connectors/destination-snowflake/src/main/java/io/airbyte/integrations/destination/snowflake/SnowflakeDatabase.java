@@ -28,10 +28,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import io.airbyte.db.jdbc.DefaultJdbcDatabase;
 import io.airbyte.db.jdbc.DefaultJdbcDatabase.CloseableConnectionSupplier;
 import io.airbyte.db.jdbc.JdbcDatabase;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.Properties;
 
 /**
@@ -53,6 +55,10 @@ public class SnowflakeDatabase {
     properties.put("database", config.get("database").asText());
     properties.put("role", config.get("role").asText());
     properties.put("schema", config.get("schema").asText());
+
+    if (config.has("authenticator") && !config.get("authenticator").asText().isEmpty()) {
+      properties.put("authenticator", config.get("authenticator").asText());
+    }
 
     properties.put("networkTimeout", Math.toIntExact(NETWORK_TIMEOUT.toSeconds()));
     properties.put("queryTimeout", Math.toIntExact(QUERY_TIMEOUT.toSeconds()));
