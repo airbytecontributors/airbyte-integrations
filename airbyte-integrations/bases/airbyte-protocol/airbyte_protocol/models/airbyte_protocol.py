@@ -28,9 +28,11 @@ SOFTWARE.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import AnyUrl, BaseModel, Extra, Field
+
+JSON_TYPE = Union[str, int, float, bool, None, Dict[str, Any], List[Any]]
 
 
 class Type(Enum):
@@ -47,7 +49,7 @@ class AirbyteRecordMessage(BaseModel):
         extra = Extra.allow
 
     stream: str = Field(..., description="the name of this record's stream")
-    data: Dict[str, Any] = Field(..., description="the record data")
+    data: JSON_TYPE = Field(..., description="the record data")
     emitted_at: int = Field(
         ...,
         description="when the data was emitted from the source. epoch in millisecond.",
