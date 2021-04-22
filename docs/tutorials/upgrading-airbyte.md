@@ -27,7 +27,6 @@ If you inadvertently upgrade to a version of Airbyte that is not compatible with
    ```
 
 3. Navigate to the Admin page in the UI. Then go to the Configuration Tab. Click Export. This will download a gzipped tarball of all of your Airbyte configuration data and sync history. _Note: Any secrets that you have entered into Airbyte will be in this archive, so you should treat it as secret._
-
 4. Migrate the archive to the new version using the Migration App \(packaged in a docker container\).
 
    ```bash
