@@ -25,6 +25,7 @@
 package io.airbyte.server.handlers;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import io.airbyte.api.model.DestinationDefinitionCreate;
 import io.airbyte.api.model.DestinationDefinitionIdRequestBody;
 import io.airbyte.api.model.DestinationDefinitionRead;
@@ -34,6 +35,8 @@ import io.airbyte.config.StandardDestinationDefinition;
 import io.airbyte.config.helpers.YamlListToStandardDefinitions;
 import io.airbyte.config.persistence.ConfigNotFoundException;
 import io.airbyte.config.persistence.ConfigRepository;
+import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
+import io.airbyte.protocol.models.ConfiguredAirbyteStream;
 import io.airbyte.scheduler.client.CachingSynchronousSchedulerClient;
 import io.airbyte.server.errors.KnownException;
 import io.airbyte.server.services.AirbyteGithubStore;
@@ -43,7 +46,9 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -105,6 +110,9 @@ public class DestinationDefinitionsHandler {
       throw new KnownException(500, "Error retrieving latest destination definitions", e);
     }
     final var reads = destDefs.stream().map(DestinationDefinitionsHandler::buildDestinationDefinitionRead).collect(Collectors.toList());
+
+    Timestam
+
     return new DestinationDefinitionReadList().destinationDefinitions(reads);
   }
 
