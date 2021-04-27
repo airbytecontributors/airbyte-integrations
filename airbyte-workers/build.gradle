@@ -21,11 +21,14 @@ dependencies {
     implementation project(':airbyte-db')
     implementation project(':airbyte-json-validation')
     implementation project(':airbyte-protocol:models')
+    implementation project(':airbyte-queue')
 
     testImplementation 'org.mockito:mockito-inline:2.13.0'
     testImplementation 'org.testcontainers:testcontainers:1.14.3'
     testImplementation 'org.testcontainers:postgresql:1.15.1'
     testImplementation 'org.postgresql:postgresql:42.2.18'
+    testImplementation 'io.reactivex.rxjava2:rxjava:2.2.21'
+
 }
 
 jsonSchema2Pojo {

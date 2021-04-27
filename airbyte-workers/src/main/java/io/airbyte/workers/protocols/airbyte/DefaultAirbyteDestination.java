@@ -68,6 +68,7 @@ public class DefaultAirbyteDestination implements AirbyteDestination {
         jobRoot,
         WorkerConstants.DESTINATION_CONFIG_JSON_FILENAME,
         WorkerConstants.DESTINATION_CATALOG_JSON_FILENAME).start();
+
     LineGobbler.gobble(targetProcess.getInputStream(), LOGGER::info);
     LineGobbler.gobble(targetProcess.getErrorStream(), LOGGER::error);
 
@@ -78,6 +79,7 @@ public class DefaultAirbyteDestination implements AirbyteDestination {
   public void accept(AirbyteMessage message) throws IOException {
     Preconditions.checkState(targetProcess != null && !endOfStream);
 
+    writer.
     writer.write(Jsons.serialize(message));
     writer.newLine();
   }

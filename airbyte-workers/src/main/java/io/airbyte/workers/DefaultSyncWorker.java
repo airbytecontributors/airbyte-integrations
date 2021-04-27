@@ -24,6 +24,8 @@
 
 package io.airbyte.workers;
 
+import com.google.common.base.Charsets;
+import io.airbyte.commons.json.Jsons;
 import io.airbyte.config.StandardSyncInput;
 import io.airbyte.config.StandardSyncOutput;
 import io.airbyte.config.StandardSyncSummary;
@@ -32,6 +34,7 @@ import io.airbyte.config.StandardTapConfig;
 import io.airbyte.config.StandardTargetConfig;
 import io.airbyte.config.State;
 import io.airbyte.protocol.models.AirbyteMessage;
+import io.airbyte.queue.OnDiskQueue;
 import io.airbyte.workers.normalization.NormalizationRunner;
 import io.airbyte.workers.protocols.Destination;
 import io.airbyte.workers.protocols.Mapper;
@@ -82,6 +85,8 @@ public class DefaultSyncWorker implements SyncWorker {
   public StandardSyncOutput run(StandardSyncInput syncInput, Path jobRoot) throws WorkerException {
     long startTime = System.currentTimeMillis();
 
+    final OnDiskQueue writeBuffer = new OnDiskQueue(jobRoot.resolve("queue"), "worker-queue");
+
     LOGGER.info("configured sync modes: {}", syncInput.getCatalog().getStreams()
         .stream()
         .collect(Collectors.toMap(s -> s.getStream().getNamespace() + "." + s.getStream().getName(),
@@ -96,15 +101,26 @@ public class DefaultSyncWorker implements SyncWorker {
       destination.start(targetConfig, jobRoot);
       source.start(tapConfig, jobRoot);
 
-      while (!cancelled.get() && !source.isFinished()) {
-        final Optional<AirbyteMessage> maybeMessage = source.attemptRead();
-        if (maybeMessage.isPresent()) {
-          final AirbyteMessage message = mapper.mapMessage(maybeMessage.get());
+      final Thread sourceThread = new Thread(() -> {
+        while (!cancelled.get() && !source.isFinished()) {
+          final Optional<AirbyteMessage> maybeMessage = source.attemptRead();
+          if (maybeMessage.isPresent()) {
+            final AirbyteMessage message = mapper.mapMessage(maybeMessage.get());
 
-          messageTracker.accept(message);
+            messageTracker.accept(message);
+            writeBuffer.offer(Jsons.serialize(message).getBytes(Charsets.UTF_8));
+          }
+        }
+      });
+
+      final Thread destinationThread = new Thread(() -> {
+        while (!cancelled.get() && !source.isFinished()) {
+          writeBuffer.poll();
+
           destination.accept(message);
         }
-      }
+      });
+
 
     } catch (Exception e) {
       throw new WorkerException("Sync worker failed.", e);
