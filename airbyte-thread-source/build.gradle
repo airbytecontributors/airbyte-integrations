@@ -1,0 +1,10 @@
+plugins {
+    id 'application'
+}
+
+dependencies {
+}
+
+application {
+    mainClass = 'io.airbyte.thread.Source'
+}

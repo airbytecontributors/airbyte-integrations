@@ -13,6 +13,8 @@ gradleEnterprise {
 
 rootProject.name = 'airbyte'
 
+include ':airbyte-thread-source'
+include ':airbyte-thread-destination'
 include ':airbyte-analytics'
 include ':airbyte-api'
 include ':airbyte-cli'
