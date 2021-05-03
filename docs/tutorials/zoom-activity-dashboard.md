@@ -86,7 +86,7 @@ So let’s go back to the Airbyte web UI and provide it with the JWT token we co
 
 Now click on the **Set up source** button. You will see the below success message when the connection is made successfully.
 
-![](../.gitbook/assets/setup-successful%20%281%29.png)
+![](../.gitbook/assets/setup-successful%20%282%29.png)
 
 And you will be taken to the page to add your destination.
 
@@ -124,7 +124,7 @@ After successfully making the connection, you will see your PostgreSQL destinati
 
 Then click on the **airbyte-zoom-destination** to see the Sync page.
 
-![](../.gitbook/assets/sync-screen%20%282%29.png)
+![](../.gitbook/assets/sync-screen%20%283%29.png)
 
 Syncing should take a few minutes or longer depending on the size of the data being replicated. Once Airbyte is done replicating the data, you will get a **succeeded** status.
 
@@ -148,7 +148,7 @@ Once your activation is successful, you will see your Tableau dashboard.
 
 On the sidebar menu under the **To a Server** section, click on the **More…** menu. You will see a list of datasource connectors you can connect Tableau with.
 
-![](../.gitbook/assets/datasources%20%283%29.png)
+![](../.gitbook/assets/datasources%20%284%29.png)
 
 Select **PostgreSQL** and you will be presented with a connection credentials modal.
 
@@ -194,7 +194,7 @@ Tableau should now look like this:
 
 Now, to finish up, we need to add the **meetings\(Count\) measure** Tableau already calculated for us in the **Rows** section. So drag **meetings\(Count\)** onto the Columns section to complete the chart.
 
-![](../.gitbook/assets/evolution-of-meetings-per-week%20%281%29.png)
+![](../.gitbook/assets/evolution-of-meetings-per-week%20%282%29.png)
 
 And now we are done with the very first chart. Let's save the sheet and create a new Dashboard that we will add this sheet to as well as the others we will be creating.
 
@@ -246,7 +246,7 @@ The rest of the charts will be needing the **webinars** and `report_webinar_part
 
 For this chart, as for the meeting’s counterpart, we will get a calculated field off the Duration field to get the **Webinar Duration in Hours**, and then plot **Created At** against the **Sum of Webinar Duration in Hours**, as shown in the screenshot below. Note: Make sure you create a new sheet for each of these graphs.
 
-![](../.gitbook/assets/duration-spent-in-weekly-webinars%20%282%29.png)
+![](../.gitbook/assets/duration-spent-in-weekly-webinars%20%283%29.png)
 
 ### Evolution of the number of participants for all webinars per week
 
