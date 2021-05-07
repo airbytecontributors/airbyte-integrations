@@ -14,17 +14,19 @@ Check out our [connector roadmap](https://github.com/airbytehq/airbyte/projects/
 
 ## 05/04/2021
 
-2 new sources: 
+2 new sources:
+
 * [**Smartsheets**](https://docs.airbyte.io/integrations/sources/smartsheets), thanks to [Nathan Nowack](https://github.com/zzstoatzz)
 * [**Zendesk Chat**](https://docs.airbyte.io/integrations/sources/zendesk-chat)
 
 Progress on connectors:
-* **Appstore**: bugfix private key handling in the UI ([#3201](https://github.com/airbytehq/airbyte/pull/3201))
-* **Facebook marketing**: Wait longer (5 min) for async jobs to start ([#3116](https://github.com/airbytehq/airbyte/pull/3116)), thanks to [Max Krog](https://github.com/MaxKrog)
-* **Stripe**: support reading data from connected accounts (#3121), and 2 new streams with Refunds & Bank Accounts ([#3030](https://github.com/airbytehq/airbyte/pull/3030)) ([#3086](https://github.com/airbytehq/airbyte/pull/3086))
-* **Redshift destination**: Ignore records that are too big (instead of failing) ([#2988](https://github.com/airbytehq/airbyte/pull/2988))
-* **MongoDB**: add supporting TLS and Replica Sets ([#3111](https://github.com/airbytehq/airbyte/pull/3111))
-* **HTTP sources**: bugfix on handling array responses gracefully ([#3008](https://github.com/airbytehq/airbyte/pull/3008))
+
+* **Appstore**: bugfix private key handling in the UI \([\#3201](https://github.com/airbytehq/airbyte/pull/3201)\)
+* **Facebook marketing**: Wait longer \(5 min\) for async jobs to start \([\#3116](https://github.com/airbytehq/airbyte/pull/3116)\), thanks to [Max Krog](https://github.com/MaxKrog)
+* **Stripe**: support reading data from connected accounts \(\#3121\), and 2 new streams with Refunds & Bank Accounts \([\#3030](https://github.com/airbytehq/airbyte/pull/3030)\) \([\#3086](https://github.com/airbytehq/airbyte/pull/3086)\)
+* **Redshift destination**: Ignore records that are too big \(instead of failing\) \([\#2988](https://github.com/airbytehq/airbyte/pull/2988)\)
+* **MongoDB**: add supporting TLS and Replica Sets \([\#3111](https://github.com/airbytehq/airbyte/pull/3111)\)
+* **HTTP sources**: bugfix on handling array responses gracefully \([\#3008](https://github.com/airbytehq/airbyte/pull/3008)\)
 
 ## 04/27/2021
 
