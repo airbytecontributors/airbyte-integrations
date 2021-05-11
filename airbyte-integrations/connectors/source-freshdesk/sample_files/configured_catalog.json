@@ -23,15 +23,18 @@
               "type": "integer"
             },
             "created_at": {
+              "format": "date-time",
               "type": "string"
             },
             "updated_at": {
+              "format": "date-time",
               "type": "string"
             },
             "last_active_at": {
               "type": ["string", "null"]
             },
             "available_since": {
+              "format": "date-time",
               "type": ["string", "null"]
             },
             "type": {
@@ -53,24 +56,27 @@
                   "type": "string"
                 },
                 "last_login_at": {
+                  "format": "date-time",
                   "type": ["string", "null"]
                 },
                 "mobile": {
-                  "type": ["string", "integer", "null"]
+                  "type": ["string", "null"]
                 },
                 "name": {
-                  "type": "string"
+                  "type": ["string", "null"]
                 },
                 "phone": {
-                  "type": ["string", "integer", "null"]
+                  "type": ["string", "null"]
                 },
                 "time_zone": {
                   "type": "string"
                 },
                 "created_at": {
+                  "format": "date-time",
                   "type": "string"
                 },
                 "updated_at": {
+                  "format": "date-time",
                   "type": "string"
                 }
               }
@@ -111,21 +117,24 @@
               }
             },
             "created_at": {
+              "format": "date-time",
               "type": "string"
             },
             "updated_at": {
+              "format": "date-time",
               "type": "string"
             },
             "custom_fields": {
               "type": "object"
             },
             "health_score": {
-              "type": ["number", "null"]
+              "type": ["string", "null"]
             },
             "account_tier": {
               "type": "string"
             },
             "renewal_date": {
+              "format": "date-time",
               "type": ["string", "null"]
             },
             "industry": {
@@ -173,19 +182,19 @@
               "type": "string"
             },
             "mobile": {
-              "type": ["string", "integer", "null"]
+              "type": ["string", "null"]
             },
             "name": {
               "type": "string"
             },
             "phone": {
-              "type": ["string", "integer", "null"]
+              "type": ["string", "null"]
             },
             "time_zone": {
               "type": "string"
             },
             "twitter_id": {
-              "type": ["integer", "null"]
+              "type": ["string", "null"]
             },
             "custom_fields": {
               "type": "object"
@@ -194,9 +203,11 @@
               "type": ["integer", "null"]
             },
             "created_at": {
+              "format": "date-time",
               "type": "string"
             },
             "updated_at": {
+              "format": "date-time",
               "type": "string"
             },
             "csat_rating": {
@@ -206,7 +217,7 @@
               "type": "string"
             },
             "unique_external_id": {
-              "type": ["integer", "null"]
+              "type": ["string", "null"]
             }
           }
         },
@@ -265,9 +276,11 @@
               "type": ["array", "null"]
             },
             "created_at": {
+              "format": "date-time",
               "type": "string"
             },
             "updated_at": {
+              "format": "date-time",
               "type": "string"
             },
             "attachments": {
@@ -303,7 +316,7 @@
               "type": "string"
             },
             "description": {
-              "type": "string"
+              "type": ["string", "null"]
             },
             "escalate_to": {
               "type": ["integer", "null"]
@@ -318,9 +331,11 @@
               "type": "string"
             },
             "created_at": {
+              "format": "date-time",
               "type": "string"
             },
             "updated_at": {
+              "format": "date-time",
               "type": "string"
             },
             "auto_ticket_assign": {
@@ -356,9 +371,11 @@
               "type": "boolean"
             },
             "created_at": {
+              "format": "date-time",
               "type": "string"
             },
             "updated_at": {
+              "format": "date-time",
               "type": "string"
             }
           }
@@ -400,13 +417,18 @@
               "type": "integer"
             },
             "created_at": {
+              "format": "date-time",
               "type": "string"
             },
             "updated_at": {
+              "format": "date-time",
               "type": "string"
             },
             "ratings": {
               "type": "object"
+            },
+            "questions": {
+              "type": ["string", "null"]
             }
           }
         },
@@ -432,12 +454,14 @@
               "type": "string"
             },
             "rank": {
-              "type": "integer"
+              "type": "string"
             },
             "created_at": {
+              "format": "date-time",
               "type": "string"
             },
             "updated_at": {
+              "format": "date-time",
               "type": "string"
             },
             "agents": {
@@ -504,9 +528,11 @@
               "type": "boolean"
             },
             "created_at": {
+              "format": "date-time",
               "type": "string"
             },
             "updated_at": {
+              "format": "date-time",
               "type": "string"
             },
             "questions": {
@@ -550,13 +576,22 @@
           "type": "object",
           "properties": {
             "cc_emails": {
-              "type": "array"
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
             },
             "fwd_emails": {
-              "type": "array"
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             },
             "reply_cc_emails": {
-              "type": "array"
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             },
             "ticket_cc_emails": {
               "type": "array"
@@ -613,9 +648,11 @@
               "type": "string"
             },
             "due_by": {
+              "format": "date-time",
               "type": "string"
             },
             "fr_due_by": {
+              "format": "date-time",
               "type": "string"
             },
             "is_escalated": {
@@ -625,16 +662,21 @@
               "type": "object"
             },
             "created_at": {
+              "format": "date-time",
               "type": "string"
             },
             "updated_at": {
+              "format": "date-time",
               "type": "string"
             },
             "associated_tickets_count": {
               "type": ["integer", "null"]
             },
             "tags": {
-              "type": "array"
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
             },
             "nr_due_by": {
               "type": ["string", "null"]
@@ -690,15 +732,19 @@
               "type": "string"
             },
             "executed_at": {
+              "format": "date-time",
               "type": "string"
             },
             "start_time": {
+              "format": "date-time",
               "type": "string"
             },
             "created_at": {
+              "format": "date-time",
               "type": "string"
             },
             "updated_at": {
+              "format": "date-time",
               "type": "string"
             }
           }

@@ -27,15 +27,19 @@
       "type": "string"
     },
     "executed_at": {
+      "format": "date-time",
       "type": "string"
     },
     "start_time": {
+      "format": "date-time",
       "type": "string"
     },
     "created_at": {
+      "format": "date-time",
       "type": "string"
     },
     "updated_at": {
+      "format": "date-time",
       "type": "string"
     }
   }

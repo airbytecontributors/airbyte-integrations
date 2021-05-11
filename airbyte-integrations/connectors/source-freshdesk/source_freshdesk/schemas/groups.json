@@ -9,7 +9,7 @@
       "type": "string"
     },
     "description": {
-      "type": "string"
+      "type": ["string", "null"]
     },
     "escalate_to": {
       "type": ["integer", "null"]
@@ -24,9 +24,11 @@
       "type": "string"
     },
     "created_at": {
+      "format": "date-time",
       "type": "string"
     },
     "updated_at": {
+      "format": "date-time",
       "type": "string"
     },
     "auto_ticket_assign": {

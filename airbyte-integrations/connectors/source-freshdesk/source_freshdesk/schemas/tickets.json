@@ -3,13 +3,22 @@
   "type": "object",
   "properties": {
     "cc_emails": {
-      "type": "array"
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
     },
     "fwd_emails": {
-      "type": "array"
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "reply_cc_emails": {
-      "type": "array"
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "ticket_cc_emails": {
       "type": "array"
@@ -66,9 +75,11 @@
       "type": "string"
     },
     "due_by": {
+      "format": "date-time",
       "type": "string"
     },
     "fr_due_by": {
+      "format": "date-time",
       "type": "string"
     },
     "is_escalated": {
@@ -78,16 +89,21 @@
       "type": "object"
     },
     "created_at": {
+      "format": "date-time",
       "type": "string"
     },
     "updated_at": {
+      "format": "date-time",
       "type": "string"
     },
     "associated_tickets_count": {
       "type": ["integer", "null"]
     },
     "tags": {
-      "type": "array"
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "nr_due_by": {
       "type": ["string", "null"]

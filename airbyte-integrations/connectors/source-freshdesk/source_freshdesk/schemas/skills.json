@@ -9,12 +9,14 @@
       "type": "string"
     },
     "rank": {
-      "type": "integer"
+      "type": "string"
     },
     "created_at": {
+      "format": "date-time",
       "type": "string"
     },
     "updated_at": {
+      "format": "date-time",
       "type": "string"
     },
     "agents": {

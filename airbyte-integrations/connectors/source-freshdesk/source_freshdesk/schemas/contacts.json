@@ -27,19 +27,19 @@
       "type": "string"
     },
     "mobile": {
-      "type": ["string", "integer", "null"]
+      "type": ["string", "null"]
     },
     "name": {
       "type": "string"
     },
     "phone": {
-      "type": ["string", "integer", "null"]
+      "type": ["string", "null"]
     },
     "time_zone": {
       "type": "string"
     },
     "twitter_id": {
-      "type": ["integer", "null"]
+      "type": ["string", "null"]
     },
     "custom_fields": {
       "type": "object"
@@ -48,9 +48,11 @@
       "type": ["integer", "null"]
     },
     "created_at": {
+      "format": "date-time",
       "type": "string"
     },
     "updated_at": {
+      "format": "date-time",
       "type": "string"
     },
     "csat_rating": {
@@ -60,7 +62,7 @@
       "type": "string"
     },
     "unique_external_id": {
-      "type": ["integer", "null"]
+      "type": ["string", "null"]
     }
   }
 }
