@@ -511,7 +511,7 @@ public abstract class AbstractJdbcSource extends BaseConnector implements Source
             .withData(r)));
   }
 
-  public static AutoCloseableIterator<JsonNode> queryTableFullRefresh(JdbcDatabase database,
+  private static AutoCloseableIterator<JsonNode> queryTableFullRefresh(JdbcDatabase database,
                                                                       List<String> columnNames,
                                                                       String schemaName,
                                                                       String tableName) {
@@ -536,7 +536,7 @@ public abstract class AbstractJdbcSource extends BaseConnector implements Source
     });
   }
 
-  public static AutoCloseableIterator<JsonNode> queryTableIncremental(JdbcDatabase database,
+  private static AutoCloseableIterator<JsonNode> queryTableIncremental(JdbcDatabase database,
                                                                       List<String> columnNames,
                                                                       String schemaName,
                                                                       String tableName,

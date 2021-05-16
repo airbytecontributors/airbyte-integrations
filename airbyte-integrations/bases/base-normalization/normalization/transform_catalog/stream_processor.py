@@ -362,23 +362,28 @@ from {{ from_table }}
         return [self.cast_property_type(field, column_names[field][0], column_names[field][1]) for field in column_names]
 
     def cast_property_type(self, property_name: str, column_name: str, jinja_column: str) -> str:
+        """
+        This types being cast should match the types listed in the Field class.
+        See https://github.com/airbytehq/airbyte/blob/6ffada861bf1f3f04da885d0e6db61ec0339855e/airbyte-protocol/models/src/main/java/io/airbyte/protocol/models/Field.java#L31.
+        """
         definition = self.properties[property_name]
+        colume_type = definition["type"]
         if "type" not in definition:
             print(f"WARN: Unknown type for column {property_name} at {self.current_json_path()}")
             return column_name
-        elif is_array(definition["type"]):
+        elif is_array(colume_type):
             return self.cast_property_type_as_array(property_name, column_name)
-        elif is_object(definition["type"]):
+        elif is_object(colume_type):
             sql_type = self.cast_property_type_as_object(property_name, column_name)
         # Treat simple types from narrower to wider scope type: boolean < integer < number < string
-        elif is_boolean(definition["type"]):
+        elif is_boolean(colume_type):
             cast_operation = jinja_call(f"cast_to_boolean({jinja_column})")
             return f"{cast_operation} as {column_name}"
-        elif is_integer(definition["type"]):
+        elif is_integer(colume_type):
             sql_type = jinja_call("dbt_utils.type_bigint()")
-        elif is_number(definition["type"]):
+        elif is_number(colume_type):
             sql_type = jinja_call("dbt_utils.type_float()")
-        elif is_string(definition["type"]):
+        elif is_string(colume_type):
             sql_type = jinja_call("dbt_utils.type_string()")
         else:
             print(f"WARN: Unknown type {definition['type']} for column {property_name} at {self.current_json_path()}")

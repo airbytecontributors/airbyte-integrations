@@ -28,6 +28,10 @@ import java.util.Objects;
 
 public class Field {
 
+  /**
+   * This types should match the cast_property_type function in stream_process.py.
+   * See https://github.com/airbytehq/airbyte/blob/6ffada861bf1f3f04da885d0e6db61ec0339855e/airbyte-integrations/bases/base-normalization/normalization/transform_catalog/stream_processor.py#L361.
+   */
   public enum JsonSchemaPrimitive {
     STRING,
     NUMBER,
