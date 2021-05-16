@@ -214,10 +214,6 @@ public class JdbcUtils {
     final String columnName = r.getMetaData().getColumnName(i);
     final JDBCType columnType = safeGetJdbcType(columnTypeInt);
 
-    System.out.println(columnName);
-    System.out.println(columnType);
-    System.out.println(r.getObject(i));
-
     // https://www.cis.upenn.edu/~bcpierce/courses/629/jdkdocs/guide/jdbc/getstart/mapping.doc.html
     switch (columnType) {
       case BIT, BOOLEAN -> o.put(columnName, r.getBoolean(i));
@@ -237,13 +233,7 @@ public class JdbcUtils {
         o.put(columnName, toISO8601String(d));
       }
       case BLOB, BINARY, VARBINARY, LONGVARBINARY -> o.put(columnName, r.getBytes(i));
-      // Assume this is base64 and jsonify
-      case OTHER -> {
-        System.out.println("we are here");
-        System.out.println(r.getString(i));
-        o.put(columnName, r.getString(i));
-        System.out.println();
-      }
+      case OTHER -> o.put(columnName, r.getString(i));
       default -> o.put(columnName, r.getString(i));
     }
   }
