@@ -191,7 +191,8 @@ public class TestJdbcUtils {
         + "date DATE,"
         + "time TIME,"
         + "timestamp TIMESTAMP,"
-        + "binary1 bytea"
+        + "binary1 bytea,"
+        + "json1 jsonb"
         + ");");
 
   }
@@ -213,7 +214,8 @@ public class TestJdbcUtils {
         + "date,"
         + "time,"
         + "timestamp,"
-        + "binary1"
+        + "binary1,"
+        + "json1"
         + ") VALUES("
         + "1::bit(1),"
         + "true,"
@@ -230,7 +232,8 @@ public class TestJdbcUtils {
         + "'2020-11-01',"
         + "'05:00',"
         + "'2001-09-29 03:00',"
-        + "decode('61616161', 'hex')"
+        + "decode('61616161', 'hex'),"
+        + "'[{\"type\": \"mobile\", \"phone\": \"001001\"}, {\"type\": \"fix\", \"phone\": \"002002\"}]'"
         + ");");
   }
 
@@ -259,6 +262,7 @@ public class TestJdbcUtils {
     expected.put("time", "1970-01-01T05:00:00Z");
     expected.put("timestamp", "2001-09-29T03:00:00Z");
     expected.put("binary1", "aaaa".getBytes(Charsets.UTF_8));
+    expected.put("json1", "[{\"type\": \"mobile\", \"phone\": \"001001\"}, {\"type\": \"fix\", \"phone\": \"002002\"}]");
 
     // field-wise comparison to make debugging easier.
     MoreStreams.toStream(expected.fields()).forEach(e -> assertEquals(e.getValue(), actual.get(e.getKey()), "key: " + e.getKey()));
@@ -292,6 +296,7 @@ public class TestJdbcUtils {
         .put("time", JsonSchemaType.STRING)
         .put("timestamp", JsonSchemaType.STRING)
         .put("binary1", JsonSchemaType.STRING)
+        .put("json1", JsonSchemaType.JSON)
         .build();
 
     assertEquals(actual, expected);
