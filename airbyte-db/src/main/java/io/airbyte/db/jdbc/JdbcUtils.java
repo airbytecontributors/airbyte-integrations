@@ -24,7 +24,9 @@
 
 package io.airbyte.db.jdbc;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.airbyte.commons.functional.CheckedFunction;
 import io.airbyte.commons.json.Jsons;
@@ -41,6 +43,7 @@ import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Spliterator;
@@ -123,36 +126,8 @@ public class JdbcUtils {
     }
   }
 
-  private static void setJsonField(ResultSet r, int i, ObjectNode o) throws SQLException {
-    final int columnTypeInt = r.getMetaData().getColumnType(i);
-    final String columnName = r.getMetaData().getColumnName(i);
-    final JDBCType columnType = safeGetJdbcType(columnTypeInt);
-
-    // https://www.cis.upenn.edu/~bcpierce/courses/629/jdkdocs/guide/jdbc/getstart/mapping.doc.html
-    switch (columnType) {
-      case BIT, BOOLEAN -> o.put(columnName, r.getBoolean(i));
-      case TINYINT, SMALLINT -> o.put(columnName, r.getShort(i));
-      case INTEGER -> o.put(columnName, r.getInt(i));
-      case BIGINT -> o.put(columnName, nullIfInvalid(() -> r.getLong(i)));
-      case FLOAT, DOUBLE -> o.put(columnName, nullIfInvalid(() -> r.getDouble(i), Double::isFinite));
-      case REAL -> o.put(columnName, nullIfInvalid(() -> r.getFloat(i), Float::isFinite));
-      case NUMERIC, DECIMAL -> o.put(columnName, nullIfInvalid(() -> r.getBigDecimal(i)));
-      case CHAR, VARCHAR, LONGVARCHAR -> o.put(columnName, r.getString(i));
-      case DATE -> o.put(columnName, toISO8601String(r.getDate(i)));
-      case TIME -> o.put(columnName, toISO8601String(r.getTime(i)));
-      case TIMESTAMP -> {
-        // https://www.cis.upenn.edu/~bcpierce/courses/629/jdkdocs/guide/jdbc/getstart/mapping.doc.html
-        final Timestamp t = r.getTimestamp(i);
-        java.util.Date d = new java.util.Date(t.getTime() + (t.getNanos() / 1000000));
-        o.put(columnName, toISO8601String(d));
-      }
-      case BLOB, BINARY, VARBINARY, LONGVARBINARY -> o.put(columnName, r.getBytes(i));
-      default -> o.put(columnName, r.getString(i));
-    }
-  }
 
   // todo (cgardens) - move generic date helpers to commons.
-
   public static String toISO8601String(long epochMillis) {
     return DATE_FORMAT.format(Date.from(Instant.ofEpochMilli(epochMillis)));
   }
@@ -207,9 +182,11 @@ public class JdbcUtils {
     }
   }
 
-  // the switch statement intentionally has duplicates so that its structure matches the type switch
-  // statement above.
 
+  /**
+   * the switch statement intentionally has duplicates so that its structure matches the cursor type switch in {@link #setStatementField(PreparedStatement, int, JDBCType, String)} )}
+   * statement above and is identical to the type switch in {@link #setJsonField(ResultSet, int, ObjectNode)}.
+   */
   @SuppressWarnings("DuplicateBranchesInSwitch")
   public static JsonSchemaType getType(JDBCType jdbcType) {
     return switch (jdbcType) {
@@ -225,10 +202,50 @@ public class JdbcUtils {
       case TIME -> JsonSchemaType.STRING;
       case TIMESTAMP -> JsonSchemaType.STRING;
       case BLOB, BINARY, VARBINARY, LONGVARBINARY -> JsonSchemaType.STRING;
+      case OTHER -> JsonSchemaType.JSON;
       // since column types aren't necessarily meaningful to Airbyte, liberally convert all unrecgonised
       // types to String
       default -> JsonSchemaType.STRING;
     };
+  }
+
+  private static void setJsonField(ResultSet r, int i, ObjectNode o) throws SQLException {
+    final int columnTypeInt = r.getMetaData().getColumnType(i);
+    final String columnName = r.getMetaData().getColumnName(i);
+    final JDBCType columnType = safeGetJdbcType(columnTypeInt);
+
+    System.out.println(columnName);
+    System.out.println(columnType);
+    System.out.println(r.getObject(i));
+
+    // https://www.cis.upenn.edu/~bcpierce/courses/629/jdkdocs/guide/jdbc/getstart/mapping.doc.html
+    switch (columnType) {
+      case BIT, BOOLEAN -> o.put(columnName, r.getBoolean(i));
+      case TINYINT, SMALLINT -> o.put(columnName, r.getShort(i));
+      case INTEGER -> o.put(columnName, r.getInt(i));
+      case BIGINT -> o.put(columnName, nullIfInvalid(() -> r.getLong(i)));
+      case FLOAT, DOUBLE -> o.put(columnName, nullIfInvalid(() -> r.getDouble(i), Double::isFinite));
+      case REAL -> o.put(columnName, nullIfInvalid(() -> r.getFloat(i), Float::isFinite));
+      case NUMERIC, DECIMAL -> o.put(columnName, nullIfInvalid(() -> r.getBigDecimal(i)));
+      case CHAR, NCHAR, NVARCHAR, VARCHAR, LONGVARCHAR -> o.put(columnName, r.getString(i));
+      case DATE -> o.put(columnName, toISO8601String(r.getDate(i)));
+      case TIME -> o.put(columnName, toISO8601String(r.getTime(i)));
+      case TIMESTAMP -> {
+        // https://www.cis.upenn.edu/~bcpierce/courses/629/jdkdocs/guide/jdbc/getstart/mapping.doc.html
+        final Timestamp t = r.getTimestamp(i);
+        java.util.Date d = new java.util.Date(t.getTime() + (t.getNanos() / 1000000));
+        o.put(columnName, toISO8601String(d));
+      }
+      case BLOB, BINARY, VARBINARY, LONGVARBINARY -> o.put(columnName, r.getBytes(i));
+      // Assume this is base64 and jsonify
+      case OTHER -> {
+        System.out.println("we are here");
+        System.out.println(r.getString(i));
+        o.put(columnName, r.getString(i));
+        System.out.println();
+      }
+      default -> o.put(columnName, r.getString(i));
+    }
   }
 
   private static <T> T nullIfInvalid(SQLSupplier<T> valueProducer) {
