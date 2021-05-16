@@ -44,7 +44,7 @@ import io.airbyte.protocol.models.AirbyteStateMessage;
 import io.airbyte.protocol.models.CatalogHelpers;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.Field;
-import io.airbyte.protocol.models.Field.JsonSchemaPrimitive;
+import io.airbyte.protocol.models.Field.JsonSchemaType;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
@@ -63,13 +63,13 @@ public class BufferedStreamConsumerTest {
       CatalogHelpers.createConfiguredAirbyteStream(
           STREAM_NAME,
           SCHEMA_NAME,
-          Field.of("id", JsonSchemaPrimitive.NUMBER),
-          Field.of("name", JsonSchemaPrimitive.STRING)),
+          Field.of("id", JsonSchemaType.NUMBER),
+          Field.of("name", JsonSchemaType.STRING)),
       CatalogHelpers.createConfiguredAirbyteStream(
           STREAM_NAME2,
           SCHEMA_NAME,
-          Field.of("id", JsonSchemaPrimitive.NUMBER),
-          Field.of("name", JsonSchemaPrimitive.STRING))));
+          Field.of("id", JsonSchemaType.NUMBER),
+          Field.of("name", JsonSchemaType.STRING))));
 
   private static final AirbyteMessage STATE_MESSAGE1 = new AirbyteMessage()
       .withType(Type.STATE)

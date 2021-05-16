@@ -36,7 +36,7 @@ import io.airbyte.protocol.models.CatalogHelpers;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.ConnectorSpecification;
 import io.airbyte.protocol.models.Field;
-import io.airbyte.protocol.models.Field.JsonSchemaPrimitive;
+import io.airbyte.protocol.models.Field.JsonSchemaType;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -104,9 +104,9 @@ public class MssqlSourceStandardTest extends StandardSourceTest {
     return CatalogHelpers.createConfiguredAirbyteCatalog(
         STREAM_NAME,
         SCHEMA_NAME,
-        Field.of("id", JsonSchemaPrimitive.NUMBER),
-        Field.of("name", JsonSchemaPrimitive.STRING),
-        Field.of("born", JsonSchemaPrimitive.STRING));
+        Field.of("id", JsonSchemaType.NUMBER),
+        Field.of("name", JsonSchemaType.STRING),
+        Field.of("born", JsonSchemaType.STRING));
   }
 
   @Override

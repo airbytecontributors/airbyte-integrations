@@ -28,7 +28,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.airbyte.commons.functional.CheckedFunction;
 import io.airbyte.commons.json.Jsons;
-import io.airbyte.protocol.models.Field.JsonSchemaPrimitive;
+import io.airbyte.protocol.models.Field.JsonSchemaType;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.Date;
@@ -211,23 +211,23 @@ public class JdbcUtils {
   // statement above.
 
   @SuppressWarnings("DuplicateBranchesInSwitch")
-  public static JsonSchemaPrimitive getType(JDBCType jdbcType) {
+  public static JsonSchemaType getType(JDBCType jdbcType) {
     return switch (jdbcType) {
-      case BIT, BOOLEAN -> JsonSchemaPrimitive.BOOLEAN;
-      case TINYINT, SMALLINT -> JsonSchemaPrimitive.NUMBER;
-      case INTEGER -> JsonSchemaPrimitive.NUMBER;
-      case BIGINT -> JsonSchemaPrimitive.NUMBER;
-      case FLOAT, DOUBLE -> JsonSchemaPrimitive.NUMBER;
-      case REAL -> JsonSchemaPrimitive.NUMBER;
-      case NUMERIC, DECIMAL -> JsonSchemaPrimitive.NUMBER;
-      case CHAR, NCHAR, NVARCHAR, VARCHAR, LONGVARCHAR -> JsonSchemaPrimitive.STRING;
-      case DATE -> JsonSchemaPrimitive.STRING;
-      case TIME -> JsonSchemaPrimitive.STRING;
-      case TIMESTAMP -> JsonSchemaPrimitive.STRING;
-      case BLOB, BINARY, VARBINARY, LONGVARBINARY -> JsonSchemaPrimitive.STRING;
+      case BIT, BOOLEAN -> JsonSchemaType.BOOLEAN;
+      case TINYINT, SMALLINT -> JsonSchemaType.NUMBER;
+      case INTEGER -> JsonSchemaType.NUMBER;
+      case BIGINT -> JsonSchemaType.NUMBER;
+      case FLOAT, DOUBLE -> JsonSchemaType.NUMBER;
+      case REAL -> JsonSchemaType.NUMBER;
+      case NUMERIC, DECIMAL -> JsonSchemaType.NUMBER;
+      case CHAR, NCHAR, NVARCHAR, VARCHAR, LONGVARCHAR -> JsonSchemaType.STRING;
+      case DATE -> JsonSchemaType.STRING;
+      case TIME -> JsonSchemaType.STRING;
+      case TIMESTAMP -> JsonSchemaType.STRING;
+      case BLOB, BINARY, VARBINARY, LONGVARBINARY -> JsonSchemaType.STRING;
       // since column types aren't necessarily meaningful to Airbyte, liberally convert all unrecgonised
       // types to String
-      default -> JsonSchemaPrimitive.STRING;
+      default -> JsonSchemaType.STRING;
     };
   }
 

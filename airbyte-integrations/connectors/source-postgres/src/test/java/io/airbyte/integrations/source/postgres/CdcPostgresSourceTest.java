@@ -56,7 +56,7 @@ import io.airbyte.protocol.models.AirbyteStream;
 import io.airbyte.protocol.models.CatalogHelpers;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.Field;
-import io.airbyte.protocol.models.Field.JsonSchemaPrimitive;
+import io.airbyte.protocol.models.Field.JsonSchemaType;
 import io.airbyte.protocol.models.SyncMode;
 import io.airbyte.test.utils.PostgreSQLContainerHelper;
 import java.sql.SQLException;
@@ -105,16 +105,16 @@ class CdcPostgresSourceTest {
       CatalogHelpers.createAirbyteStream(
           MAKES_STREAM_NAME,
           MAKES_SCHEMA,
-          Field.of(COL_ID, JsonSchemaPrimitive.NUMBER),
-          Field.of(COL_MAKE, JsonSchemaPrimitive.STRING))
+          Field.of(COL_ID, JsonSchemaType.NUMBER),
+          Field.of(COL_MAKE, JsonSchemaType.STRING))
           .withSupportedSyncModes(Lists.newArrayList(SyncMode.FULL_REFRESH, SyncMode.INCREMENTAL))
           .withSourceDefinedPrimaryKey(List.of(List.of(COL_ID))),
       CatalogHelpers.createAirbyteStream(
           MODELS_STREAM_NAME,
           MODELS_SCHEMA,
-          Field.of(COL_ID, JsonSchemaPrimitive.NUMBER),
-          Field.of(COL_MAKE_ID, JsonSchemaPrimitive.NUMBER),
-          Field.of(COL_MODEL, JsonSchemaPrimitive.STRING))
+          Field.of(COL_ID, JsonSchemaType.NUMBER),
+          Field.of(COL_MAKE_ID, JsonSchemaType.NUMBER),
+          Field.of(COL_MODEL, JsonSchemaType.STRING))
           .withSupportedSyncModes(Lists.newArrayList(SyncMode.FULL_REFRESH, SyncMode.INCREMENTAL))
           .withSourceDefinedPrimaryKey(List.of(List.of(COL_ID)))));
   private static final ConfiguredAirbyteCatalog CONFIGURED_CATALOG = CatalogHelpers.toDefaultConfiguredCatalog(CATALOG);

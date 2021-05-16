@@ -31,7 +31,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.commons.resources.MoreResources;
-import io.airbyte.protocol.models.Field.JsonSchemaPrimitive;
+import io.airbyte.protocol.models.Field.JsonSchemaType;
 import java.io.IOException;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
@@ -41,7 +41,7 @@ class CatalogHelpersTest {
   @Test
   void testFieldToJsonSchema() {
     final String expected = "{ \"type\": \"object\", \"properties\": { \"name\": { \"type\": \"string\" } } } ";
-    final JsonNode actual = CatalogHelpers.fieldsToJsonSchema(Field.of("name", JsonSchemaPrimitive.STRING));
+    final JsonNode actual = CatalogHelpers.fieldsToJsonSchema(Field.of("name", JsonSchemaType.STRING));
 
     assertEquals(Jsons.deserialize(expected), actual);
   }

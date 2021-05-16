@@ -37,6 +37,7 @@ import io.airbyte.protocol.models.CatalogHelpers;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.ConnectorSpecification;
 import io.airbyte.protocol.models.Field;
+import io.airbyte.protocol.models.Field.JsonSchemaType;
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.Collections;
@@ -115,9 +116,9 @@ public class RedshiftStandardSourceTest extends StandardSourceTest {
     return CatalogHelpers.createConfiguredAirbyteCatalog(
         streamName,
         schemaName,
-        Field.of("c_custkey", Field.JsonSchemaPrimitive.NUMBER),
-        Field.of("c_name", Field.JsonSchemaPrimitive.STRING),
-        Field.of("c_nation", Field.JsonSchemaPrimitive.STRING));
+        Field.of("c_custkey", JsonSchemaType.NUMBER),
+        Field.of("c_name", JsonSchemaType.STRING),
+        Field.of("c_nation", JsonSchemaType.STRING));
   }
 
   @Override

@@ -32,24 +32,27 @@ public class Field {
    * This types should match the cast_property_type function in stream_process.py.
    * See https://github.com/airbytehq/airbyte/blob/6ffada861bf1f3f04da885d0e6db61ec0339855e/airbyte-integrations/bases/base-normalization/normalization/transform_catalog/stream_processor.py#L361.
    */
-  public enum JsonSchemaPrimitive {
+  public enum JsonSchemaType {
+    // Primitive Types
     STRING,
     NUMBER,
     OBJECT,
     ARRAY,
     BOOLEAN,
-    NULL;
+    // Custom Types
+    JSON,
+    NULL
   }
 
   private final String name;
-  private final JsonSchemaPrimitive type;
+  private final JsonSchemaType type;
 
-  public Field(String name, JsonSchemaPrimitive type) {
+  public Field(String name, JsonSchemaType type) {
     this.name = name;
     this.type = type;
   }
 
-  public static Field of(String name, JsonSchemaPrimitive type) {
+  public static Field of(String name, JsonSchemaType type) {
     return new Field(name, type);
   }
 

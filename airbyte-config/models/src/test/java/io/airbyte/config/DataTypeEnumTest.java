@@ -27,7 +27,7 @@ package io.airbyte.config;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import io.airbyte.protocol.models.Field.JsonSchemaPrimitive;
+import io.airbyte.protocol.models.Field.JsonSchemaType;
 import org.junit.jupiter.api.Test;
 
 public class DataTypeEnumTest {
@@ -38,14 +38,14 @@ public class DataTypeEnumTest {
   @Test
   void testConversionFromJsonSchemaPrimitiveToDataType() {
     assertEquals(5, DataType.class.getEnumConstants().length);
-    assertEquals(6, JsonSchemaPrimitive.class.getEnumConstants().length);
+    assertEquals(6, JsonSchemaType.class.getEnumConstants().length);
 
-    assertEquals(DataType.STRING, DataType.fromValue(JsonSchemaPrimitive.STRING.toString().toLowerCase()));
-    assertEquals(DataType.NUMBER, DataType.fromValue(JsonSchemaPrimitive.NUMBER.toString().toLowerCase()));
-    assertEquals(DataType.BOOLEAN, DataType.fromValue(JsonSchemaPrimitive.BOOLEAN.toString().toLowerCase()));
-    assertEquals(DataType.ARRAY, DataType.fromValue(JsonSchemaPrimitive.ARRAY.toString().toLowerCase()));
-    assertEquals(DataType.OBJECT, DataType.fromValue(JsonSchemaPrimitive.OBJECT.toString().toLowerCase()));
-    assertThrows(IllegalArgumentException.class, () -> DataType.fromValue(JsonSchemaPrimitive.NULL.toString().toLowerCase()));
+    assertEquals(DataType.STRING, DataType.fromValue(JsonSchemaType.STRING.toString().toLowerCase()));
+    assertEquals(DataType.NUMBER, DataType.fromValue(JsonSchemaType.NUMBER.toString().toLowerCase()));
+    assertEquals(DataType.BOOLEAN, DataType.fromValue(JsonSchemaType.BOOLEAN.toString().toLowerCase()));
+    assertEquals(DataType.ARRAY, DataType.fromValue(JsonSchemaType.ARRAY.toString().toLowerCase()));
+    assertEquals(DataType.OBJECT, DataType.fromValue(JsonSchemaType.OBJECT.toString().toLowerCase()));
+    assertThrows(IllegalArgumentException.class, () -> DataType.fromValue(JsonSchemaType.NULL.toString().toLowerCase()));
   }
 
 }

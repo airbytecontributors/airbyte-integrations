@@ -59,7 +59,7 @@ import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.ConfiguredAirbyteStream;
 import io.airbyte.protocol.models.ConnectorSpecification;
 import io.airbyte.protocol.models.Field;
-import io.airbyte.protocol.models.Field.JsonSchemaPrimitive;
+import io.airbyte.protocol.models.Field.JsonSchemaType;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -144,10 +144,10 @@ class BigQueryDestinationTest {
 
     catalog = new ConfiguredAirbyteCatalog().withStreams(Lists.newArrayList(
         CatalogHelpers.createConfiguredAirbyteStream(USERS_STREAM_NAME, datasetId,
-            io.airbyte.protocol.models.Field.of("name", JsonSchemaPrimitive.STRING),
+            io.airbyte.protocol.models.Field.of("name", JsonSchemaType.STRING),
             io.airbyte.protocol.models.Field
-                .of("id", JsonSchemaPrimitive.STRING)),
-        CatalogHelpers.createConfiguredAirbyteStream(TASKS_STREAM_NAME, datasetId, Field.of("goal", JsonSchemaPrimitive.STRING))));
+                .of("id", JsonSchemaType.STRING)),
+        CatalogHelpers.createConfiguredAirbyteStream(TASKS_STREAM_NAME, datasetId, Field.of("goal", JsonSchemaType.STRING))));
 
     final DatasetInfo datasetInfo = DatasetInfo.newBuilder(datasetId).build();
     dataset = bigquery.create(datasetInfo);

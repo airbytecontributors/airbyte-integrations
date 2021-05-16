@@ -29,7 +29,7 @@ import io.airbyte.integrations.base.AirbyteStreamNameNamespacePair;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.AirbyteMessage.Type;
 import io.airbyte.protocol.models.AirbyteStateMessage;
-import io.airbyte.protocol.models.Field.JsonSchemaPrimitive;
+import io.airbyte.protocol.models.Field.JsonSchemaType;
 import java.util.Iterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +42,7 @@ public class StateDecoratingIterator extends AbstractIterator<AirbyteMessage> im
   private final JdbcStateManager stateManager;
   private final AirbyteStreamNameNamespacePair pair;
   private final String cursorField;
-  private final JsonSchemaPrimitive cursorType;
+  private final JsonSchemaType cursorType;
 
   private String maxCursor;
   private boolean hasEmittedState;
@@ -52,7 +52,7 @@ public class StateDecoratingIterator extends AbstractIterator<AirbyteMessage> im
                                  AirbyteStreamNameNamespacePair pair,
                                  String cursorField,
                                  String initialCursor,
-                                 JsonSchemaPrimitive cursorType) {
+                                 JsonSchemaType cursorType) {
     this.messageIterator = messageIterator;
     this.stateManager = stateManager;
     this.pair = pair;

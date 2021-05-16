@@ -43,7 +43,7 @@ import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.ConfiguredAirbyteStream;
 import io.airbyte.protocol.models.DestinationSyncMode;
 import io.airbyte.protocol.models.Field;
-import io.airbyte.protocol.models.Field.JsonSchemaPrimitive;
+import io.airbyte.protocol.models.Field.JsonSchemaType;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
@@ -124,7 +124,7 @@ public class ConnectionHelpers {
   }
 
   public static JsonNode generateBasicJsonSchema() {
-    return CatalogHelpers.fieldsToJsonSchema(Field.of(FIELD_NAME, JsonSchemaPrimitive.STRING));
+    return CatalogHelpers.fieldsToJsonSchema(Field.of(FIELD_NAME, JsonSchemaType.STRING));
   }
 
   public static ConfiguredAirbyteCatalog generateBasicConfiguredAirbyteCatalog() {
@@ -137,7 +137,7 @@ public class ConnectionHelpers {
   }
 
   private static io.airbyte.protocol.models.AirbyteStream generateBasicAirbyteStream() {
-    return CatalogHelpers.createAirbyteStream(STREAM_NAME, Field.of(FIELD_NAME, JsonSchemaPrimitive.STRING))
+    return CatalogHelpers.createAirbyteStream(STREAM_NAME, Field.of(FIELD_NAME, JsonSchemaType.STRING))
         .withDefaultCursorField(Lists.newArrayList(FIELD_NAME))
         .withSourceDefinedCursor(false)
         .withSupportedSyncModes(List.of(io.airbyte.protocol.models.SyncMode.FULL_REFRESH, io.airbyte.protocol.models.SyncMode.INCREMENTAL));

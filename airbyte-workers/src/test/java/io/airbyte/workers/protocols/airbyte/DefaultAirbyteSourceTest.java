@@ -43,7 +43,7 @@ import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.CatalogHelpers;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.Field;
-import io.airbyte.protocol.models.Field.JsonSchemaPrimitive;
+import io.airbyte.protocol.models.Field.JsonSchemaType;
 import io.airbyte.workers.WorkerConstants;
 import io.airbyte.workers.WorkerException;
 import io.airbyte.workers.process.IntegrationLauncher;
@@ -70,14 +70,14 @@ class DefaultAirbyteSourceTest {
   private static final ConfiguredAirbyteCatalog CATALOG = CatalogHelpers.createConfiguredAirbyteCatalog(
       "hudi:latest",
       NAMESPACE,
-      Field.of(FIELD_NAME, JsonSchemaPrimitive.STRING));
+      Field.of(FIELD_NAME, JsonSchemaType.STRING));
 
   private static final StandardTapConfig SOURCE_CONFIG = new StandardTapConfig()
       .withState(new State().withState(Jsons.jsonNode(ImmutableMap.of("checkpoint", "the future."))))
       .withSourceConnectionConfiguration(Jsons.jsonNode(Map.of(
           "apiKey", "123",
           "region", "us-east")))
-      .withCatalog(CatalogHelpers.createConfiguredAirbyteCatalog("hudi:latest", NAMESPACE, Field.of(FIELD_NAME, JsonSchemaPrimitive.STRING)));
+      .withCatalog(CatalogHelpers.createConfiguredAirbyteCatalog("hudi:latest", NAMESPACE, Field.of(FIELD_NAME, JsonSchemaType.STRING)));
 
   private static final List<AirbyteMessage> MESSAGES = Lists.newArrayList(
       AirbyteMessageUtils.createRecordMessage(STREAM_NAME, FIELD_NAME, "blue"),

@@ -31,7 +31,7 @@ import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.CatalogHelpers;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.Field;
-import io.airbyte.protocol.models.Field.JsonSchemaPrimitive;
+import io.airbyte.protocol.models.Field.JsonSchemaType;
 import org.junit.jupiter.api.Test;
 
 class NamespacingMapperTest {
@@ -43,7 +43,7 @@ class NamespacingMapperTest {
   private static final ConfiguredAirbyteCatalog CATALOG = CatalogHelpers.createConfiguredAirbyteCatalog(
       STREAM_NAME,
       INPUT_NAMESPACE,
-      Field.of(FIELD_NAME, JsonSchemaPrimitive.STRING));
+      Field.of(FIELD_NAME, JsonSchemaType.STRING));
   private static final AirbyteMessage RECORD_MESSAGE = AirbyteMessageUtils.createRecordMessage(STREAM_NAME, FIELD_NAME, "blue");
 
   @Test
@@ -54,7 +54,7 @@ class NamespacingMapperTest {
     final ConfiguredAirbyteCatalog expectedCatalog = CatalogHelpers.createConfiguredAirbyteCatalog(
         OUTPUT_NAMESPACE + STREAM_NAME,
         INPUT_NAMESPACE,
-        Field.of(FIELD_NAME, JsonSchemaPrimitive.STRING));
+        Field.of(FIELD_NAME, JsonSchemaType.STRING));
     final ConfiguredAirbyteCatalog actualCatalog = mapper.mapCatalog(CATALOG);
 
     assertEquals(originalCatalog, CATALOG);
@@ -76,7 +76,7 @@ class NamespacingMapperTest {
     final ConfiguredAirbyteCatalog expectedCatalog = CatalogHelpers.createConfiguredAirbyteCatalog(
         STREAM_NAME,
         INPUT_NAMESPACE,
-        Field.of(FIELD_NAME, JsonSchemaPrimitive.STRING));
+        Field.of(FIELD_NAME, JsonSchemaType.STRING));
     final ConfiguredAirbyteCatalog actualCatalog = mapper.mapCatalog(CATALOG);
 
     assertEquals(originalCatalog, CATALOG);

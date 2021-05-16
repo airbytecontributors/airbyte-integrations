@@ -38,7 +38,7 @@ import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.AirbyteMessage.Type;
 import io.airbyte.protocol.models.AirbyteRecordMessage;
 import io.airbyte.protocol.models.AirbyteStateMessage;
-import io.airbyte.protocol.models.Field.JsonSchemaPrimitive;
+import io.airbyte.protocol.models.Field.JsonSchemaType;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Optional;
@@ -86,7 +86,7 @@ class StateDecoratingIteratorTest {
         NAME_NAMESPACE_PAIR,
         UUID_FIELD_NAME,
         null,
-        JsonSchemaPrimitive.STRING);
+        JsonSchemaType.STRING);
 
     assertEquals(RECORD_MESSAGE1, iterator.next());
     assertEquals(RECORD_MESSAGE2, iterator.next());
@@ -104,7 +104,7 @@ class StateDecoratingIteratorTest {
         NAME_NAMESPACE_PAIR,
         UUID_FIELD_NAME,
         "xyz",
-        JsonSchemaPrimitive.STRING);
+        JsonSchemaType.STRING);
 
     assertEquals(RECORD_MESSAGE1, iterator.next());
     assertEquals(RECORD_MESSAGE2, iterator.next());
@@ -126,7 +126,7 @@ class StateDecoratingIteratorTest {
         NAME_NAMESPACE_PAIR,
         UUID_FIELD_NAME,
         null,
-        JsonSchemaPrimitive.STRING);
+        JsonSchemaType.STRING);
 
     assertEquals(recordMessage, iterator.next());
     // null because no records with a cursor field were replicated for the stream.
@@ -144,7 +144,7 @@ class StateDecoratingIteratorTest {
         NAME_NAMESPACE_PAIR,
         UUID_FIELD_NAME,
         null,
-        JsonSchemaPrimitive.STRING);
+        JsonSchemaType.STRING);
 
     assertEquals(stateMessage, iterator.next().getState());
     assertFalse(iterator.hasNext());
