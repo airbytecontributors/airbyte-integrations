@@ -39,6 +39,12 @@ class AsanaStream(HttpStream, ABC):
     # Asana pagination could be from 1 to 100.
     page_size = 100
 
+    parent = None
+    template_path = None
+
+    def path(self, stream_slice: Mapping[str, Any] = None, **kwargs) -> str:
+        return self.template_path.format(**stream_slice)
+
     def backoff_time(self, response: requests.Response) -> Optional[int]:
         delay_time = response.headers.get("Retry-After")
         if delay_time:
@@ -103,40 +109,39 @@ class AsanaStream(HttpStream, ABC):
         response_json = response.json()
         yield from response_json.get("data", [])  # Asana puts records in a container array "data"
 
-    def read_stream(self, stream_class: Type[AsanaStream], slice_field: str) -> Iterable[Optional[Mapping[str, Any]]]:
+    def read_stream(self, sync_mode=SyncMode.full_refresh) -> Iterable[Mapping]:
         """
         General function for getting parent stream (which should be passed through `stream_class`) slice.
         Generates dicts with `gid` of parent streams.
         """
-        stream = stream_class(authenticator=self.authenticator)
-        stream_slices = stream.stream_slices(sync_mode=SyncMode.full_refresh)
+        stream_slices = self.stream_slices(sync_mode=sync_mode)
         for stream_slice in stream_slices:
-            for record in stream.read_records(sync_mode=SyncMode.full_refresh, stream_slice=stream_slice):
-                yield {slice_field: record["gid"]}
+            for record in self.read_records(sync_mode=sync_mode, stream_slice=stream_slice):
+                yield record
 
-
-class WorkspaceRelatedStream(AsanaStream, ABC):
-    """
-    Few streams (CustomFields, Projects, Tags, Teams and Users) require passing `workspace` either as request argument
-    or as part of a path. The point of this class is to get `workspace_gid`. Child classes then either will insert it
-    into the path or will pass it as a request parameter.
-    """
     def stream_slices(
         self,
         sync_mode: SyncMode,
         cursor_field: List[str] = None,
         stream_state: Mapping[str, Any] = None
     ) -> Iterable[Optional[Mapping[str, Any]]]:
-        workspaces_stream = Workspaces(authenticator=self.authenticator)
-        for workspace in workspaces_stream.read_records(sync_mode=SyncMode.full_refresh):
-            yield {"workspace_gid": workspace["gid"]}
+        if self.parent:
+            stream = self.parent(authenticator=self.authenticator)
+            for record in stream.read_stream():
+                yield {"parent_id": record[self.parent.primary_key]}
 
 
-class WorkspaceRequestParamsRelatedStream(WorkspaceRelatedStream, ABC):
+class Workspaces(AsanaStream):
+    template_path = "workspaces"
+
+
+class WorkspaceRequestParamsRelatedStream(AsanaStream, ABC):
     """
     Few streams (Projects, Tags and Users) require passing `workspace` as request argument.
     So this is basically the whole point of this class - to pass `workspace` as request argument.
     """
+    parent = Workspaces
+
     def request_params(
         self,
         stream_state: Mapping[str, Any],
@@ -144,64 +149,27 @@ class WorkspaceRequestParamsRelatedStream(WorkspaceRelatedStream, ABC):
         next_page_token: Mapping[str, Any] = None
     ) -> MutableMapping[str, Any]:
         params = super().request_params(stream_state=stream_state, stream_slice=stream_slice, next_page_token=next_page_token)
-        params["workspace"] = stream_slice["workspace_gid"]
+        params["workspace"] = stream_slice["parent_id"]
         return params
 
 
-class ProjectRelatedStream(AsanaStream, ABC):
-    """
-    Few streams (Sections and Tasks) depends on `project gid`: Sections as a part of url and Tasks as `projects`
-    argument in request.
-    """
-
-    def stream_slices(
-        self,
-        sync_mode: SyncMode,
-        cursor_field: List[str] = None,
-        stream_state: Mapping[str, Any] = None
-    ) -> Iterable[Optional[Mapping[str, Any]]]:
-        yield from self.read_stream(stream_class=Projects, slice_field="project_gid")
-
-
-class CustomFields(WorkspaceRelatedStream):
-    def path(self, stream_slice: Mapping[str, Any] = None, **kwargs) -> str:
-        workspace_gid = stream_slice["workspace_gid"]
-        return f"workspaces/{workspace_gid}/custom_fields"
-
-
 class Projects(WorkspaceRequestParamsRelatedStream):
-    def path(self, **kwargs) -> str:
-        return "projects"
+    template_path = "projects"
 
 
-class Sections(ProjectRelatedStream):
-    def path(self, stream_slice: Mapping[str, Any] = None, **kwargs) -> str:
-        project_gid = stream_slice["project_gid"]
-        return f"projects/{project_gid}/sections"
+class CustomFields(AsanaStream):
+    parent = Workspaces
+    template_path = "workspaces/{parent_id}/custom_fields"
 
 
-class Stories(AsanaStream):
-    def path(self, stream_slice: Mapping[str, Any] = None, **kwargs) -> str:
-        task_gid = stream_slice["task_gid"]
-        return f"tasks/{task_gid}/stories"
-
-    def stream_slices(
-        self,
-        sync_mode: SyncMode,
-        cursor_field: List[str] = None,
-        stream_state: Mapping[str, Any] = None
-    ) -> Iterable[Optional[Mapping[str, Any]]]:
-        yield from self.read_stream(stream_class=Tasks, slice_field="task_gid")
+class Sections(AsanaStream):
+    parent = Projects
+    template_path = "projects/{parent_id}/sections"
 
 
-class Tags(WorkspaceRequestParamsRelatedStream):
-    def path(self, **kwargs) -> str:
-        return "tags"
-
-
-class Tasks(ProjectRelatedStream):
-    def path(self, **kwargs) -> str:
-        return "tasks"
+class Tasks(AsanaStream):
+    parent = Projects
+    template_path = "tasks"
 
     def request_params(
         self,
@@ -210,7 +178,7 @@ class Tasks(ProjectRelatedStream):
         next_page_token: Mapping[str, Any] = None
     ) -> MutableMapping[str, Any]:
         params = super().request_params(stream_state=stream_state, stream_slice=stream_slice, next_page_token=next_page_token)
-        params["project"] = stream_slice["project_gid"]
+        params["project"] = stream_slice["parent_id"]
         return params
 
     def _handle_object_type(self, prop: str, value: dict) -> str:
@@ -224,37 +192,30 @@ class Tasks(ProjectRelatedStream):
         return f"{prop}.gid"
 
 
-class Teams(WorkspaceRelatedStream):
-    def path(self, stream_slice: Mapping[str, Any] = None, **kwargs) -> str:
-        workspace_gid = stream_slice["workspace_gid"]
-        return f"organizations/{workspace_gid}/teams"
+class Stories(AsanaStream):
+    parent = Tasks
+    template_path = "tasks/{parent_id}/stories"
+
+
+class Tags(WorkspaceRequestParamsRelatedStream):
+    template_path = "tags"
+
+
+class Teams(AsanaStream):
+    parent = Workspaces
+    template_path = "organizations/{parent_id}/teams"
 
 
 class TeamMemberships(AsanaStream):
-    def path(self, stream_slice: Mapping[str, Any] = None, **kwargs) -> str:
-        team_gid = stream_slice["team_gid"]
-        return f"teams/{team_gid}/team_memberships"
-
-    def stream_slices(
-        self,
-        sync_mode: SyncMode,
-        cursor_field: List[str] = None,
-        stream_state: Mapping[str, Any] = None
-    ) -> Iterable[Optional[Mapping[str, Any]]]:
-        yield from self.read_stream(stream_class=Teams, slice_field="team_gid")
+    parent = Teams
+    template_path = "teams/{parent_id}/team_memberships"
 
 
 class Users(WorkspaceRequestParamsRelatedStream):
-    def path(self, **kwargs) -> str:
-        return "users"
+    template_path = "users"
 
     def _handle_object_type(self, prop: str, value: MutableMapping[str, Any]) -> str:
         if prop == "photo":
             return prop
 
         return f"{prop}.gid"
-
-
-class Workspaces(AsanaStream):
-    def path(self, **kwargs) -> str:
-        return "workspaces"
