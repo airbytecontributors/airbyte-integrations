@@ -79,10 +79,10 @@
         },
         "supported_sync_modes": ["incremental"],
         "source_defined_cursor": true,
-        "default_cursor_field": null
+        "default_cursor_field": ["updated_at"]
       },
       "sync_mode": "incremental",
-      "cursor_field": null,
+      "cursor_field": ["updated_at"],
       "destination_sync_mode": "append"
     },
     {
@@ -134,11 +134,11 @@
           }
         },
         "supported_sync_modes": ["full_refresh"],
-        "source_defined_cursor": false,
-        "default_cursor_field": null
+        "source_defined_cursor": true,
+        "default_cursor_field": ["updated_at"]
       },
       "sync_mode": "full_refresh",
-      "cursor_field": null,
+      "cursor_field": ["updated_at"],
       "destination_sync_mode": "overwrite"
     },
     {
@@ -212,10 +212,10 @@
         },
         "supported_sync_modes": ["incremental"],
         "source_defined_cursor": true,
-        "default_cursor_field": null
+        "default_cursor_field": ["updated_at"]
       },
       "sync_mode": "incremental",
-      "cursor_field": null,
+      "cursor_field": ["updated_at"],
       "destination_sync_mode": "append"
     },
     {
@@ -283,10 +283,10 @@
         },
         "supported_sync_modes": ["incremental"],
         "source_defined_cursor": true,
-        "default_cursor_field": null
+        "default_cursor_field": ["updated_at"]
       },
       "sync_mode": "incremental",
-      "cursor_field": null,
+      "cursor_field": ["updated_at"],
       "destination_sync_mode": "append"
     },
     {
@@ -330,10 +330,10 @@
         },
         "supported_sync_modes": ["incremental"],
         "source_defined_cursor": true,
-        "default_cursor_field": null
+        "default_cursor_field": ["updated_at"]
       },
       "sync_mode": "incremental",
-      "cursor_field": null,
+      "cursor_field": ["updated_at"],
       "destination_sync_mode": "append"
     },
     {
@@ -365,10 +365,10 @@
         },
         "supported_sync_modes": ["incremental"],
         "source_defined_cursor": true,
-        "default_cursor_field": null
+        "default_cursor_field": ["updated_at"]
       },
       "sync_mode": "incremental",
-      "cursor_field": null,
+      "cursor_field": ["updated_at"],
       "destination_sync_mode": "append"
     },
     {
@@ -412,10 +412,10 @@
         },
         "supported_sync_modes": ["incremental"],
         "source_defined_cursor": true,
-        "default_cursor_field": null
+        "default_cursor_field": ["updated_at"]
       },
       "sync_mode": "incremental",
-      "cursor_field": null,
+      "cursor_field": ["updated_at"],
       "destination_sync_mode": "append"
     },
     {
@@ -481,10 +481,10 @@
         },
         "supported_sync_modes": ["incremental"],
         "source_defined_cursor": true,
-        "default_cursor_field": null
+        "default_cursor_field": ["updated_at"]
       },
       "sync_mode": "incremental",
-      "cursor_field": null,
+      "cursor_field": ["updated_at"],
       "destination_sync_mode": "append"
     },
     {
@@ -536,10 +536,10 @@
         },
         "supported_sync_modes": ["incremental"],
         "source_defined_cursor": true,
-        "default_cursor_field": null
+        "default_cursor_field": ["updated_at"]
       },
       "sync_mode": "incremental",
-      "cursor_field": null,
+      "cursor_field": ["updated_at"],
       "destination_sync_mode": "append"
     },
     {
@@ -652,10 +652,10 @@
         },
         "supported_sync_modes": ["incremental"],
         "source_defined_cursor": true,
-        "default_cursor_field": null
+        "default_cursor_field": ["updated_at"]
       },
       "sync_mode": "incremental",
-      "cursor_field": null,
+      "cursor_field": ["updated_at"],
       "destination_sync_mode": "append"
     },
     {
@@ -705,10 +705,10 @@
         },
         "supported_sync_modes": ["incremental"],
         "source_defined_cursor": true,
-        "default_cursor_field": null
+        "default_cursor_field": ["updated_at"]
       },
       "sync_mode": "incremental",
-      "cursor_field": null,
+      "cursor_field": ["updated_at"],
       "destination_sync_mode": "append"
     }
   ]
