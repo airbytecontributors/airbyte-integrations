@@ -128,6 +128,7 @@ class AirbytePythonPlugin implements Plugin<Project> {
             commandLine 'rm'
             args '-rf', "$project.projectDir.absolutePath/$venvDirectoryName"
         }
+        project.clean.dependsOn(project.cleanPythonVenv)
 
         // Add a task which can be run at the root project level to delete all python venvs
         if (!project.rootProject.hasProperty('cleanPythonVenvs')){
