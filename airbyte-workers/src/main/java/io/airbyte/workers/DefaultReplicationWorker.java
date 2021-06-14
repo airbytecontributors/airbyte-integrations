@@ -24,6 +24,7 @@
 
 package io.airbyte.workers;
 
+import io.airbyte.commons.concurrency.Runnables;
 import io.airbyte.config.ReplicationAttemptSummary;
 import io.airbyte.config.ReplicationOutput;
 import io.airbyte.config.StandardSyncInput;
@@ -202,8 +203,7 @@ public class DefaultReplicationWorker implements ReplicationWorker {
                                                  Mapper<AirbyteMessage> mapper,
                                                  MessageTracker<AirbyteMessage> sourceMessageTracker,
                                                  Map<String, String> mdc) {
-    return () -> {
-      MDC.setContextMap(mdc);
+    return Runnables.wrapWithParentMdc(() -> {
       LOGGER.info("Replication thread started.");
       try {
         while (!cancelled.get() && !source.isFinished()) {
@@ -225,15 +225,14 @@ public class DefaultReplicationWorker implements ReplicationWorker {
           throw new RuntimeException(e);
         }
       }
-    };
+    });
   }
 
   private static Runnable getDestinationOutputRunnable(Destination<AirbyteMessage> destination,
                                                        AtomicBoolean cancelled,
                                                        MessageTracker<AirbyteMessage> destinationMessageTracker,
                                                        Map<String, String> mdc) {
-    return () -> {
-      MDC.setContextMap(mdc);
+    return Runnables.wrapWithParentMdc(() -> {
       LOGGER.info("Destination output thread started.");
       try {
         while (!cancelled.get() && !destination.isFinished()) {
@@ -252,7 +251,7 @@ public class DefaultReplicationWorker implements ReplicationWorker {
           throw new RuntimeException(e);
         }
       }
-    };
+    });
   }
 
   @Override
