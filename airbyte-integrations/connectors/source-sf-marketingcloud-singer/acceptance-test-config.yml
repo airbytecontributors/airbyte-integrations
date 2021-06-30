@@ -1,0 +1,31 @@
+connector_image: airbyte/source-sf-marketingcloud-singer:dev
+tests:
+  spec:
+    - spec_path: "source_sf_marketingcloud_singer/spec.json"
+  connection:
+    - config_path: "secrets/config.json"
+      status: "succeed"
+    - config_path: "integration_tests/invalid_config.json"
+      status: "failed"
+  discovery:
+    - config_path: "secrets/config.json"
+  basic_read:
+    - config_path: "secrets/config.json"
+      configured_catalog_path: "integration_tests/configured_catalog.json"
+# set this only if all streams must have data
+      validate_output_from_all_streams: yes
+  incremental:
+    - config_path: "secrets/config.json"
+      configured_catalog_path: "integration_tests/configured_catalog.json"
+# you need to set this if it is possible to generate such kind of state file that
+# all incremental streams will output zero records when read with this state file
+#      future_state_path: "integration_tests/future_state.json"
+
+# you need to set this only if the names/paths
+# of cursor fields in state file are different from the paths in the stream records
+#      cursor_paths:
+#        <name_of_stream>: [<path_field_1>, <path_field_2>]
+#        <name_of_stream>: [<path_field_a>]
+  full_refresh:
+    - config_path: "secrets/config.json"
+      configured_catalog_path: "integration_tests/configured_catalog.json"
