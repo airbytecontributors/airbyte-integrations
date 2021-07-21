@@ -110,7 +110,7 @@ class AbstractSource(Source, ABC):
                     logger=logger, stream_instance=stream_instance, configured_stream=configured_stream, connector_state=connector_state
                 )
             except Exception as e:
-                logger.exception(f"Encountered an exception while reading stream {self.name}")
+                logger.exception(f"Encountered an exception while reading stream {stream_instance.name}")
                 raise e
 
         logger.info(f"Finished syncing {self.name}")
