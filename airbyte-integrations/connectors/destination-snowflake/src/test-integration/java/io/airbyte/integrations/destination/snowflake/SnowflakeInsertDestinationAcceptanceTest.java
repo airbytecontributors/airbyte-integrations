@@ -33,7 +33,7 @@ import io.airbyte.commons.string.Strings;
 import io.airbyte.db.jdbc.JdbcUtils;
 import io.airbyte.integrations.base.JavaBaseConstants;
 import io.airbyte.integrations.destination.ExtendedNameTransformer;
-import io.airbyte.integrations.standardtest.destination.DestinationAcceptanceTest;
+import io.airbyte.integrations.acceptance_tests.destination.DestinationAcceptanceTest;
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.ArrayList;

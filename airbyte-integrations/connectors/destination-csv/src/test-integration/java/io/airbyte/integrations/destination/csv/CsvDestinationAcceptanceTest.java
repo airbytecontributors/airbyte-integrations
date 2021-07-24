@@ -31,7 +31,7 @@ import com.google.common.collect.ImmutableMap;
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.integrations.base.JavaBaseConstants;
 import io.airbyte.integrations.destination.StandardNameTransformer;
-import io.airbyte.integrations.standardtest.destination.DestinationAcceptanceTest;
+import io.airbyte.integrations.acceptance_tests.destination.DestinationAcceptanceTest;
 import java.io.FileReader;
 import java.nio.file.Files;
 import java.nio.file.Path;

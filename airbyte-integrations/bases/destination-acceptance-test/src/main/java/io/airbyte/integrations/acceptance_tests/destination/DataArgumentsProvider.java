@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package io.airbyte.integrations.standardtest.destination;
+package io.airbyte.integrations.acceptance_tests.destination;
 
 import java.util.stream.Stream;
 import org.junit.jupiter.api.extension.ExtensionContext;

@@ -33,7 +33,7 @@ import com.meilisearch.sdk.Index;
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.commons.stream.MoreStreams;
 import io.airbyte.commons.text.Names;
-import io.airbyte.integrations.standardtest.destination.DestinationAcceptanceTest;
+import io.airbyte.integrations.acceptance_tests.destination.DestinationAcceptanceTest;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

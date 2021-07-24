@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-package io.airbyte.integrations.standardtest.destination;
+package io.airbyte.integrations.acceptance_tests.destination;
 
 import io.airbyte.config.WorkerDestinationConfig;
 import io.airbyte.integrations.base.AirbyteMessageConsumer;

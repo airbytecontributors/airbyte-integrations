@@ -42,7 +42,7 @@ import io.airbyte.commons.io.IOs;
 import io.airbyte.commons.jackson.MoreMappers;
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.integrations.destination.s3.util.S3OutputPathHelper;
-import io.airbyte.integrations.standardtest.destination.DestinationAcceptanceTest;
+import io.airbyte.integrations.acceptance_tests.destination.DestinationAcceptanceTest;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.LinkedList;
