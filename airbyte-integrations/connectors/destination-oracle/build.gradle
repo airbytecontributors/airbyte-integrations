@@ -23,7 +23,7 @@ dependencies {
     testImplementation 'org.apache.commons:commons-lang3:3.11'
     testImplementation 'org.testcontainers:oracle-xe:1.15.2'
 
-    integrationTestJavaImplementation project(':airbyte-integrations:bases:standard-destination-test')
+    integrationTestJavaImplementation project(':airbyte-integrations:bases:destination-acceptance-test')
     integrationTestJavaImplementation project(':airbyte-integrations:connectors:destination-oracle')
 
     implementation files(project(':airbyte-integrations:bases:base-java').airbyteDocker.outputs)

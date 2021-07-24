@@ -21,7 +21,7 @@ dependencies {
     implementation project(':airbyte-integrations:connectors:destination-jdbc')
     implementation project(':airbyte-protocol:models')
 
-    integrationTestJavaImplementation project(':airbyte-integrations:bases:standard-destination-test')
+    integrationTestJavaImplementation project(':airbyte-integrations:bases:destination-acceptance-test')
     integrationTestJavaImplementation project(':airbyte-integrations:connectors:destination-snowflake')
     integrationTestJavaImplementation 'org.apache.commons:commons-lang3:3.11'
 

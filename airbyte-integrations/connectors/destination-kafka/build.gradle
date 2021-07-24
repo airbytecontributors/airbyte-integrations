@@ -16,7 +16,7 @@ dependencies {
     implementation 'org.apache.kafka:kafka-clients:2.8.0'
     implementation 'org.apache.kafka:connect-json:2.8.0'
 
-    integrationTestJavaImplementation project(':airbyte-integrations:bases:standard-destination-test')
+    integrationTestJavaImplementation project(':airbyte-integrations:bases:destination-acceptance-test')
     integrationTestJavaImplementation project(':airbyte-integrations:connectors:destination-kafka')
     integrationTestJavaImplementation "org.testcontainers:kafka:1.15.3"
 
