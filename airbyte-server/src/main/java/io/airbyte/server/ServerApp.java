@@ -109,8 +109,8 @@ public class ServerApp implements ServerRunnable {
 
     final Map<String, String> mdc = MDC.getCopyOfContextMap();
 
+    // user custom provider so that we do not fail request if there are unknown properties
     final JacksonJaxbJsonProvider jacksonJaxbJsonProvider = new JacksonJaxbJsonProvider();
-    // do not fail request if there are unknown properties
     jacksonJaxbJsonProvider.setMapper(MoreMappers.initMapper());
 
     final ResourceConfig rc =
@@ -124,8 +124,7 @@ public class ServerApp implements ServerRunnable {
             .register(NotFoundExceptionMapper.class)
             // needed so that the custom json exception mappers don't get overridden
             // https://stackoverflow.com/questions/35669774/jersey-custom-exception-mapper-for-invalid-json-string
-            .register(JacksonJaxbJsonProvider.class);
-    // .register(jacksonJaxbJsonProvider);
+            .register(jacksonJaxbJsonProvider);
 
     // inject custom server functionality
     customComponentClasses.forEach(rc::register);
