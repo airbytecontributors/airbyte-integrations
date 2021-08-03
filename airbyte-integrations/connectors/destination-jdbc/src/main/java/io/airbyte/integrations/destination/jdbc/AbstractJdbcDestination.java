@@ -36,8 +36,10 @@ import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteConnectionStatus.Status;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
+
 import java.util.UUID;
 import java.util.function.Consumer;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -70,18 +72,39 @@ public abstract class AbstractJdbcDestination extends BaseConnector implements D
   }
 
   @Override
-  public AirbyteConnectionStatus check(JsonNode config) {
+  public JsonNode spec() {
+    // All Jdbc destinations support SSH tunnels, so read the spec defined in JSON and add this standard set of possible inputs
+    // which accommodate DB tunnels
+    super.spec()
+    JsonNode vanilla = this.spec();
+    vanilla = addTunnelSpec(vanilla);
+    return vanilla;
+  }
 
-    try (final JdbcDatabase database = getDatabase(config)) {
-      String outputSchema = namingResolver.getIdentifier(config.get("schema").asText());
-      attemptSQLCreateAndDropTableOperations(outputSchema, database, namingResolver, sqlOperations);
-      return new AirbyteConnectionStatus().withStatus(Status.SUCCEEDED);
-    } catch (Exception e) {
-      LOGGER.error("Exception while checking connection: ", e);
-      return new AirbyteConnectionStatus()
-          .withStatus(Status.FAILED)
-          .withMessage("Could not connect with provided configuration. \n" + e.getMessage());
+  private JsonNode addTunnelSpec(JsonNode spec) {
+    return spec;
+  }
+
+  @Override
+  public AirbyteConnectionStatus check(JsonNode config) {
+    // if Tunnel config is set
+    try {
+      // create SSH tunnel
+      try (final JdbcDatabase database = getDatabase(config)) {
+        String outputSchema = namingResolver.getIdentifier(config.get("schema").asText());
+        attemptSQLCreateAndDropTableOperations(outputSchema, database, namingResolver, sqlOperations);
+        return new AirbyteConnectionStatus().withStatus(Status.SUCCEEDED);
+      } catch (Exception e) {
+        LOGGER.error("Exception while checking connection: ", e);
+        return new AirbyteConnectionStatus()
+            .withStatus(Status.FAILED)
+            .withMessage("Could not connect with provided configuration. \n" + e.getMessage());
+      }
+    } finally {
+      // if tunnel then close tunnel
+      System.out.println();
     }
+
   }
 
   public static void attemptSQLCreateAndDropTableOperations(String outputSchema,

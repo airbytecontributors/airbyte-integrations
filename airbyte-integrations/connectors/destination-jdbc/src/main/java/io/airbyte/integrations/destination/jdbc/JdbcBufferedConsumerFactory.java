@@ -73,11 +73,12 @@ public class JdbcBufferedConsumerFactory {
                                               ConfiguredAirbyteCatalog catalog) {
     final List<WriteConfig> writeConfigs = createWriteConfigs(namingResolver, config, catalog, sqlOperations.isSchemaRequired());
 
+    boolean containsSshConfigs = true; // would probably be a function on config f(config)
     return new BufferedStreamConsumer(
         outputRecordCollector,
-        onStartFunction(database, sqlOperations, writeConfigs),
+        onStartFunction(database, sqlOperations, writeConfigs, containsSshConfigs),
         recordWriterFunction(database, sqlOperations, writeConfigs, catalog),
-        onCloseFunction(database, sqlOperations, writeConfigs),
+        onCloseFunction(database, sqlOperations, writeConfigs, containsSshConfigs),
         catalog,
         sqlOperations::isValidData,
         MAX_BATCH_SIZE);
