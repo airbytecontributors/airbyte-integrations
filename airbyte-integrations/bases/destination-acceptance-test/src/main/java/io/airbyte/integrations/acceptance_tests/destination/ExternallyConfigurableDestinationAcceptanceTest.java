@@ -1,6 +1,7 @@
 package io.airbyte.integrations.acceptance_tests.destination;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.airbyte.commons.yaml.Yamls;
 
 import java.util.List;
 
@@ -55,6 +56,6 @@ public class ExternallyConfigurableDestinationAcceptanceTest extends Destination
     String failConfigPath;
     String configPath;
     String imageName;
-
+    String testHelperDockerImageName;
   }
 }

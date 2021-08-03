@@ -24,7 +24,6 @@
 
 package io.airbyte.integrations.standardtest.source.fs;
 
-import io.airbyte.integrations.standardtest.source.TestRunner;
 import java.nio.file.Path;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
