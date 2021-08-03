@@ -25,13 +25,14 @@
 package io.airbyte.integrations.standardtest.destination;
 
 import java.util.stream.Stream;
+
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 
 /**
  * Class encapsulating all arguments required for Standard Destination Tests.
- *
+ * <p>
  * All files defined here can be found in src/main/resources of this package.
  */
 public class DataArgumentsProvider implements ArgumentsProvider {
@@ -46,8 +47,6 @@ public class DataArgumentsProvider implements ArgumentsProvider {
     return Stream.of(
         Arguments.of(EXCHANGE_RATE_CONFIG.messageFile, EXCHANGE_RATE_CONFIG.catalogFile),
         Arguments.of(EDGE_CASE_CONFIG.messageFile, EDGE_CASE_CONFIG.catalogFile)
-    // todo - need to use the new protocol to capture this.
-    // Arguments.of("stripe_messages.txt", "stripe_schema.json")
     );
 
   }

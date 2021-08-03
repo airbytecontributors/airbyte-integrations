@@ -24,12 +24,6 @@
 
 package io.airbyte.integrations.standardtest.destination;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.ImmutableMap;
@@ -70,6 +64,14 @@ import io.airbyte.workers.process.ProcessFactory;
 import io.airbyte.workers.protocols.airbyte.AirbyteDestination;
 import io.airbyte.workers.protocols.airbyte.DefaultAirbyteDestination;
 import io.airbyte.workers.test_helpers.EntrypointEnvChecker;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -83,13 +85,11 @@ import java.util.Map.Entry;
 import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ArgumentsSource;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.fail;
 
 public abstract class DestinationAcceptanceTest {
 
@@ -133,13 +133,13 @@ public abstract class DestinationAcceptanceTest {
    * invoked. These will be used to check that the data actually written is what should actually be
    * there. Note: this returns a set and does not test any order guarantees.
    *
-   * @param testEnv - information about the test environment.
-   * @param streamName - name of the stream for which we are retrieving records.
-   * @param namespace - the destination namespace records are located in. Null if not applicable.
-   *        Usually a JDBC schema.
+   * @param testEnv      - information about the test environment.
+   * @param streamName   - name of the stream for which we are retrieving records.
+   * @param namespace    - the destination namespace records are located in. Null if not applicable.
+   *                     Usually a JDBC schema.
    * @param streamSchema - schema of the stream to be retrieved. This is only necessary for
-   *        destinations in which data types cannot be accurately inferred (e.g. in CSV destination,
-   *        every value is a string).
+   *                     destinations in which data types cannot be accurately inferred (e.g. in CSV destination,
+   *                     every value is a string).
    * @return All of the records in the destination at the time this method is invoked.
    * @throws Exception - can throw any exception, test framework will handle.
    */
@@ -154,7 +154,7 @@ public abstract class DestinationAcceptanceTest {
    * the configuration's 'schema' field, as this is how most of our destinations implement this.
    * Destinations are free to appropriately override this. The return value is used to assert
    * correctness.
-   *
+   * <p>
    * If not applicable, Destinations are free to ignore this.
    *
    * @param config - integration-specific configuration returned by {@link #getConfig()}.
@@ -270,10 +270,10 @@ public abstract class DestinationAcceptanceTest {
    * back into the data as it would appear in an {@link AirbyteRecordMessage}. Only need to override
    * this method if {@link #normalizationFromSpec} returns true.
    *
-   * @param testEnv - information about the test environment.
+   * @param testEnv    - information about the test environment.
    * @param streamName - name of the stream for which we are retrieving records.
-   * @param namespace - the destination namespace records are located in. Null if not applicable.
-   *        Usually a JDBC schema.
+   * @param namespace  - the destination namespace records are located in. Null if not applicable.
+   *                   Usually a JDBC schema.
    * @return All of the records in the destination at the time this method is invoked.
    * @throws Exception - can throw any exception, test framework will handle.
    */
@@ -400,7 +400,7 @@ public abstract class DestinationAcceptanceTest {
                     .put("currency", "USD")
                     .put("date", "2020-03-31T00:00:00Z")
                     // TODO(sherifnada) hack: write decimals with sigfigs because Snowflake stores 10.1 as "10" which
-                    // fails destination tests
+                    //  fails destination tests
                     .put("HKD", 10.1)
                     .put("NZD", 700.1)
                     .build()))),
@@ -546,7 +546,7 @@ public abstract class DestinationAcceptanceTest {
   /**
    * Verify that the integration successfully writes records successfully both raw and normalized and
    * run dedupe transformations.
-   *
+   * <p>
    * Although this test assumes append-dedup requires normalization, and almost all our Destinations
    * do so, this is not necessarily true. This explains {@link #implementsAppendDedup()}.
    */
@@ -640,7 +640,7 @@ public abstract class DestinationAcceptanceTest {
    * This test is running a sync using the exchange rate catalog and messages. However it also
    * generates and adds two extra messages with big records (near the destination limit as defined by
    * getMaxValueLengthLimit()
-   *
+   * <p>
    * The first big message should be small enough to fit into the destination while the second message
    * would be too big and fails to replicate.
    */
@@ -1018,37 +1018,59 @@ public abstract class DestinationAcceptanceTest {
     LOGGER.info("Expected data {}", expected);
     LOGGER.info("Actual data   {}", actual);
     assertEquals(expected.size(), actual.size());
-    final Iterator<JsonNode> expectedIterator = expected.iterator();
-    final Iterator<JsonNode> actualIterator = actual.iterator();
-    while (expectedIterator.hasNext() && actualIterator.hasNext()) {
-      final JsonNode expectedData = expectedIterator.next();
-      final JsonNode actualData = actualIterator.next();
-      final Iterator<Entry<String, JsonNode>> expectedDataIterator = expectedData.fields();
-      LOGGER.info("Expected row {}", expectedData);
-      LOGGER.info("Actual row   {}", actualData);
-      assertEquals(expectedData.size(), actualData.size(), "Unequal row size");
-      while (expectedDataIterator.hasNext()) {
-        final Entry<String, JsonNode> expectedEntry = expectedDataIterator.next();
-        final JsonNode expectedValue = expectedEntry.getValue();
-        JsonNode actualValue = null;
-        String key = expectedEntry.getKey();
-        for (String tmpKey : resolveIdentifier(expectedEntry.getKey())) {
-          actualValue = actualData.get(tmpKey);
-          if (actualValue != null) {
-            key = tmpKey;
-            break;
-          }
+
+    // This can be very slow for very large input sets. But this approach allows us to compare while ignoring record ordering.
+    for (JsonNode expectedRecord : expected) {
+      LOGGER.info("Expected row {}", expectedRecord);
+      boolean matchFound = false;
+      for (JsonNode actualRecord : actual) {
+        if (areEqualRecords(expectedRecord, actualRecord)) {
+          matchFound = true;
+          break;
         }
-        LOGGER.info("For {} Expected {} vs Actual {}", key, expectedValue, actualValue);
-        assertTrue(actualData.has(key));
-        assertSameValue(expectedValue, actualValue);
+      }
+      if (!matchFound) {
+        fail("Expected record to be in output but was not found: " + expectedRecord.toString());
       }
     }
   }
 
-  // Allows subclasses to implement custom comparison asserts
-  protected void assertSameValue(JsonNode expectedValue, JsonNode actualValue) {
-    assertEquals(expectedValue, actualValue);
+  private boolean areEqualRecords(JsonNode expectedData, JsonNode actualData) {
+    final Iterator<Entry<String, JsonNode>> expectedDataIterator = expectedData.fields();
+    LOGGER.info("Expected row {}", expectedData);
+    LOGGER.info("Actual row   {}", actualData);
+    if (expectedData.size() != actualData.size()){
+      return false;
+    }
+
+    while (expectedDataIterator.hasNext()) {
+      final Entry<String, JsonNode> expectedEntry = expectedDataIterator.next();
+      final JsonNode expectedValue = expectedEntry.getValue();
+      JsonNode actualValue = null;
+      String key = expectedEntry.getKey();
+      for (String tmpKey : resolveIdentifier(expectedEntry.getKey())) {
+        actualValue = actualData.get(tmpKey);
+        if (actualValue != null) {
+          key = tmpKey;
+          break;
+        }
+      }
+      LOGGER.info("For {} Expected {} vs Actual {}", key, expectedValue, actualValue);
+      if (actualData.has(key) && areSameValue(expectedValue, actualValue)){
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Allows subclasses to implement custom comparisons
+  protected boolean areSameValue(JsonNode expectedValue, JsonNode actualValue) {
+    if (expectedValue.isNumber() && actualValue.isNumber()) {
+      // some destinations serialize ints as doubles. We don't want to fail because 1.0 != 1
+      return expectedValue.asDouble() == actualValue.asDouble();
+    } else {
+      return expectedValue.equals(actualValue);
+    }
   }
 
   protected List<AirbyteRecordMessage> retrieveNormalizedRecords(AirbyteCatalog catalog, String defaultSchema) throws Exception {

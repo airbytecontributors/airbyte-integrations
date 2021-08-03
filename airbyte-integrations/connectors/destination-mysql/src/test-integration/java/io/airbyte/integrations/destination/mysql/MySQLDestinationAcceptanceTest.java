@@ -261,12 +261,13 @@ public class MySQLDestinationAcceptanceTest extends DestinationAcceptanceTest {
     // overrides test with a no-op until we handle full UTF-8 in the destination
   }
 
-  protected void assertSameValue(JsonNode expectedValue, JsonNode actualValue) {
+  @Override
+  protected boolean areSameValue(JsonNode expectedValue, JsonNode actualValue) {
     if (expectedValue.isBoolean()) {
       // Boolean in MySQL are stored as TINYINT (0 or 1) so we force them to boolean values here
-      assertEquals(expectedValue.asBoolean(), actualValue.asBoolean());
+      return expectedValue.asBoolean() == actualValue.asBoolean();
     } else {
-      assertEquals(expectedValue, actualValue);
+      return super.areSameValue(expectedValue, actualValue);
     }
   }
 
