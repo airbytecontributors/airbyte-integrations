@@ -91,7 +91,7 @@ public class MySQLDestinationAcceptanceTest extends DestinationAcceptanceTest {
   }
 
   @Override
-  protected JsonNode getFailCheckConfig() {
+  protected JsonNode getFailedCheckConfig() {
     return Jsons.jsonNode(ImmutableMap.builder()
         .put("host", db.getHost())
         .put("username", db.getUsername())

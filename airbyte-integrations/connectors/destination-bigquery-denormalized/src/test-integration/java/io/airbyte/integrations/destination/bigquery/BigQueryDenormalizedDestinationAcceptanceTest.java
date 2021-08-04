@@ -98,7 +98,7 @@ public class BigQueryDenormalizedDestinationAcceptanceTest extends DestinationAc
   }
 
   @Override
-  protected JsonNode getFailCheckConfig() throws Exception {
+  protected JsonNode getFailedCheckConfig() throws Exception {
     ((ObjectNode) config).put(CONFIG_PROJECT_ID, "fake");
     return config;
   }

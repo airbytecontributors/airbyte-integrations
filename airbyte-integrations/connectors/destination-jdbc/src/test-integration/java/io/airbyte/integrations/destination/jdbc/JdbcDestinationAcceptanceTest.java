@@ -65,7 +65,7 @@ public class JdbcDestinationAcceptanceTest extends DestinationAcceptanceTest {
   }
 
   @Override
-  protected JsonNode getFailCheckConfig() {
+  protected JsonNode getFailedCheckConfig() {
     return Jsons.jsonNode(ImmutableMap.builder()
         .put("username", db.getUsername())
         .put("password", "wrong password")

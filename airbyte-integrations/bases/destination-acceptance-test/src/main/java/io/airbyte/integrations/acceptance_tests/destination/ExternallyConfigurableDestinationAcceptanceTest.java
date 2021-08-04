@@ -9,9 +9,10 @@ import java.util.List;
  * This class is meant to run DAT with an injected configuration like an input yaml, command line args, etc.
  */
 public class ExternallyConfigurableDestinationAcceptanceTest extends DestinationAcceptanceTest {
-  private static TestConfiguration TEST_CONFIG;
 
-  public static void initialize(TestConfiguration config){
+  private static InputConfiguration TEST_CONFIG;
+
+  public static void initialize(InputConfiguration config) {
     TEST_CONFIG = config;
   }
 
@@ -26,7 +27,7 @@ public class ExternallyConfigurableDestinationAcceptanceTest extends Destination
   }
 
   @Override
-  protected JsonNode getFailCheckConfig() throws Exception {
+  protected JsonNode getFailedCheckConfig() throws Exception {
     return null;
   }
 
@@ -52,10 +53,5 @@ public class ExternallyConfigurableDestinationAcceptanceTest extends Destination
     return null;
   }
 
-  public static class TestConfiguration {
-    String failConfigPath;
-    String configPath;
-    String imageName;
-    String testHelperDockerImageName;
-  }
+
 }

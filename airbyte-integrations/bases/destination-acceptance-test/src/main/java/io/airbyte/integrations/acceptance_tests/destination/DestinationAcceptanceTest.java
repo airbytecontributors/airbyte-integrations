@@ -126,12 +126,12 @@ public abstract class DestinationAcceptanceTest {
    *
    * @return integration-specific configuration
    */
-  protected abstract JsonNode getFailCheckConfig() throws Exception;
+  protected abstract JsonNode getFailedCheckConfig() throws Exception;
 
   /**
    * Function that returns all of the records in destination as json at the time this method is
    * invoked. These will be used to check that the data actually written is what should actually be
-   * there. Note: this returns a set and does not test any order guarantees.
+   * there.
    *
    * @param testEnv - information about the test environment.
    * @param streamName - name of the stream for which we are retrieving records.
@@ -346,11 +346,11 @@ public abstract class DestinationAcceptanceTest {
 
   /**
    * Verify that when given invalid credentials, that check connection returns a failed response.
-   * Assume that the {@link DestinationAcceptanceTest#getFailCheckConfig()} is invalid.
+   * Assume that the {@link DestinationAcceptanceTest#getFailedCheckConfig()} is invalid.
    */
   @Test
   public void testCheckConnectionInvalidCredentials() throws Exception {
-    assertEquals(Status.FAILED, runCheck(getFailCheckConfig()).getStatus());
+    assertEquals(Status.FAILED, runCheck(getFailedCheckConfig()).getStatus());
   }
 
   /**

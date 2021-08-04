@@ -86,7 +86,7 @@ public class MeiliSearchDestinationAcceptanceTest extends DestinationAcceptanceT
   }
 
   @Override
-  protected JsonNode getFailCheckConfig() {
+  protected JsonNode getFailedCheckConfig() {
     final JsonNode invalidConfig = Jsons.clone(getConfig());
     ((ObjectNode) invalidConfig).put("host", "localhost:7702");
     return invalidConfig;

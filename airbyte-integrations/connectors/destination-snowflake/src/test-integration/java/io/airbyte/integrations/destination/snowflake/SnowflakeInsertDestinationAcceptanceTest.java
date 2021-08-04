@@ -66,7 +66,7 @@ public class SnowflakeInsertDestinationAcceptanceTest extends DestinationAccepta
   }
 
   @Override
-  protected JsonNode getFailCheckConfig() {
+  protected JsonNode getFailedCheckConfig() {
     final JsonNode invalidConfig = Jsons.clone(config);
     ((ObjectNode) invalidConfig).put("password", "wrong password");
     return invalidConfig;

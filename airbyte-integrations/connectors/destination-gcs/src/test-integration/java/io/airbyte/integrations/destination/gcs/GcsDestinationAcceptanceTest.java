@@ -88,7 +88,7 @@ public abstract class GcsDestinationAcceptanceTest extends DestinationAcceptance
   }
 
   @Override
-  protected JsonNode getFailCheckConfig() {
+  protected JsonNode getFailedCheckConfig() {
     JsonNode baseJson = getBaseConfigJson();
     JsonNode failCheckJson = Jsons.clone(baseJson);
     // invalid credential

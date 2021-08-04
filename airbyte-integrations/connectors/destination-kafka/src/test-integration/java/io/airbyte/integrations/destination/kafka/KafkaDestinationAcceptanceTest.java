@@ -92,7 +92,7 @@ public class KafkaDestinationAcceptanceTest extends DestinationAcceptanceTest {
   }
 
   @Override
-  protected JsonNode getFailCheckConfig() {
+  protected JsonNode getFailedCheckConfig() {
     ObjectNode stubProtocolConfig = mapper.createObjectNode();
     stubProtocolConfig.put("security_protocol", KafkaProtocol.SASL_PLAINTEXT.toString());
     stubProtocolConfig.put("sasl_mechanism", "PLAIN");

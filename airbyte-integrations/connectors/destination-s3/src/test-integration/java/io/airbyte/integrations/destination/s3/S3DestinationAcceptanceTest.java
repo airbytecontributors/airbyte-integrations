@@ -93,7 +93,7 @@ public abstract class S3DestinationAcceptanceTest extends DestinationAcceptanceT
   }
 
   @Override
-  protected JsonNode getFailCheckConfig() {
+  protected JsonNode getFailedCheckConfig() {
     JsonNode baseJson = getBaseConfigJson();
     JsonNode failCheckJson = Jsons.clone(baseJson);
     // invalid credential

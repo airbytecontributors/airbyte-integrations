@@ -56,7 +56,7 @@ public class LocalJsonDestinationAcceptanceTest extends DestinationAcceptanceTes
   // commented out one fails in mac but not on the linux box that the github action runs in. instead
   // we override the test here so it never runs.
   @Override
-  protected JsonNode getFailCheckConfig() {
+  protected JsonNode getFailedCheckConfig() {
     // set the directory to which the integration will try to write to to read only.
     // localRoot.toFile().setReadOnly();
 

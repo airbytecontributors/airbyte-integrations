@@ -94,7 +94,7 @@ public class PubsubDestinationAcceptanceTest extends DestinationAcceptanceTest {
   }
 
   @Override
-  protected JsonNode getFailCheckConfig() {
+  protected JsonNode getFailedCheckConfig() {
     ((ObjectNode) configJson).put(CONFIG_PROJECT_ID, "fake");
     return configJson;
   }
