@@ -1,8 +1,5 @@
 # Changelog
 
-## 0.1.10
-Add `MultipleTokenAuthenticator` class to allow cycling through a list of API tokens when making HTTP requests
-
 ## 0.1.8
 Allow to fetch primary key info from singer catalog
 

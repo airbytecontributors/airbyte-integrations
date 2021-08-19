@@ -30,7 +30,7 @@ from airbyte_cdk import AirbyteLogger
 from airbyte_cdk.models import SyncMode
 from airbyte_cdk.sources import AbstractSource
 from airbyte_cdk.sources.streams import Stream
-from airbyte_cdk.sources.streams.http.auth import MultipleTokenAuthenticator
+from airbyte_cdk.sources.streams.http.auth import TokenAuthenticator
 
 from .streams import (
     Assignees,
@@ -53,12 +53,8 @@ from .streams import (
 )
 
 
-TOKEN_SEPARATOR = ","
-
-
 class SourceGithub(AbstractSource):
-    @staticmethod
-    def _generate_repositories(config: Mapping[str, Any], authenticator: MultipleTokenAuthenticator) -> List[str]:
+    def _generate_repositories(self, config: Mapping[str, Any], authenticator: TokenAuthenticator) -> List[str]:
         repositories = list(filter(None, config["repository"].split(" ")))
 
         if not repositories:
@@ -69,27 +65,19 @@ class SourceGithub(AbstractSource):
         if organizations:
             repos = Repositories(authenticator=authenticator, organizations=organizations)
             for stream in repos.stream_slices(sync_mode=SyncMode.full_refresh):
-                repositories_list += [r["full_name"] for r in repos.read_records(sync_mode=SyncMode.full_refresh, stream_slice=stream)]
+                repositories_list += [
+                    repository["full_name"] for repository in repos.read_records(sync_mode=SyncMode.full_refresh, stream_slice=stream)
+                ]
 
         return list(set(repositories_list))
 
-    @staticmethod
-    def _get_authenticator(token: str):
-        tokens = [t.strip() for t in token.split(TOKEN_SEPARATOR)]
-        return MultipleTokenAuthenticator(tokens=tokens, auth_method="token")
-
     def check_connection(self, logger: AirbyteLogger, config: Mapping[str, Any]) -> Tuple[bool, Any]:
         try:
-            authenticator = self._get_authenticator(config["access_token"])
+            authenticator = TokenAuthenticator(token=config["access_token"], auth_method="token")
             repositories = self._generate_repositories(config=config, authenticator=authenticator)
 
-            # We should use the most poorly filled stream to use the `list` method,
-            # because when using the `next` method, we can get the `StopIteration` error.
-            projects_stream = Projects(
-                authenticator=authenticator,
-                repositories=repositories,
-                start_date=config["start_date"],
-            )
+            # We should use the most poorly filled stream to use the `list` method, because when using the `next` method, we can get the `StopIteration` error.
+            projects_stream = Projects(authenticator=authenticator, repositories=repositories, start_date=config["start_date"])
             for stream in projects_stream.stream_slices(sync_mode=SyncMode.full_refresh):
                 list(projects_stream.read_records(sync_mode=SyncMode.full_refresh, stream_slice=stream))
             return True, None
@@ -97,7 +85,7 @@ class SourceGithub(AbstractSource):
             return False, repr(e)
 
     def streams(self, config: Mapping[str, Any]) -> List[Stream]:
-        authenticator = self._get_authenticator(config["access_token"])
+        authenticator = TokenAuthenticator(token=config["access_token"], auth_method="token")
         repositories = self._generate_repositories(config=config, authenticator=authenticator)
         full_refresh_args = {"authenticator": authenticator, "repositories": repositories}
         incremental_args = {**full_refresh_args, "start_date": config["start_date"]}
