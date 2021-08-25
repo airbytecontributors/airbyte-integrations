@@ -14,6 +14,19 @@ kubectl apply -k kube/overlays/stable-testing
 kubectl wait --for=condition=Available deployment/airbyte-server --timeout=300s || (kubectl describe pods && exit 1)
 kubectl wait --for=condition=Available deployment/airbyte-scheduler --timeout=300s || (kubectl describe pods && exit 1)
 
+echo "Checking if scheduler and server are being scheduled on separate nodes..."
+if [ -n "$IS_MINIKUBE" ]; then
+  SCHEDULER_NODE=$(kubectl get pod -o=custom-columns=NAME:.metadata.name,NODE:.spec.nodeName | grep scheduler | awk '{print $2}')
+  SERVER_NODE=$(kubectl get pod -o=custom-columns=NAME:.metadata.name,NODE:.spec.nodeName | grep server | awk '{print $2}')
+
+  if [ "$SCHEDULER_NODE" = "$SERVER_NODE" ]; then
+    echo "Scheduler and server were scheduled on the same node! This should not be the case for testing!"
+    exit 1
+  else
+    echo "Scheduler and server were scheduled on different nodes."
+  fi
+fi
+
 # allocates a lot of time to start kube. takes a while for postgres+temporal to work things out
 sleep 120s
 
@@ -44,8 +57,6 @@ echo "========"
 echo "========"
 echo "========"
 
-# todo: create custom anti affinity extension that prevents the server and scheduler from running on the smae node
-# todo: add an assertion that they are running on different nodes at the end of this
 
 echo "Running e2e tests via gradle..."
 KUBE=true SUB_BUILD=PLATFORM USE_EXTERNAL_DEPLOYMENT=true ./gradlew :airbyte-tests:acceptanceTests --scan
