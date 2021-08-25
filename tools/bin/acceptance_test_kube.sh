@@ -9,15 +9,15 @@ assert_root
 # Since KIND does not have access to the local docker agent, manually load the minimum images required for the Kubernetes Acceptance Tests.
 # See https://kind.sigs.k8s.io/docs/user/quick-start/#loading-an-image-into-your-cluster.
 echo "Loading images into KIND..."
-kind load docker-image airbyte/server:dev --name chart-testing
-kind load docker-image airbyte/scheduler:dev --name chart-testing
-kind load docker-image airbyte/webapp:dev --name chart-testing
-kind load docker-image airbyte/db:dev --name chart-testing
+kind load docker-image airbyte/server:0.29.12-alpha --name chart-testing
+kind load docker-image airbyte/scheduler:0.29.12-alpha --name chart-testing
+kind load docker-image airbyte/webapp:0.29.12-alpha --name chart-testing
+kind load docker-image airbyte/db:0.29.12-alpha --name chart-testing
 
 echo "Starting app..."
 
-echo "Applying dev manifests to kubernetes..."
-kubectl apply -k kube/overlays/dev
+echo "Applying stable manifests to kubernetes..."
+kubectl apply -k kube/overlays/stable
 
 kubectl wait --for=condition=Available deployment/airbyte-server --timeout=300s || (kubectl describe pods && exit 1)
 kubectl wait --for=condition=Available deployment/airbyte-scheduler --timeout=300s || (kubectl describe pods && exit 1)
@@ -36,7 +36,7 @@ trap "echo 'kube logs:' && print_all_logs" EXIT
 kubectl port-forward svc/airbyte-server-svc 8001:8001 &
 
 echo "Running worker integration tests..."
-SUB_BUILD=PLATFORM  ./gradlew :airbyte-workers:integrationTest --scan
+SUB_BUILD=PLATFORM ./gradlew :airbyte-workers:integrationTest --scan
 
 echo "Running e2e tests via gradle..."
 KUBE=true SUB_BUILD=PLATFORM USE_EXTERNAL_DEPLOYMENT=true ./gradlew :airbyte-tests:acceptanceTests --scan
