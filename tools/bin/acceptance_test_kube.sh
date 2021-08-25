@@ -9,7 +9,7 @@ assert_root
 echo "Starting app..."
 
 echo "Applying stable manifests to kubernetes..."
-kubectl apply -k kube/overlays/stable
+kubectl apply -k kube/overlays/stable-testing
 
 kubectl wait --for=condition=Available deployment/airbyte-server --timeout=300s || (kubectl describe pods && exit 1)
 kubectl wait --for=condition=Available deployment/airbyte-scheduler --timeout=300s || (kubectl describe pods && exit 1)
@@ -43,6 +43,9 @@ echo "========"
 echo "========"
 echo "========"
 echo "========"
+
+# todo: create custom anti affinity extension that prevents the server and scheduler from running on the smae node
+# todo: add an assertion that they are running on different nodes at the end of this
 
 echo "Running e2e tests via gradle..."
 KUBE=true SUB_BUILD=PLATFORM USE_EXTERNAL_DEPLOYMENT=true ./gradlew :airbyte-tests:acceptanceTests --scan

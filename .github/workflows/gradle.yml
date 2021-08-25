@@ -77,13 +77,6 @@ jobs:
           - role: worker
           - role: worker
           - role: worker
-          - role: worker
-          - role: worker
-          - role: worker
-          - role: worker
-          - role: worker
-          - role: worker
-          - role: worker
           EOF
 
       - name: KIND Kubernetes Cluster Setup
