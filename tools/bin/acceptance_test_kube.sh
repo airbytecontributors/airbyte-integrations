@@ -36,7 +36,7 @@ echo "========"
 echo "========"
 echo "========"
 
-kubectl describe pods
+kubectl describe pods | grep "Name\|Node"
 
 echo "========"
 echo "========"
