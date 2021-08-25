@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: airbyte-server
+  name: airbyte-webapp
 spec:
   template:
     spec:
@@ -13,5 +13,5 @@ spec:
                   - key: airbyte
                     operator: In
                     values:
-                      - scheduler
+                      - db
               topologyKey: kubernetes.io/hostname
