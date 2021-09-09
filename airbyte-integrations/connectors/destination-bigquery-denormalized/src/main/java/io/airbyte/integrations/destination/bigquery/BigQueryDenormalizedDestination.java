@@ -74,7 +74,8 @@ public class BigQueryDenormalizedDestination extends BigQueryDestination {
                                                      Consumer<AirbyteMessage> outputRecordCollector,
                                                      boolean isGcsUploadingMode,
                                                      boolean isKeepFilesInGcs) {
-    return new BigQueryDenormalizedRecordConsumer(bigquery, writeConfigs, catalog, outputRecordCollector, getNamingResolver());
+    return new BigQueryDenormalizedRecordConsumer(bigquery, writeConfigs, catalog, outputRecordCollector,
+        getNamingResolver(), isGcsUploadingMode, isKeepFilesInGcs);
   }
 
   @Override

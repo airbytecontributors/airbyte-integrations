@@ -63,8 +63,10 @@ public class BigQueryDenormalizedRecordConsumer extends BigQueryRecordConsumer {
                                             Map<AirbyteStreamNameNamespacePair, BigQueryWriteConfig> writeConfigs,
                                             ConfiguredAirbyteCatalog catalog,
                                             Consumer<AirbyteMessage> outputRecordCollector,
-                                            StandardNameTransformer namingResolver) {
-    super(bigquery, writeConfigs, catalog, outputRecordCollector, false, false);
+                                            StandardNameTransformer namingResolver,
+      boolean isGcsUploadingMode,
+      boolean isKeepFilesInGcs) {
+    super(bigquery, writeConfigs, catalog, outputRecordCollector, isGcsUploadingMode, isKeepFilesInGcs);
     this.namingResolver = namingResolver;
     invalidKeys = new HashSet<>();
   }
