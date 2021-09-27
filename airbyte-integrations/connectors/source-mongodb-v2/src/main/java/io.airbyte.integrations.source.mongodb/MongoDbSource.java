@@ -77,7 +77,7 @@ public class MongoDbSource extends AbstractDbSource<BsonType, MongoDatabase> {
   private static final String TLS = "tls";
   private static final String PRIMARY_KEY = "_id";
 
-  public static void main(String[] args) throws Exception {
+  public static void main(final String[] args) throws Exception {
     final Source source = new MongoDbSource();
     LOGGER.info("starting source: {}", MongoDbSource.class);
     new IntegrationRunner(source).run(args);
@@ -85,13 +85,13 @@ public class MongoDbSource extends AbstractDbSource<BsonType, MongoDatabase> {
   }
 
   @Override
-  public JsonNode toDatabaseConfig(JsonNode config) {
-    var credentials = config.has(USER) && config.has(PASSWORD)
+  public JsonNode mapToDatabaseConfig2(final JsonNode config) {
+    final var credentials = config.has(USER) && config.has(PASSWORD)
         ? String.format("%s:%s@", config.get(USER).asText(), config.get(PASSWORD).asText())
         : StringUtils.EMPTY;
 
-    JsonNode instanceConfig = config.get(INSTANCE_TYPE);
-    String instanceConnectUrl;
+    final JsonNode instanceConfig = config.get(INSTANCE_TYPE);
+    final String instanceConnectUrl;
     if (instanceConfig.has(HOST) && instanceConfig.has(PORT)) {
       instanceConnectUrl = String.format(MONGODB_SERVER_URL,
           credentials, instanceConfig.get(HOST).asText(), instanceConfig.get(PORT).asText());
@@ -103,7 +103,7 @@ public class MongoDbSource extends AbstractDbSource<BsonType, MongoDatabase> {
           credentials, instanceConfig.get(SERVER_ADDRESSES).asText(), config.get(REPLICA_SET).asText());
     }
 
-    String options = "authSource=".concat(config.get(AUTH_SOURCE).asText());
+    final String options = "authSource=".concat(config.get(AUTH_SOURCE).asText());
     if (config.get(TLS).asBoolean()) {
       options.concat("&tls=true");
     }
@@ -115,16 +115,16 @@ public class MongoDbSource extends AbstractDbSource<BsonType, MongoDatabase> {
   }
 
   @Override
-  protected MongoDatabase createDatabase(JsonNode config) throws Exception {
-    var dbConfig = toDatabaseConfig(config);
+  protected MongoDatabase createDatabase(final JsonNode config) throws Exception {
+    final var dbConfig = mapToDatabaseConfig2(config);
     return Databases.createMongoDatabase(dbConfig.get("connectionString").asText(),
         dbConfig.get("database").asText());
   }
 
   @Override
-  public List<CheckedConsumer<MongoDatabase, Exception>> getCheckOperations(JsonNode config)
+  public List<CheckedConsumer<MongoDatabase, Exception>> getCheckOperations(final JsonNode config)
       throws Exception {
-    List<CheckedConsumer<MongoDatabase, Exception>> checkList = new ArrayList<>();
+    final List<CheckedConsumer<MongoDatabase, Exception>> checkList = new ArrayList<>();
     checkList.add(database -> {
       if (database.getCollectionNames() == null || database.getCollectionNames().first() == null) {
         throw new Exception("Unable to execute any operation on the source!");
@@ -136,7 +136,7 @@ public class MongoDbSource extends AbstractDbSource<BsonType, MongoDatabase> {
   }
 
   @Override
-  protected JsonSchemaPrimitive getType(BsonType fieldType) {
+  protected JsonSchemaPrimitive getType(final BsonType fieldType) {
     return MongoUtils.getType(fieldType);
   }
 
@@ -146,20 +146,20 @@ public class MongoDbSource extends AbstractDbSource<BsonType, MongoDatabase> {
   }
 
   @Override
-  protected List<TableInfo<CommonField<BsonType>>> discoverInternal(MongoDatabase database)
+  protected List<TableInfo<CommonField<BsonType>>> discoverInternal(final MongoDatabase database)
       throws Exception {
-    List<TableInfo<CommonField<BsonType>>> tableInfos = new ArrayList<>();
+    final List<TableInfo<CommonField<BsonType>>> tableInfos = new ArrayList<>();
 
-    for (String collectionName : database.getCollectionNames()) {
-      MongoCollection<Document> collection = database.getCollection(collectionName);
-      Map<String, BsonType> uniqueFields = MongoUtils.getUniqueFields(collection);
+    for (final String collectionName : database.getCollectionNames()) {
+      final MongoCollection<Document> collection = database.getCollection(collectionName);
+      final Map<String, BsonType> uniqueFields = MongoUtils.getUniqueFields(collection);
 
-      List<CommonField<BsonType>> fields = uniqueFields.keySet().stream()
+      final List<CommonField<BsonType>> fields = uniqueFields.keySet().stream()
           .map(field -> new CommonField<>(field, uniqueFields.get(field)))
           .collect(Collectors.toList());
 
       // The field name _id is reserved for use as a primary key;
-      TableInfo<CommonField<BsonType>> tableInfo = TableInfo.<CommonField<BsonType>>builder()
+      final TableInfo<CommonField<BsonType>> tableInfo = TableInfo.<CommonField<BsonType>>builder()
           .nameSpace(database.getName())
           .name(collectionName)
           .fields(fields)
@@ -172,14 +172,14 @@ public class MongoDbSource extends AbstractDbSource<BsonType, MongoDatabase> {
   }
 
   @Override
-  protected List<TableInfo<CommonField<BsonType>>> discoverInternal(MongoDatabase database, String schema) throws Exception {
+  protected List<TableInfo<CommonField<BsonType>>> discoverInternal(final MongoDatabase database, final String schema) throws Exception {
     // MondoDb doesn't support schemas
     return discoverInternal(database);
   }
 
   @Override
-  protected Map<String, List<String>> discoverPrimaryKeys(MongoDatabase database,
-                                                          List<TableInfo<CommonField<BsonType>>> tableInfos) {
+  protected Map<String, List<String>> discoverPrimaryKeys(final MongoDatabase database,
+                                                          final List<TableInfo<CommonField<BsonType>>> tableInfos) {
     return tableInfos.stream()
         .collect(Collectors.toMap(
             TableInfo::getName,
@@ -192,31 +192,31 @@ public class MongoDbSource extends AbstractDbSource<BsonType, MongoDatabase> {
   }
 
   @Override
-  public AutoCloseableIterator<JsonNode> queryTableFullRefresh(MongoDatabase database,
-                                                               List<String> columnNames,
-                                                               String schemaName,
-                                                               String tableName) {
+  public AutoCloseableIterator<JsonNode> queryTableFullRefresh(final MongoDatabase database,
+                                                               final List<String> columnNames,
+                                                               final String schemaName,
+                                                               final String tableName) {
     return queryTable(database, columnNames, tableName, null);
   }
 
   @Override
-  public AutoCloseableIterator<JsonNode> queryTableIncremental(MongoDatabase database,
-                                                               List<String> columnNames,
-                                                               String schemaName,
-                                                               String tableName,
-                                                               String cursorField,
-                                                               BsonType cursorFieldType,
-                                                               String cursor) {
-    Bson greaterComparison = gt(cursorField, cursor);
+  public AutoCloseableIterator<JsonNode> queryTableIncremental(final MongoDatabase database,
+                                                               final List<String> columnNames,
+                                                               final String schemaName,
+                                                               final String tableName,
+                                                               final String cursorField,
+                                                               final BsonType cursorFieldType,
+                                                               final String cursor) {
+    final Bson greaterComparison = gt(cursorField, cursor);
     return queryTable(database, columnNames, tableName, greaterComparison);
   }
 
-  private AutoCloseableIterator<JsonNode> queryTable(MongoDatabase database, List<String> columnNames, String tableName, Bson filter) {
+  private AutoCloseableIterator<JsonNode> queryTable(final MongoDatabase database, final List<String> columnNames, final String tableName, final Bson filter) {
     return AutoCloseableIterators.lazyIterator(() -> {
       try {
         final Stream<JsonNode> stream = database.read(tableName, columnNames, Optional.ofNullable(filter));
         return AutoCloseableIterators.fromStream(stream);
-      } catch (Exception e) {
+      } catch (final Exception e) {
         throw new RuntimeException(e);
       }
     });

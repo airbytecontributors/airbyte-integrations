@@ -73,7 +73,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 
@@ -152,11 +151,14 @@ public abstract class JdbcSourceAcceptanceTest {
    *
    * @return source
    */
-  public abstract AbstractJdbcSource getSource();
+  public abstract AbstractJdbcSource getJdbcSource();
 
-  public ImmutablePair<Source, Function<JsonNode, JsonNode>> toDatabaseConfigOverride() {
-    final AbstractJdbcSource source = getSource();
-    return ImmutablePair.of(source, source::toDatabaseConfig);
+  public Source getSource() {
+    return getJdbcSource();
+  }
+
+  public Function<JsonNode, JsonNode> getSourceToDatabaseConfigFunction() {
+    return getJdbcSource()::mapToDatabaseConfig;
   }
 
   protected String createTableQuery(final String tableName, final String columnClause, final String primaryKeyClause) {
@@ -182,12 +184,10 @@ public abstract class JdbcSourceAcceptanceTest {
   }
 
   public void setup() throws Exception {
-    final ImmutablePair<Source, Function<JsonNode, JsonNode>> sourceFunctionImmutablePair = toDatabaseConfigOverride();
-    source = sourceFunctionImmutablePair.getLeft();
+    source = getJdbcSource();
     config = getConfig();
-    toDatabaseConfig = sourceFunctionImmutablePair.getRight();
-    // final JsonNode jdbcConfig = source.toDatabaseConfig(config);
-    final JsonNode jdbcConfig = toDatabaseConfig.apply(config);
+    final Function<JsonNode, JsonNode> sourceToDatabaseConfigFunction = getSourceToDatabaseConfigFunction();
+    final JsonNode jdbcConfig = sourceToDatabaseConfigFunction.apply(config);
 
     streamName = TABLE_NAME;
 

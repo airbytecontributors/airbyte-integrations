@@ -78,6 +78,12 @@ public abstract class AbstractDbSource<DataType, Database extends AbstractDataba
 
   private static final Logger LOGGER = LoggerFactory.getLogger(AbstractDbSource.class);
 
+  private final DatabaseConfigMapper databaseConfigMapper;
+
+  public AbstractDbSource(final DatabaseConfigMapper databaseConfigMapper) {
+    this.databaseConfigMapper = databaseConfigMapper;
+  }
+
   @Override
   public AirbyteConnectionStatus check(final JsonNode config) throws Exception {
     try (final Database database = createDatabaseInternal(config)) {
@@ -86,7 +92,7 @@ public abstract class AbstractDbSource<DataType, Database extends AbstractDataba
       }
 
       return new AirbyteConnectionStatus().withStatus(Status.SUCCEEDED);
-    } catch (Exception e) {
+    } catch (final Exception e) {
       LOGGER.info("Exception while checking connection: ", e);
       return new AirbyteConnectionStatus()
           .withStatus(Status.FAILED)
@@ -376,14 +382,16 @@ public abstract class AbstractDbSource<DataType, Database extends AbstractDataba
         });
   }
 
-  /**
-   * Map a database implementation-specific configuration to json object that adheres to the database
-   * config spec. See resources/spec.json.
-   *
-   * @param config database implementation-specific configuration.
-   * @return database spec config
-   */
-  public abstract JsonNode toDatabaseConfig(JsonNode config);
+//  /**
+//   * Map a database implementation-specific configuration to json object that adheres to the database
+//   * config spec. See resources/spec.json.
+//   *
+//   * @param config database implementation-specific configuration.
+//   * @return database spec config
+//   */
+  public JsonNode mapToDatabaseConfig(final JsonNode config) {
+    return databaseConfigMapper.apply(config);
+  }
 
   /**
    * Creates a database instance using the database spec config.
@@ -495,7 +503,7 @@ public abstract class AbstractDbSource<DataType, Database extends AbstractDataba
   private Database createDatabaseInternal(final JsonNode sourceConfig) throws Exception {
     final Database database = createDatabase(sourceConfig);
     database.setSourceConfig(sourceConfig);
-    database.setDatabaseConfig(toDatabaseConfig(sourceConfig));
+    database.setDatabaseConfig(mapToDatabaseConfig(sourceConfig));
     return database;
   }
 

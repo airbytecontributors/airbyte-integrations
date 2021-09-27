@@ -85,14 +85,18 @@ class PostgresStrictJdbcSourceAcceptanceTest extends JdbcSourceAcceptanceTest {
   }
 
   @Override
-  public AbstractJdbcSource getSource() {
-    // return new PostgresSourceStrict();
+  public AbstractJdbcSource getJdbcSource() {
     return null;
   }
 
   @Override
-  public ImmutablePair<Source, Function<JsonNode, JsonNode>> toDatabaseConfigOverride() {
-    return ImmutablePair.of(new PostgresSourceStrict(), new PostgresSource()::toDatabaseConfig);
+  public Source getSource() {
+    return new PostgresSourceStrict();
+  }
+
+  @Override
+  public Function<JsonNode, JsonNode> getSourceToDatabaseConfigFunction() {
+    return new PostgresSource()::toDatabaseConfig;
   }
 
   @Override

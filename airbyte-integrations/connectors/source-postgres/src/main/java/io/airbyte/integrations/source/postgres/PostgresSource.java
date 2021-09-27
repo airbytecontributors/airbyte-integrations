@@ -77,12 +77,11 @@ public class PostgresSource extends AbstractJdbcSource implements Source {
   }
 
   PostgresSource() {
-    super(DRIVER_CLASS, new PostgresJdbcStreamingQueryConfiguration());
+    super(DRIVER_CLASS, new PostgresJdbcStreamingQueryConfiguration(), PostgresSource::toDatabaseConfig);
     this.sourceOperations = JdbcUtils.getDefaultSourceOperations();
   }
 
-  @Override
-  public JsonNode toDatabaseConfig(final JsonNode config) {
+  public static JsonNode toDatabaseConfig(final JsonNode config) {
 
     final List<String> additionalParameters = new ArrayList<>();
 

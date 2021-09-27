@@ -55,7 +55,7 @@ public class OracleSource extends AbstractJdbcSource implements Source {
   }
 
   @Override
-  public JsonNode toDatabaseConfig(JsonNode config) {
+  public JsonNode mapToDatabaseConfig2(final JsonNode config) {
     final ImmutableMap.Builder<Object, Object> configBuilder = ImmutableMap.builder()
         .put("username", config.get("username").asText())
         .put("jdbc_url", String.format("jdbc:oracle:thin:@//%s:%s/%s",
@@ -80,14 +80,14 @@ public class OracleSource extends AbstractJdbcSource implements Source {
   }
 
   @Override
-  public List<TableInfo<CommonField<JDBCType>>> discoverInternal(JdbcDatabase database) throws Exception {
-    List<TableInfo<CommonField<JDBCType>>> internals = new ArrayList<>();
-    for (String schema : schemas) {
+  public List<TableInfo<CommonField<JDBCType>>> discoverInternal(final JdbcDatabase database) throws Exception {
+    final List<TableInfo<CommonField<JDBCType>>> internals = new ArrayList<>();
+    for (final String schema : schemas) {
       LOGGER.debug("Discovering schema: {}", schema);
       internals.addAll(super.discoverInternal(database, schema));
     }
 
-    for (TableInfo<CommonField<JDBCType>> info : internals) {
+    for (final TableInfo<CommonField<JDBCType>> info : internals) {
       LOGGER.debug("Found table: {}", info.getName());
     }
 
@@ -103,7 +103,7 @@ public class OracleSource extends AbstractJdbcSource implements Source {
     return Set.of();
   }
 
-  public static void main(String[] args) throws Exception {
+  public static void main(final String[] args) throws Exception {
     final Source source = new OracleSource();
     LOGGER.info("starting source: {}", OracleSource.class);
     new IntegrationRunner(source).run(args);

@@ -42,10 +42,14 @@ import org.slf4j.LoggerFactory;
  * @see io.airbyte.integrations.source.jdbc.AbstractJdbcSource if you are implementing a relational
  *      DB which can be accessed via JDBC driver.
  */
-public abstract class AbstractRelationalDbSource<DataType, Database extends SqlDatabase> extends
-    AbstractDbSource<DataType, Database> implements Source {
+public abstract class AbstractRelationalDbSource<DataType, Database extends SqlDatabase>
+    extends AbstractDbSource<DataType, Database> implements Source {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(AbstractRelationalDbSource.class);
+
+  public AbstractRelationalDbSource(final DatabaseConfigMapper databaseConfigMapper) {
+    super(databaseConfigMapper);
+  }
 
   @Override
   public AutoCloseableIterator<JsonNode> queryTableFullRefresh(final Database database,

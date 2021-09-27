@@ -94,7 +94,7 @@ public class MssqlJdbcSourceAcceptanceTest extends JdbcSourceAcceptanceTest {
   }
 
   @Override
-  public AbstractJdbcSource getSource() {
+  public AbstractJdbcSource getJdbcSource() {
     return new MssqlSource();
   }
 

@@ -39,6 +39,7 @@ import io.airbyte.db.jdbc.JdbcStreamingQueryConfiguration;
 import io.airbyte.db.jdbc.JdbcUtils;
 import io.airbyte.integrations.base.Source;
 import io.airbyte.integrations.source.relationaldb.AbstractRelationalDbSource;
+import io.airbyte.integrations.source.relationaldb.DatabaseConfigMapper;
 import io.airbyte.integrations.source.relationaldb.TableInfo;
 import io.airbyte.protocol.models.CommonField;
 import io.airbyte.protocol.models.JsonSchemaPrimitive;
@@ -85,13 +86,15 @@ public abstract class AbstractJdbcSource extends AbstractRelationalDbSource<JDBC
 
   private String quoteString;
 
-  public AbstractJdbcSource(final String driverClass, final JdbcStreamingQueryConfiguration jdbcStreamingQueryConfiguration) {
-    this(driverClass, jdbcStreamingQueryConfiguration, JdbcUtils.getDefaultSourceOperations());
+  public AbstractJdbcSource(final String driverClass, final JdbcStreamingQueryConfiguration jdbcStreamingQueryConfiguration, final DatabaseConfigMapper databaseConfigMapper) {
+    this(driverClass, jdbcStreamingQueryConfiguration, databaseConfigMapper, JdbcUtils.getDefaultSourceOperations());
   }
 
   public AbstractJdbcSource(final String driverClass,
                             final JdbcStreamingQueryConfiguration jdbcStreamingQueryConfiguration,
-                            JdbcSourceOperations sourceOperations) {
+                            final DatabaseConfigMapper databaseConfigMapper,
+                            final JdbcSourceOperations sourceOperations) {
+    super(databaseConfigMapper);
     this.driverClass = driverClass;
     this.jdbcStreamingQueryConfiguration = jdbcStreamingQueryConfiguration;
     this.sourceOperations = sourceOperations;
@@ -102,7 +105,7 @@ public abstract class AbstractJdbcSource extends AbstractRelationalDbSource<JDBC
    *
    * @return list of consumers that run queries for the check command.
    */
-  public List<CheckedConsumer<JdbcDatabase, Exception>> getCheckOperations(JsonNode config) throws Exception {
+  public List<CheckedConsumer<JdbcDatabase, Exception>> getCheckOperations(final JsonNode config) throws Exception {
     return ImmutableList.of(database -> {
       LOGGER.info("Attempting to get metadata from the database to see if we can connect.");
       database.bufferedResultSetQuery(conn -> conn.getMetaData().getCatalogs(), sourceOperations::rowToJson);
@@ -114,7 +117,7 @@ public abstract class AbstractJdbcSource extends AbstractRelationalDbSource<JDBC
    *
    * @return a map by StreamName to associated list of primary keys
    */
-  private static Map<String, List<String>> aggregatePrimateKeys(List<SimpleImmutableEntry<String, String>> entries) {
+  private static Map<String, List<String>> aggregatePrimateKeys(final List<SimpleImmutableEntry<String, String>> entries) {
     final Map<String, List<String>> result = new HashMap<>();
     entries.forEach(entry -> {
       if (!result.containsKey(entry.getKey())) {
@@ -125,12 +128,12 @@ public abstract class AbstractJdbcSource extends AbstractRelationalDbSource<JDBC
     return result;
   }
 
-  private String getCatalog(SqlDatabase database) {
+  private String getCatalog(final SqlDatabase database) {
     return (database.getSourceConfig().has("database") ? database.getSourceConfig().get("database").asText() : null);
   }
 
   @Override
-  protected List<TableInfo<CommonField<JDBCType>>> discoverInternal(JdbcDatabase database, String schema) throws Exception {
+  protected List<TableInfo<CommonField<JDBCType>>> discoverInternal(final JdbcDatabase database, final String schema) throws Exception {
     final Set<String> internalSchemas = new HashSet<>(getExcludedInternalNameSpaces());
     return database.bufferedResultSetQuery(
         conn -> conn.getMetaData().getColumns(getCatalog(database), schema, null, null),
@@ -158,7 +161,7 @@ public abstract class AbstractJdbcSource extends AbstractRelationalDbSource<JDBC
                   JDBCType jdbcType;
                   try {
                     jdbcType = JDBCType.valueOf(f.get(INTERNAL_COLUMN_TYPE).asInt());
-                  } catch (IllegalArgumentException ex) {
+                  } catch (final IllegalArgumentException ex) {
                     LOGGER.warn(String.format("Could not convert column: %s from table: %s.%s with type: %s. Casting to VARCHAR.",
                         f.get(INTERNAL_COLUMN_NAME),
                         f.get(INTERNAL_SCHEMA_NAME),
@@ -180,13 +183,13 @@ public abstract class AbstractJdbcSource extends AbstractRelationalDbSource<JDBC
   }
 
   @Override
-  protected JsonSchemaPrimitive getType(JDBCType columnType) {
+  protected JsonSchemaPrimitive getType(final JDBCType columnType) {
     return SourceJdbcUtils.getType(columnType);
   }
 
   @Override
-  protected Map<String, List<String>> discoverPrimaryKeys(JdbcDatabase database,
-                                                          List<TableInfo<CommonField<JDBCType>>> tableInfos) {
+  protected Map<String, List<String>> discoverPrimaryKeys(final JdbcDatabase database,
+                                                          final List<TableInfo<CommonField<JDBCType>>> tableInfos) {
     LOGGER.info("Discover primary keys for tables: " + tableInfos.stream().map(tab -> tab.getName()).collect(
         Collectors.toSet()));
     try {
@@ -203,7 +206,7 @@ public abstract class AbstractJdbcSource extends AbstractRelationalDbSource<JDBC
       if (!tablePrimaryKeys.isEmpty()) {
         return tablePrimaryKeys;
       }
-    } catch (SQLException e) {
+    } catch (final SQLException e) {
       LOGGER.debug(String.format("Could not retrieve primary keys without a table name (%s), retrying", e));
     }
     // Get primary keys one table at a time
@@ -219,7 +222,7 @@ public abstract class AbstractJdbcSource extends AbstractRelationalDbSource<JDBC
                     conn -> conn.getMetaData().getPrimaryKeys(getCatalog(database), tableInfo.getNameSpace(), tableInfo.getName()),
                     r -> new SimpleImmutableEntry<>(streamName, r.getString(JDBC_COLUMN_COLUMN_NAME))));
                 return primaryKeys.getOrDefault(streamName, Collections.emptyList());
-              } catch (SQLException e) {
+              } catch (final SQLException e) {
                 LOGGER.error(String.format("Could not retrieve primary keys for %s: %s", streamName, e));
                 return Collections.emptyList();
               }
@@ -232,13 +235,13 @@ public abstract class AbstractJdbcSource extends AbstractRelationalDbSource<JDBC
   }
 
   @Override
-  public AutoCloseableIterator<JsonNode> queryTableIncremental(JdbcDatabase database,
-                                                               List<String> columnNames,
-                                                               String schemaName,
-                                                               String tableName,
-                                                               String cursorField,
-                                                               JDBCType cursorFieldType,
-                                                               String cursor) {
+  public AutoCloseableIterator<JsonNode> queryTableIncremental(final JdbcDatabase database,
+                                                               final List<String> columnNames,
+                                                               final String schemaName,
+                                                               final String tableName,
+                                                               final String cursorField,
+                                                               final JDBCType cursorFieldType,
+                                                               final String cursor) {
     LOGGER.info("Queueing query for table: {}", tableName);
     return AutoCloseableIterators.lazyIterator(() -> {
       try {
@@ -258,17 +261,17 @@ public abstract class AbstractJdbcSource extends AbstractRelationalDbSource<JDBC
             },
             sourceOperations::rowToJson);
         return AutoCloseableIterators.fromStream(stream);
-      } catch (SQLException e) {
+      } catch (final SQLException e) {
         throw new RuntimeException(e);
       }
     });
   }
 
   @Override
-  public JdbcDatabase createDatabase(JsonNode config) throws SQLException {
-    JsonNode jdbcConfig = toDatabaseConfig(config);
+  public JdbcDatabase createDatabase(final JsonNode config) throws SQLException {
+    final JsonNode jdbcConfig = mapToDatabaseConfig(config);
 
-    JdbcDatabase database = Databases.createStreamingJdbcDatabase(
+    final JdbcDatabase database = Databases.createStreamingJdbcDatabase(
         jdbcConfig.get("username").asText(),
         jdbcConfig.has("password") ? jdbcConfig.get("password").asText() : null,
         jdbcConfig.get("jdbc_url").asText(),
