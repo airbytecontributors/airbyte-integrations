@@ -9,7 +9,7 @@
         <Property name="cloud-worker-file-pattern">%d{yyyy-MM-dd HH:mm:ss} %-5p %replace{%m}{apikey=[\w\-]*}{apikey=*****}%n</Property>
 
         <!-- Always log INFO by default. -->
-        <Property name="log-level">$${env:LOG_LEVEL:-INFO}</Property>
+        <Property name="log-level">$${env:LOG_LEVEL:-DEBUG}</Property>
 
         <Property name="s3-bucket">$${env:S3_LOG_BUCKET}</Property>
         <Property name="s3-region">$${env:S3_LOG_BUCKET_REGION}</Property>
