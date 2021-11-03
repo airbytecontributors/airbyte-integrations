@@ -126,3 +126,10 @@ run {
     environment "AIRBYTE_ROLE", System.getenv('AIRBYTE_ROLE')
     environment "TEMPORAL_HOST", "localhost:7233"
 }
+
+startScripts.dependsOn(shadowJar)
+distTar.dependsOn(shadowJar)
+distZip.dependsOn(shadowJar)
+startShadowScripts.dependsOn(jar)
+shadowDistTar.dependsOn(jar)
+shadowDistZip.dependsOn(jar)
