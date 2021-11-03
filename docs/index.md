@@ -1,4 +1,4 @@
-# Table of contents
+# Airbyte Documentation Table of Contents
 
 * [Introduction](../README.md)
 * [Quickstart](quickstart/README.md)
@@ -27,6 +27,7 @@
     * [Transformations with dbt \(Part 2/3\)](operator-guides/transformation-and-normalization/transformations-with-dbt.md)
     * [Transformations with Airbyte \(Part 3/3\)](operator-guides/transformation-and-normalization/transformations-with-airbyte.md)
   * [Scaling Airbyte](operator-guides/scaling-airbyte.md)
+* [Airbyte Platform Javadocs](javadocs/index.md)
 * [Connector Catalog](integrations/README.md)
   * [Sources](integrations/sources/README.md)
     * [Amazon SQS](integrations/sources/amazon-sqs.md)
