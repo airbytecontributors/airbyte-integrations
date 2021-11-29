@@ -89,7 +89,11 @@ class GithubStream(HttpStream, ABC):
             return 0.5
 
         reset_time = response.headers.get("X-RateLimit-Reset")
-        backoff_time = float(reset_time) - time.time() if reset_time else 60
+        if not reset_time:
+            self.logger.warn("X-ratelimit-reset header not found in response")
+
+        backoff_time = float(reset_time) - time.time() if reset_time else 61
+        self.logger.error(f"Response: {response.text}. Headers {response.headers}")
 
         return max(backoff_time, 60)  # This is a guarantee that no negative value will be returned.
 
