@@ -1,7 +1,7 @@
 import { AnySchema } from "yup";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFormikContext } from "formik";
-import { JSONSchema7, JSONSchema7Definition } from "json-schema";
+import { JSONSchema7 } from "json-schema";
 import flatten from "flat";
 import merge from "lodash.merge";
 
@@ -47,11 +47,12 @@ function upgradeSchemaLegacyAuth(
 }
 
 function useBuildInitialSchema(
-  connectorSpecification?: ConnectorDefinitionSpecification
-): JSONSchema7Definition | undefined {
+  connectorSpecification: ConnectorDefinitionSpecification | undefined,
+  isLoading?: boolean
+): JSONSchema7 {
   const { hasFeature } = useFeatureService();
 
-  return useMemo(() => {
+  const specifications = useMemo(() => {
     if (hasFeature(FeatureItem.AllowOAuthConnector)) {
       if (
         connectorSpecification?.authSpecification &&
@@ -67,6 +68,25 @@ function useBuildInitialSchema(
 
     return connectorSpecification?.connectionSpecification;
   }, [hasFeature, connectorSpecification]);
+
+  const jsonSchema: JSONSchema7 = useMemo(
+    () => ({
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        serviceType: { type: "string" },
+        ...Object.fromEntries(
+          Object.entries({
+            connectionConfiguration: isLoading ? null : specifications,
+          }).filter(([, v]) => !!v)
+        ),
+      },
+      required: ["name", "serviceType"],
+    }),
+    [isLoading, specifications]
+  );
+
+  return jsonSchema;
 }
 
 function useBuildForm(

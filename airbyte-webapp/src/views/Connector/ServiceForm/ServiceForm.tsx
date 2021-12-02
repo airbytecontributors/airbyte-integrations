@@ -1,5 +1,13 @@
 import React, { useCallback, useEffect, useMemo } from "react";
-import { Formik, setIn, useFormikContext } from "formik";
+import {
+  Formik,
+  FormikErrors,
+  isFunction,
+  setIn,
+  useFormikContext,
+  validateYupSchema,
+  yupToFormErrors,
+} from "formik";
 import { JSONSchema7 } from "json-schema";
 import { useToggle } from "react-use";
 
@@ -59,6 +67,7 @@ const PatchInitialValuesWithWidgetConfig: React.FC<{ schema: JSONSchema7 }> = ({
 }) => {
   const { widgetsInfo } = useServiceForm();
   const { values, setValues } = useFormikContext();
+
   const formInitialValues = useMemo(() => {
     return Object.entries(widgetsInfo)
       .filter(([_, v]) => isDefined(v.const))
@@ -69,6 +78,46 @@ const PatchInitialValuesWithWidgetConfig: React.FC<{ schema: JSONSchema7 }> = ({
 
   return null;
 };
+
+const useValidationSchemaToValidate = (validationSchema: any, context: any) =>
+  React.useCallback(
+    (values: any, field?: string): Promise<FormikErrors<any>> => {
+      const schema = isFunction(validationSchema)
+        ? validationSchema(field)
+        : validationSchema;
+      const promise =
+        field && schema.validateAt
+          ? schema.validateAt(field, values)
+          : validateYupSchema(values, schema, undefined, context);
+      return new Promise((resolve, reject) => {
+        promise.then(
+          () => {
+            resolve({});
+          },
+          (err: any) => {
+            // Yup will throw a validation error if validation fails. We catch those and
+            // resolve them into Formik errors. We can sniff if something is a Yup error
+            // by checking error.name.
+            // @see https://github.com/jquense/yup#validationerrorerrors-string--arraystring-value-any-path-string
+            if (err.name === "ValidationError") {
+              resolve(yupToFormErrors(err));
+            } else {
+              // We throw any other errors
+              if (process.env.NODE_ENV !== "production") {
+                console.warn(
+                  `Warning: An unhandled error was caught during validation in <Formik validationSchema />`,
+                  err
+                );
+              }
+
+              reject(err);
+            }
+          }
+        );
+      });
+    },
+    [validationSchema, context]
+  );
 
 const ServiceForm: React.FC<ServiceFormProps> = (props) => {
   const [isOpenRequestModal, toggleOpenRequestModal] = useToggle(false);
@@ -81,25 +130,7 @@ const ServiceForm: React.FC<ServiceFormProps> = (props) => {
     onRetest,
   } = props;
 
-  const specifications = useBuildInitialSchema(selectedConnector);
-
-  const jsonSchema: JSONSchema7 = useMemo(
-    () => ({
-      type: "object",
-      properties: {
-        name: { type: "string" },
-        serviceType: { type: "string" },
-        ...Object.fromEntries(
-          Object.entries({
-            connectionConfiguration: isLoading ? null : specifications,
-          }).filter(([, v]) => !!v)
-        ),
-      },
-      required: ["name", "serviceType"],
-    }),
-    [isLoading, specifications]
-  );
-
+  const jsonSchema = useBuildInitialSchema(selectedConnector, isLoading);
   const { formFields, initialValues } = useBuildForm(jsonSchema, formValues);
 
   const uiOverrides = useMemo(
@@ -169,12 +200,18 @@ const ServiceForm: React.FC<ServiceFormProps> = (props) => {
     [onRetest, validationSchema]
   );
 
+  const runValidationSchema = useValidationSchemaToValidate(
+    validationSchema,
+    uiWidgetsInfo
+  );
+
   return (
     <Formik
       validateOnBlur={true}
       validateOnChange={true}
       initialValues={initialValues}
-      validationSchema={validationSchema}
+      // validationSchema={validationSchema}
+      validate={runValidationSchema}
       onSubmit={onFormSubmit}
     >
       {({ values, setSubmitting }) => (
