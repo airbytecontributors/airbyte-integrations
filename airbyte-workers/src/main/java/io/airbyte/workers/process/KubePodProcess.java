@@ -41,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -90,7 +91,6 @@ public class KubePodProcess extends Process {
   private static final Logger LOGGER = LoggerFactory.getLogger(KubePodProcess.class);
 
   private static final String INIT_CONTAINER_NAME = "init";
-  private static final Long STATUS_CHECK_INTERVAL_MS = 30 * 1000L;
   private static final String DEFAULT_MEMORY_LIMIT = "25Mi";
   private static final ResourceRequirements DEFAULT_SIDECAR_RESOURCES = new ResourceRequirements()
       .withMemoryLimit(DEFAULT_MEMORY_LIMIT).withMemoryRequest(DEFAULT_MEMORY_LIMIT);
@@ -216,10 +216,18 @@ public class KubePodProcess extends Process {
         final Copy copy = new Copy(officialClient);
         copy.copyFileToPod(namespace, podName, INIT_CONTAINER_NAME, contents, containerPath);
 
+        try {
+          TimeUnit.SECONDS.sleep(2);
+        } catch (InterruptedException e) {
+          throw new RuntimeException(e);
+        }
+
       } catch (final IOException | ApiException e) {
         throw new RuntimeException(e);
       }
     }
+
+
   }
 
   /**
@@ -516,7 +524,17 @@ public class KubePodProcess extends Process {
    * Null checks exist because certain local Kube clusters (e.g. Docker for Desktop) back this
    * implementation with OS processes and resources, which are automatically reaped by the OS.
    */
+
+  private boolean closed = false;
+
   private void close() {
+    if(closed) {
+      System.out.println("already called close!");
+      return;
+    } else {
+      closed = true;
+    }
+
     if (this.stdin != null) {
       Exceptions.swallow(this.stdin::close);
     }
@@ -526,8 +544,14 @@ public class KubePodProcess extends Process {
     if (this.stderr != null) {
       Exceptions.swallow(this.stderr::close);
     }
-    Exceptions.swallow(this.stdoutServerSocket::close);
-    Exceptions.swallow(this.stderrServerSocket::close);
+    Exceptions.swallow(() -> {
+      this.stdoutServerSocket.close();
+      System.out.println("stdoutServerSocket.isClosed() = " + stdoutServerSocket.isClosed());
+    });
+    Exceptions.swallow(() -> {
+      this.stderrServerSocket.close();
+      System.out.println("stderrServerSocket.isClosed() = " + stderrServerSocket.isClosed());
+    });
     Exceptions.swallow(this.executorService::shutdownNow);
 
     KubePortManagerSingleton.getInstance().offer(stdoutLocalPort);
@@ -557,7 +581,7 @@ public class KubePodProcess extends Process {
     }
 
     // Reuse the last status check result to prevent overloading the Kube Api server.
-    if (lastStatusCheck != null && System.currentTimeMillis() - lastStatusCheck < STATUS_CHECK_INTERVAL_MS) {
+    if (lastStatusCheck != null) {
       throw new IllegalThreadStateException("Kube pod process has not exited yet.");
     }
 

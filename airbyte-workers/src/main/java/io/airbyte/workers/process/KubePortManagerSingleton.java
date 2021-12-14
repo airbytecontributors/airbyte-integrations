@@ -49,6 +49,7 @@ public class KubePortManagerSingleton {
    * getInstance().
    */
   public static synchronized void init(final Set<Integer> ports) {
+    System.out.println("initing KubePortManagerSingleton");
     if (instance != null) {
       throw new RuntimeException("Cannot initialize twice!");
     }

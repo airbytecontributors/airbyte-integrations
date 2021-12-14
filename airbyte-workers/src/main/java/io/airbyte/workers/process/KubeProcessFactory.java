@@ -98,14 +98,16 @@ public class KubeProcessFactory implements ProcessFactory {
                         final Map<String, String> customLabels,
                         final String... args)
       throws WorkerException {
+    Integer stdoutLocalPort = null;
+    Integer stderrLocalPort = null;
     try {
       // used to differentiate source and destination processes with the same id and attempt
       final String podName = createPodName(imageName, jobId, attempt);
 
-      final int stdoutLocalPort = KubePortManagerSingleton.getInstance().take();
+      stdoutLocalPort = KubePortManagerSingleton.getInstance().take();
       LOGGER.info("{} stdoutLocalPort = {}", podName, stdoutLocalPort);
 
-      final int stderrLocalPort = KubePortManagerSingleton.getInstance().take();
+      stderrLocalPort = KubePortManagerSingleton.getInstance().take();
       LOGGER.info("{} stderrLocalPort = {}", podName, stderrLocalPort);
 
       final var allLabels = new HashMap<>(customLabels);
@@ -139,7 +141,7 @@ public class KubeProcessFactory implements ProcessFactory {
           WorkerUtils.JOB_POD_CURL_IMAGE,
           args);
     } catch (final Exception e) {
-      throw new WorkerException(e.getMessage(), e);
+      throw new WorkerException(e.getMessage() + " " + stdoutLocalPort + " " + stderrLocalPort, e);
     }
   }
 
