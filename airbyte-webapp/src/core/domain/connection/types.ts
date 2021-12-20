@@ -3,7 +3,7 @@ import { Operation } from "./operation";
 import { AirbyteJSONSchema } from "core/jsonSchema";
 import { Destination, Source } from "../connector";
 
-type ConnectionConfiguration = unknown;
+type ConnectionConfiguration = Record<string, unknown>;
 
 type ConnectionSpecification = AirbyteJSONSchema;
 

@@ -350,10 +350,6 @@ describe("Service Form", () => {
     });
 
     test("should fill right values oneOf field", async () => {
-      const credentials = screen.getByTestId(
-        "connectionConfiguration.credentials"
-      );
-
       const selectContainer = getByTestId(
         container,
         "connectionConfiguration.credentials"
