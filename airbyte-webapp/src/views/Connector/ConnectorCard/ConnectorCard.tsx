@@ -1,9 +1,9 @@
 import React from "react";
 
 import { ContentCard } from "components";
-import ServiceForm from "../ServiceForm";
-import { ServiceFormProps } from "../ServiceForm/ServiceForm";
 import { JobsLogItem } from "components/JobItem";
+import ServiceForm from "views/Connector/ServiceForm";
+import { ServiceFormProps } from "views/Connector/ServiceForm/types";
 
 const ConnectorCard: React.FC<
   { title?: React.ReactNode; full?: boolean; jobInfo: any } & ServiceFormProps

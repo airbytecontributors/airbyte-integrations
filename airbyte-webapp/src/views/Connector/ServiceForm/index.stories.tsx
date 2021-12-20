@@ -1,7 +1,7 @@
 import { ComponentMeta, ComponentStory } from "@storybook/react";
 
-import ServiceForm from "./ServiceForm";
 import { ContentCard } from "components";
+import { ServiceForm } from "./ServiceForm";
 
 const TempConnector = {
   name: "Service",
@@ -125,74 +125,74 @@ Common.args = {
   }`),
   },
 };
-
-export const Oneof = Template.bind({});
-Oneof.args = {
-  selectedConnector: {
-    ...TempConnector,
-    connectionSpecification: JSON.parse(`{
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "MSSQL Source Spec",
-    "type": "object",
-    "additionalProperties": false,
-    "properties": {
-      "ssl_method": {
-        "title": "SSL Method",
-        "type": "object",
-        "description": "Encryption method to use when communicating with the database",
-        "order": 6,
-        "oneOf": [
-          {
-            "title": "Unencrypted",
-            "additionalProperties": false,
-            "description": "Data transfer will not be encrypted.",
-            "required": ["ssl_method"],
-            "properties": {
-              "ssl_method": {
-                "type": "string",
-                "const": "unencrypted",
-                "enum": ["unencrypted"],
-                "default": "unencrypted"
-              }
-            }
-          },
-          {
-            "title": "Encrypted (trust server certificate)",
-            "additionalProperties": false,
-            "description": "Use the cert provided by the server without verification.  (For testing purposes only!)",
-            "required": ["ssl_method"],
-            "properties": {
-              "ssl_method": {
-                "type": "string",
-                "const": "encrypted_trust_server_certificate",
-                "enum": ["encrypted_trust_server_certificate"],
-                "default": "encrypted_trust_server_certificate"
-              }
-            }
-          },
-          {
-            "title": "Encrypted (verify certificate)",
-            "additionalProperties": false,
-            "description": "Verify and use the cert provided by the server.",
-            "required": ["ssl_method", "trustStoreName", "trustStorePassword"],
-            "properties": {
-              "ssl_method": {
-                "type": "string",
-                "const": "encrypted_verify_certificate",
-                "enum": ["encrypted_verify_certificate"],
-                "default": "encrypted_verify_certificate"
-              },
-              "hostNameInCertificate": {
-                "title": "Host Name In Certificate",
-                "type": "string",
-                "description": "Specifies the host name of the server. The value of this property must match the subject property of the certificate.",
-                "order": 7
-              }
-            }
-          }
-        ]
-      }
-    }
-  }`),
-  },
-};
+//
+// export const Oneof = Template.bind({});
+// Oneof.args = {
+//   selectedConnector: {
+//     ...TempConnector,
+//     connectionSpecification: JSON.parse(`{
+//     "$schema": "http://json-schema.org/draft-07/schema#",
+//     "title": "MSSQL Source Spec",
+//     "type": "object",
+//     "additionalProperties": false,
+//     "properties": {
+//       "ssl_method": {
+//         "title": "SSL Method",
+//         "type": "object",
+//         "description": "Encryption method to use when communicating with the database",
+//         "order": 6,
+//         "oneOf": [
+//           {
+//             "title": "Unencrypted",
+//             "additionalProperties": false,
+//             "description": "Data transfer will not be encrypted.",
+//             "required": ["ssl_method"],
+//             "properties": {
+//               "ssl_method": {
+//                 "type": "string",
+//                 "const": "unencrypted",
+//                 "enum": ["unencrypted"],
+//                 "default": "unencrypted"
+//               }
+//             }
+//           },
+//           {
+//             "title": "Encrypted (trust server certificate)",
+//             "additionalProperties": false,
+//             "description": "Use the cert provided by the server without verification.  (For testing purposes only!)",
+//             "required": ["ssl_method"],
+//             "properties": {
+//               "ssl_method": {
+//                 "type": "string",
+//                 "const": "encrypted_trust_server_certificate",
+//                 "enum": ["encrypted_trust_server_certificate"],
+//                 "default": "encrypted_trust_server_certificate"
+//               }
+//             }
+//           },
+//           {
+//             "title": "Encrypted (verify certificate)",
+//             "additionalProperties": false,
+//             "description": "Verify and use the cert provided by the server.",
+//             "required": ["ssl_method", "trustStoreName", "trustStorePassword"],
+//             "properties": {
+//               "ssl_method": {
+//                 "type": "string",
+//                 "const": "encrypted_verify_certificate",
+//                 "enum": ["encrypted_verify_certificate"],
+//                 "default": "encrypted_verify_certificate"
+//               },
+//               "hostNameInCertificate": {
+//                 "title": "Host Name In Certificate",
+//                 "type": "string",
+//                 "description": "Specifies the host name of the server. The value of this property must match the subject property of the certificate.",
+//                 "order": 7
+//               }
+//             }
+//           }
+//         ]
+//       }
+//     }
+//   }`),
+//   },
+// };

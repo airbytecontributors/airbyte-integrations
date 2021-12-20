@@ -3,12 +3,17 @@ import {
   useLocation,
   useNavigate,
   useParams,
-  Location,
   To,
   NavigateOptions,
 } from "react-router-dom";
 
 import queryString from "query-string";
+import { Key, Path } from "history";
+
+export interface Location extends Path {
+  state: any;
+  key: Key;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function useRouter<T = any, P = any>(): {

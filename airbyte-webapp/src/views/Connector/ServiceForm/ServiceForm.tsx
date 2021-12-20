@@ -10,7 +10,7 @@ import {
   useConstructValidationSchema,
   usePatchFormik,
 } from "./useBuildForm";
-import { ServiceFormValues } from "./types";
+import { ServiceFormProps } from "./types";
 import {
   ServiceFormContextProvider,
   useServiceForm,
@@ -20,29 +20,7 @@ import RequestConnectorModal from "views/Connector/RequestConnectorModal";
 import { FormBaseItem } from "core/form/types";
 import { ConnectorNameControl } from "./components/Controls/ConnectorNameControl";
 import { ConnectorServiceTypeControl } from "./components/Controls/ConnectorServiceTypeControl";
-import {
-  ConnectorDefinition,
-  ConnectorDefinitionSpecification,
-} from "core/domain/connector";
 import { isDefined } from "utils/common";
-
-export type ServiceFormProps = {
-  formType: "source" | "destination";
-  availableServices: ConnectorDefinition[];
-  selectedConnector?: ConnectorDefinitionSpecification;
-  onServiceSelect?: (id: string) => void;
-  onSubmit: (values: ServiceFormValues) => void;
-  onRetest?: (values: ServiceFormValues) => void;
-  isLoading?: boolean;
-  isEditMode?: boolean;
-  allowChangeConnector?: boolean;
-  formValues?: Partial<ServiceFormValues>;
-  hasSuccess?: boolean;
-  additionBottomControls?: React.ReactNode;
-  fetchingConnectorError?: Error;
-  errorMessage?: React.ReactNode;
-  successMessage?: React.ReactNode;
-};
 
 const FormikPatch: React.FC = () => {
   usePatchFormik();
@@ -70,7 +48,7 @@ const PatchInitialValuesWithWidgetConfig: React.FC<{ schema: JSONSchema7 }> = ({
   return null;
 };
 
-const ServiceForm: React.FC<ServiceFormProps> = (props) => {
+export const ServiceForm: React.FC<ServiceFormProps> = (props) => {
   const [isOpenRequestModal, toggleOpenRequestModal] = useToggle(false);
   const {
     formType,
@@ -209,4 +187,3 @@ const ServiceForm: React.FC<ServiceFormProps> = (props) => {
     </Formik>
   );
 };
-export default ServiceForm;

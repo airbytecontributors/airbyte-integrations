@@ -36,12 +36,8 @@ const Videos = styled.div`
 
 const FinalStep: React.FC<FinalStepProps> = ({ connectionId, onSync }) => {
   const { sendFeedback } = useWorkspace();
-  const {
-    feedbackPassed,
-    passFeedback,
-    useCases,
-    skipCase,
-  } = useOnboardingService();
+  const { feedbackPassed, passFeedback, useCases, skipCase } =
+    useOnboardingService();
   const connection = useResource(ConnectionResource.detailShape(), {
     connectionId,
   });

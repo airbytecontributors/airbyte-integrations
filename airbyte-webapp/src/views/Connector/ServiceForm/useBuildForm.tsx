@@ -7,12 +7,15 @@ import merge from "lodash/merge";
 
 import { FormBlock, WidgetConfig, WidgetConfigMap } from "core/form/types";
 import { jsonSchemaToUiWidget } from "core/jsonSchema/schemaToUiWidget";
-import { buildYupFormForJsonSchema } from "core/jsonSchema/schemaToYup";
 import { buildPathInitialState } from "core/form/uiWidget";
 import { ServiceFormValues } from "./types";
 import { ConnectorDefinitionSpecification } from "core/domain/connector";
 import { FeatureItem, useFeatureService } from "hooks/services/Feature";
-import { applyFuncAt, removeNestedPaths } from "core/jsonSchema";
+import {
+  applyFuncAt,
+  removeNestedPaths,
+  buildYupFormForJsonSchema,
+} from "core/jsonSchema";
 
 function upgradeSchemaLegacyAuth(
   connectorSpecification: Required<
@@ -139,10 +142,10 @@ const useConstructValidationSchema = (
   jsonSchema: JSONSchema7,
   uiWidgetsInfo: WidgetConfigMap
 ): AnySchema =>
-  useMemo(() => buildYupFormForJsonSchema(jsonSchema, uiWidgetsInfo), [
-    uiWidgetsInfo,
-    jsonSchema,
-  ]);
+  useMemo(
+    () => buildYupFormForJsonSchema(jsonSchema, uiWidgetsInfo),
+    [uiWidgetsInfo, jsonSchema]
+  );
 
 const usePatchFormik = (): void => {
   const {
