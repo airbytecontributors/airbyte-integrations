@@ -6,5 +6,5 @@ ENV APPLICATION source-clickhouse
 
 ADD build/distributions/${APPLICATION}*.tar /airbyte
 
-LABEL io.airbyte.version=0.1.6
+LABEL io.airbyte.version=0.1.7
 LABEL io.airbyte.name=airbyte/source-clickhouse
