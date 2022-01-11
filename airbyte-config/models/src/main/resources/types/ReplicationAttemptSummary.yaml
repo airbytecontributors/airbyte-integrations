@@ -31,3 +31,8 @@ properties:
     type: array
     items:
       "$ref": StreamSyncStats.yaml
+  failureReasons:
+    description: A list of failures that occurred during the attempt, in best-effort order of failure occurrence.
+    type: list
+    items:
+      "$ref": FailureReason.yaml
