@@ -5,6 +5,7 @@
 package io.airbyte.workers.temporal.scheduling;
 
 import io.airbyte.config.StandardSyncOutput;
+import io.airbyte.config.StandardSyncSummary.ReplicationStatus;
 import io.airbyte.workers.temporal.TemporalJobType;
 import io.airbyte.workers.temporal.exception.RetryableException;
 import io.airbyte.workers.temporal.scheduling.activities.ConfigFetchActivity;
@@ -121,6 +122,10 @@ public class ConnectionManagerWorkflowImpl implements ConnectionManagerWorkflow 
                   syncWorkflowInputs.getDestinationLauncherConfig(),
                   syncWorkflowInputs.getSyncInput(),
                   connectionId));
+
+              if (standardSyncOutput.get().getStandardSyncSummary().getStatus() == ReplicationStatus.FAILED) {
+                workflowState.setFailed(true);
+              }
             } catch (final ChildWorkflowFailure childWorkflowFailure) {
               if (!(childWorkflowFailure.getCause() instanceof CanceledFailure)) {
                 throw childWorkflowFailure;
@@ -146,6 +151,8 @@ public class ConnectionManagerWorkflowImpl implements ConnectionManagerWorkflow 
       } else if (workflowState.isCancelled()) {
         jobCreationAndStatusUpdateActivity.jobCancelled(new JobCancelledInput(
             maybeJobId.get()));
+      } else if (workflowState.isFailed()) {
+        reportFailure(connectionUpdaterInput);
       } else {
         // report success
         reportSuccess(connectionUpdaterInput);
