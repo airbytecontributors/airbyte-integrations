@@ -96,6 +96,7 @@ public class JobCreationAndStatusUpdateActivityImpl implements JobCreationAndSta
   public void attemptFailure(final AttemptFailureInput input) {
     try {
       jobPersistence.failAttempt(input.getJobId(), input.getAttemptId());
+      jobPersistence.writeAttemptFailureSummary(input.getJobId(), input.getAttemptId(), input.getAttemptFailureSummary());
       final Job job = jobPersistence.getJob(input.getJobId());
       jobNotifier.failJob("Job was cancelled", job);
     } catch (final IOException e) {
@@ -107,6 +108,7 @@ public class JobCreationAndStatusUpdateActivityImpl implements JobCreationAndSta
   public void jobCancelled(final JobCancelledInput input) {
     try {
       jobPersistence.cancelJob(input.getJobId());
+      jobPersistence.writeAttemptFailureSummary(input.getJobId(), input.getAttemptId(), input.getAttemptFailureSummary());
       final Job job = jobPersistence.getJob(input.getJobId());
       trackCompletion(job, JobStatus.FAILED);
     } catch (final IOException e) {
