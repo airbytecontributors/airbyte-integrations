@@ -24,9 +24,9 @@ allowed:
   - mit
 
 
-# # A single configuration file can be used to enumerate dependencies for multiple
-# # projects.  Each configuration is referred to as an "application" and must include
-# # a source path, at a minimum
-# apps:
-#   - source_path: "."
-#   - source_path: "./airbyte-webapp"
+# A single configuration file can be used to enumerate dependencies for multiple
+# projects.  Each configuration is referred to as an "application" and must include
+# a source path, at a minimum
+apps:
+  - source_path: "."
+  - source_path: "./airbyte-webapp"
