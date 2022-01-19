@@ -9,7 +9,7 @@ name: 'Airbyte'
 # Path is relative to configuration root and specifies the working directory when enumerating dependencies
 # Optional for single app configuration, required when specifying multiple apps
 # Defaults to current directory when running `licensed`
-source_path: 'relative/path/to/source'
+# source_path: 'relative/path/to/source'
 
 # Sources of metadata
 sources:
