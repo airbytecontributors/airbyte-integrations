@@ -49,7 +49,6 @@ jobs:
       - uses: jonabc/setup-licensed@v1
         with:
           version: '3.4.2'
-      - run: npm install
       - run: licensed list
 
   build-connectors-base:
