@@ -1,0 +1,32 @@
+# If not set, defaults to the directory name of `source_path`
+name: 'Airbyte'
+
+# Path is relative to the location of the configuration file and specifies
+# the root to expand all paths from
+# If not set, defaults to a git repository root
+# root: '.'
+
+# Path is relative to configuration root and specifies the working directory when enumerating dependencies
+# Optional for single app configuration, required when specifying multiple apps
+# Defaults to current directory when running `licensed`
+source_path: 'relative/path/to/source'
+
+# Sources of metadata
+sources:
+  npm: true
+  gradle: true
+  pip: true
+
+# Dependencies with these licenses are allowed and will not raise errors or warnings.
+# This list does not have a default value and is required for `licensed status`
+# to succeed.
+allowed:
+  - mit
+
+
+# # A single configuration file can be used to enumerate dependencies for multiple
+# # projects.  Each configuration is referred to as an "application" and must include
+# # a source path, at a minimum
+# apps:
+#   - source_path: "."
+#   - source_path: "./airbyte-webapp"
