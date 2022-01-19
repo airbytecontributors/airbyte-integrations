@@ -39,6 +39,19 @@ jobs:
       - name: Check images exist
         run: ./tools/bin/check_images_exist.sh all
 
+  check-licenses:
+    name: "Check Licenses"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - uses: jonabc/setup-licensed@v1
+        with:
+          version: '3.4.2'
+      - run: npm install
+      - run: licensed list
+
   build-connectors-base:
     # In case of self-hosted EC2 errors, removed the `needs` line and switch back to running on ubuntu-latest.
     needs: start-connectors-base-build-runner # required to start the main job when the runner is ready
