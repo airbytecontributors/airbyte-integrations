@@ -24,6 +24,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PARKER_PAT_FOR_PLATFORM_PROJECT_AUTOMATION }}
           ORG: airbytehq
           PROJECT_NUMBER: 6 # https://github.com/orgs/airbytehq/projects/6
+          NEW_SPRINT_NUMBER: ${{ github.events.inputs.sprintToStart }}
         id: get_project_data
         run: |
           gh api graphql -f query='
@@ -45,7 +46,7 @@ jobs:
           echo ::set-output name=PROJECT_ID::$(jq '.data.organization.projectNext.id' project_data.json)
           echo ::set-output name=MILESTONE_FIELD_ID::$(jq '.data.organization.projectNext.fields.nodes[] | select(.name== "Milestone") | .id' project_data.json)
           echo ::set-output name=SPRINT_FIELD_ID::$(jq '.data.organization.projectNext.fields.nodes[] | select(.name== "Sprint") | .id' project_data.json)
-          echo ::set-output name=NEW_SPRINT_VALUE_ID::$(jq '.data.organization.projectNext.fields.nodes[] | select(.name== "Sprint") |.settings | fromjson.configuration.iterations[] | select(.title | contains (${{github.events.inputs.sprintToStart}})) |.id' project_data.json)
+          echo ::set-output name=NEW_SPRINT_VALUE_ID::$(jq '.data.organization.projectNext.fields.nodes[] | select(.name== "Sprint") | .settings | fromjson.configuration.iterations[] | select(.title | contains ($NEW_SPRINT_NUMBER)) |.id' project_data.json)
 
       - name: Print outputs for debugging
         run: |
