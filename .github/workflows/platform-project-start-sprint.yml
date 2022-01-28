@@ -3,14 +3,14 @@ name: Platform Project Start Sprint
 on:
   workflow_dispatch:
     inputs:
-      sprintToStart:
+      sprint-to-start:
         description: 'Please choose the sprint number to start (ie "5" to start Sprint 5).'
         required: true
-      autoAddIssues:
+      auto-add-issues:
         description: "Should unfinished issues from the previous sprint be added to the new sprint?"
         required: true
         default: "yes"
-      autoCreateMilestone:
+      auto-create-milestone:
         description: "Should a new milestone be automatically created for the new sprint?"
         required: true
         default: "yes"
@@ -24,7 +24,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PARKER_PAT_FOR_PLATFORM_PROJECT_AUTOMATION }}
           ORG: airbytehq
           PROJECT_NUMBER: 6 # https://github.com/orgs/airbytehq/projects/6
-          NEW_SPRINT_NUMBER: ${{ github.events.inputs.sprintToStart }}
         id: get_project_data
         run: |
           gh api graphql -f query='
@@ -46,7 +45,7 @@ jobs:
           echo ::set-output name=PROJECT_ID::$(jq '.data.organization.projectNext.id' project_data.json)
           echo ::set-output name=MILESTONE_FIELD_ID::$(jq '.data.organization.projectNext.fields.nodes[] | select(.name== "Milestone") | .id' project_data.json)
           echo ::set-output name=SPRINT_FIELD_ID::$(jq '.data.organization.projectNext.fields.nodes[] | select(.name== "Sprint") | .id' project_data.json)
-          echo ::set-output name=NEW_SPRINT_VALUE_ID::$(jq '.data.organization.projectNext.fields.nodes[] | select(.name== "Sprint") | .settings | fromjson.configuration.iterations[] | select(.title | contains ($NEW_SPRINT_NUMBER)) |.id' project_data.json)
+          echo ::set-output name=NEW_SPRINT_VALUE_ID::$(jq '.data.organization.projectNext.fields.nodes[] | select(.name== "Sprint") | .settings | fromjson.configuration.iterations[] | select(.title == "Sprint ${{github.event.inputs.sprint-to-start}}") |.id' project_data.json)
 
       - name: Print outputs for debugging
         run: |
