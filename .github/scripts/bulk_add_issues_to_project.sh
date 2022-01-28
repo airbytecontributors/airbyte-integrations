@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# This script was created as a oneoff to add all issues with the 'area/platform'
+# label to the Platform Scrum Github Project. It shouldn't need to be run again
+# because a Github Workflow exists to automatically add new issues that have
+# the 'area/platform' label.
+
 set -e
 
 PLATFORM_SCRUM_PROJECT_ID="PN_kwDOA4_XW84AAj7t"

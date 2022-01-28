@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# This script was created as a oneoff to set the 'Date Added' field on all
+# issues in the Platform Scrum Github Project. New issues should have
+# 'Date Added' set automatically, so this script shouldn't need to be run again.
+
 set -e
 
 # internal id of 'Platform Scrum' project
