@@ -42,20 +42,28 @@ jobs:
               }
             }' -f org=$ORG -F number=$PROJECT_NUMBER > project_data.json
 
-          echo ::set-output name=PROJECT_ID::$(jq '.data.organization.projectNext.id' project_data.json)
-          echo ::set-output name=MILESTONE_FIELD_ID::$(jq '.data.organization.projectNext.fields.nodes[] | select(.name== "Milestone") | .id' project_data.json)
-          echo ::set-output name=SPRINT_FIELD_ID::$(jq '.data.organization.projectNext.fields.nodes[] | select(.name== "Sprint") | .id' project_data.json)
-          echo ::set-output name=NEW_SPRINT_VALUE_ID::$(jq '.data.organization.projectNext.fields.nodes[] | select(.name== "Sprint") | .settings | fromjson.configuration.iterations[] | select(.title == "Sprint ${{github.event.inputs.sprint-to-start}}") |.id' project_data.json)
+          echo ::set-output name=PROJECT_ID::$(jq -r '.data.organization.projectNext.id' project_data.json)
+          echo ::set-output name=MILESTONE_FIELD_ID::$(jq -r '.data.organization.projectNext.fields.nodes[] | select(.name== "Milestone") | .id' project_data.json)
+          echo ::set-output name=SPRINT_FIELD_ID::$(jq -r '.data.organization.projectNext.fields.nodes[] | select(.name== "Sprint") | .id' project_data.json)
+          echo ::set-output name=NEW_SPRINT_VALUE_ID::$(jq -r '.data.organization.projectNext.fields.nodes[] | select(.name== "Sprint") | .settings | fromjson.configuration.iterations[] | select(.title == "Sprint ${{github.event.inputs.sprint-to-start}}") |.id' project_data.json)
 
-      - name: Print outputs for debugging
+          NEW_SPRINT_START_DATE=$(jq -r '.data.organization.projectNext.fields.nodes[] | select(.name== "Sprint") | .settings | fromjson.configuration.iterations[] | select(.title == "Sprint ${{github.event.inputs.sprint-to-start}}") |.start_date' project_data.json)
+          echo ::set-output name=NEW_SPRINT_START_DATE::$(echo $NEW_SPRINT_START_DATE)
+          echo ::set-output name=MILESTONE_DUE_DATE::$(date -d "${NEW_SPRINT_START_DATE}+7 days" +"%y-%m-%d")
+          echo ::set-output name=MILESTONE_DUE_TIMESTAMP::$(TZ=UTC date -d "${NEW_SPRINT_START_DATE}+7 days" +'%Y-%m-%dT%H:%M:%SZ')
+      - name: Create new milestone
+        if: github.event.inputs.auto-create-milestone == 'yes'
+        env:
+          GITHUB_TOKEN: ${{ secrets.PARKER_PAT_FOR_PLATFORM_PROJECT_AUTOMATION }}
+        id: create_new_milestone
         run: |
-          echo 'PROJECT_ID: ${{steps.get_project_data.outputs.PROJECT_ID}}'
-          echo 'MILESTONE_FIELD_ID: ${{steps.get_project_data.outputs.MILESTONE_FIELD_ID}}'
-          echo 'SPRINT_FIELD_ID: ${{steps.get_project_data.outputs.SPRINT_FIELD_ID}}'
-          echo 'NEW_SPRINT_VALUE_ID: ${{steps.get_project_data.outputs.NEW_SPRINT_VALUE_ID}}'
-      # - name: Create new milestone
-      #   if: github.event.inputs.autoCreateMilestone == 'yes'
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.PARKER_PAT_FOR_PLATFORM_PROJECT_AUTOMATION }}
-      #   id: create_new_milestone
-      #   run: |
+          echo '{
+            "title": "Test Platform ${{steps.get_project_data.outputs.MILESTONE_DUE_DATE}}",
+            "state": "open",
+            "description": "Testing milestone creation via Github Workflow",
+            "due_on": "${{steps.get_project_data.outputs.MILESTONE_DUE_TIMESTAMP}}"
+          }' > milestone_post_input.json
+
+          gh api --method POST repos/airbytehq/airbyte/milestones --input milestone_post_input.json > milestone_creation_output.json
+
+          echo ::set-output name=NEW_MILESTONE_NODE_ID::$(jq -r '.node_id' milestone_creation_output.json)

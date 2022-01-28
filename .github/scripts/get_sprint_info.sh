@@ -16,4 +16,4 @@ gh api graphql -f query='
         }
       }
     }
-  }' -f project_id=$project_id | jq '.data.node.fields.nodes[] | select( .name == "Sprint") | .settings | fromjson.configuration.iterations[] | select(.title | contains ("5")) | .id'
+  }' -f project_id=$project_id | jq '.data.node.fields.nodes[] | select( .name == "Sprint") | .settings | fromjson.configuration.iterations[] | select(.title | contains ("5"))'

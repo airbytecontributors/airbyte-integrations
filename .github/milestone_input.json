@@ -1,0 +1,6 @@
+{
+  "title": "Test Platform Automated Milestone",
+  "state": "open",
+  "description": "Testing milestone creation via Github Workflow",
+  "due_on": "2022-02-05T00:00:00PST"
+}
