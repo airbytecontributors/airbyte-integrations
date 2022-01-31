@@ -7,11 +7,9 @@ gh api graphql -f query='
   query($project_id: ID!) {
     node(id: $project_id) {
       ... on ProjectNext {
-        fields(first: 100) {
-          nodes {
+        items(first: 100) {
+          nodes(ids: ["PNI_lADOA4_XW84AAj7tzgAZ3-Y"]) {
             id
-            name
-            settings
           }
         }
       }

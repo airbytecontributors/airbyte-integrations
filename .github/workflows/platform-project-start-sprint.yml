@@ -6,12 +6,8 @@ on:
       sprint-to-start:
         description: 'Please choose the sprint number to start (ie "5" to start Sprint 5).'
         required: true
-      auto-add-issues:
-        description: "Should unfinished issues from the previous sprint be added to the new sprint?"
-        required: true
-        default: "yes"
-      auto-create-milestone:
-        description: "Should a new milestone be automatically created for the new sprint?"
+      auto-update:
+        description: "Should a new milestone be automatically created for the new sprint, with unclosed issues automatically added to it?"
         required: true
         default: "yes"
 jobs:
@@ -52,18 +48,37 @@ jobs:
           echo ::set-output name=MILESTONE_DUE_DATE::$(date -d "${NEW_SPRINT_START_DATE}+7 days" +"%y-%m-%d")
           echo ::set-output name=MILESTONE_DUE_TIMESTAMP::$(TZ=UTC date -d "${NEW_SPRINT_START_DATE}+7 days" +'%Y-%m-%dT%H:%M:%SZ')
       - name: Create new milestone
-        if: github.event.inputs.auto-create-milestone == 'yes'
+        if: github.event.inputs.auto-update == 'yes'
         env:
           GITHUB_TOKEN: ${{ secrets.PARKER_PAT_FOR_PLATFORM_PROJECT_AUTOMATION }}
         id: create_new_milestone
         run: |
           echo '{
-            "title": "Test Platform ${{steps.get_project_data.outputs.MILESTONE_DUE_DATE}}",
+            "title": "Platform ${{steps.get_project_data.outputs.MILESTONE_DUE_DATE}}",
             "state": "open",
-            "description": "Testing milestone creation via Github Workflow",
             "due_on": "${{steps.get_project_data.outputs.MILESTONE_DUE_TIMESTAMP}}"
           }' > milestone_post_input.json
 
           gh api --method POST repos/airbytehq/airbyte/milestones --input milestone_post_input.json > milestone_creation_output.json
 
           echo ::set-output name=NEW_MILESTONE_NODE_ID::$(jq -r '.node_id' milestone_creation_output.json)
+      - name: Add issues to new sprint and milestone
+        if: github.event.inputs.auto-update == 'yes'
+        env:
+          GITHUB_TOKEN: ${{ secrets.PARKER_PAT_FOR_PLATFORM_PROJECT_AUTOMATION }}
+        id: add_issues_to_new_sprint
+        run: |
+          LAST_MILESTONE_ISSUES=$(gh issue list --search 'milestone:"Platform ${{steps.get_project_data.outputs.NEW_SPRINT_START_DATE}}"' -s all -L 1000 --json id | jq -r 'map(.id)| @sh' | tr -d \')
+          for
+          gh api graphql -f query='
+            query($project_id: ID!) {
+              node(id: $project_id) {
+                ... on ProjectNext {
+                  items(first: 100) {
+                    nodes {
+                      id
+                    }
+                  }
+                }
+              }
+            }' -f project_id=$PLATFORM_SCRUM_PROJECT_ID
