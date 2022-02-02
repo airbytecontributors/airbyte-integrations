@@ -32,6 +32,10 @@ class GoogleAnalyticsV4TypesList(HttpStream):
     # Column id completely match for v3 and v4.
     url_base = "https://www.googleapis.com/analytics/v3/metadata/ga/columns"
 
+    def __init__(self, ga_tag: str = "UA"):
+        self.ga_tag = ga_tag
+        super().__init__()
+
     def path(self, **kwargs) -> str:
         return ""
 
@@ -43,18 +47,37 @@ class GoogleAnalyticsV4TypesList(HttpStream):
         """
         Returns a map of (dimensions, metrics) hashes, example:
           ({"ga:userType": "STRING", "ga:sessionCount": "STRING"}, {"ga:pageviewsPerSession": "FLOAT", "ga:sessions": "INTEGER"})
+          or ({"averagePurchaseRevenuePerUser": "CURRENCY", "method": "STRING"}, {"engagementRate": "FLOAT", "activeUsers": "INTEGER"})
 
           Each available dimension can be found in dimensions with its data type
-            as the value. e.g. dimensions['ga:userType'] == STRING
+            as the value. e.g. dimensions['ga:userType'] == STRING or dimensions['browser'] == STRING
 
           Each available metric can be found in metrics with its data type
-            as the value. e.g. metrics['ga:sessions'] == INTEGER
+            as the value. e.g. metrics['ga:sessions'] == INTEGER or metrics['activeUsers'] == INTEGER
         """
+
         metrics = {}
         dimensions = {}
 
         results = response.json()
 
+        metadata = self.get_ua_tag_metadata(results)
+
+        if "GA4" == self.ga_tag:
+            metadata = self.get_gav4_tag_metadata(results)
+
+        for column_name, column_type, column_data_type in metadata:
+            if column_type == "METRIC":
+                metrics[column_name] = column_data_type
+            elif column_type == "DIMENSION":
+                dimensions[column_name] = column_data_type
+            else:
+                raise Exception(f"Unsupported column type {column_type}.")
+
+        return dimensions, metrics
+
+    @staticmethod
+    def get_ua_tag_metadata(results):
         columns = results.get("items", [])
 
         for column in columns:
@@ -64,14 +87,19 @@ class GoogleAnalyticsV4TypesList(HttpStream):
             column_type = column_attributes.get("type")
             column_data_type = column_attributes.get("dataType")
 
-            if column_type == "METRIC":
-                metrics[column_name] = column_data_type
-            elif column_type == "DIMENSION":
-                dimensions[column_name] = column_data_type
-            else:
-                raise Exception(f"Unsupported column type {column_type}.")
+            yield column_name, column_type, column_data_type
 
-        return dimensions, metrics
+    @staticmethod
+    def get_gav4_tag_metadata(results):
+        for column_type, columns in results.itmes():
+            for column in columns:
+                column_name = column.get("apiName")
+
+                # default type specified like "TYPE_CURRENCY" parse to return only "CURRENCY"
+                # if type not specified set to "STRING"
+                column_data_type = column.get("type", "STRING").split("_")[-1]
+
+                yield column_name, column_type.upper(), column_data_type
 
 
 class GoogleAnalyticsV4Stream(HttpStream, ABC):
@@ -92,11 +120,12 @@ class GoogleAnalyticsV4Stream(HttpStream, ABC):
         super().__init__(authenticator=config["authenticator"])
         self.start_date = config["start_date"]
         self.window_in_days = config.get("window_in_days", 90)
-        self.view_id = config["view_id"]
+        self.ga_id = config["ga_id"]
         self.metrics = config["metrics"]
         self.dimensions = config["dimensions"]
+        self.ga_tag = config.get("ga_tag", "UA")
         self._config = config
-        self.dimensions_ref, self.metrics_ref = GoogleAnalyticsV4TypesList().read_records(sync_mode=None)
+        self.dimensions_ref, self.metrics_ref = GoogleAnalyticsV4TypesList(ga_tag=self.ga_tag).read_records(sync_mode=None)
 
     @property
     def state_checkpoint_interval(self) -> int:
@@ -148,7 +177,7 @@ class GoogleAnalyticsV4Stream(HttpStream, ABC):
         request_body = {
             "reportRequests": [
                 {
-                    "viewId": self.view_id,
+                    "viewId": self.ga_id,
                     "dateRanges": [stream_slice],
                     "pageSize": self.page_size,
                     "metrics": metrics,
@@ -394,7 +423,7 @@ class GoogleAnalyticsV4Stream(HttpStream, ABC):
 
                         record[metric_name.replace("ga:", "ga_")] = value
 
-                record["view_id"] = self.view_id
+                record["view_id"] = self.ga_id
 
                 yield record
 
@@ -496,6 +525,14 @@ class SourceGoogleAnalyticsV4(AbstractSource):
     """Google Analytics lets you analyze data about customer engagement with your website or application."""
 
     @staticmethod
+    def get_ga_id(config):
+        if not config.get("view_id") and not config.get("version"):
+            ga_id = config["version"].get("view_id") if config["version"].get("ga_tag") == "UA" \
+                else config["version"].get("property_id")
+            return ga_id
+        return config.get("view_id")
+
+    @staticmethod
     def get_authenticator(config):
         # backwards compatibility, credentials_json used to be in the top level of the connector
         if config.get("credentials_json"):
@@ -521,6 +558,7 @@ class SourceGoogleAnalyticsV4(AbstractSource):
         config["authenticator"] = authenticator
         config["metrics"] = ["ga:14dayUsers"]
         config["dimensions"] = ["ga:date"]
+        config["ga_id"] = self.get_ga_id(config)
 
         try:
             # test the eligibility of custom_reports input
@@ -534,7 +572,7 @@ class SourceGoogleAnalyticsV4(AbstractSource):
                 return True, None
             return (
                 False,
-                f"Please check the permissions for the requested view_id: {config['view_id']}. Cannot retrieve data from that view ID.",
+                f"Please check the permissions for the requested view_id or property_id: {config['ga_id']}. Cannot retrieve data from that view ID.",
             )
 
         except ValueError as e:
@@ -543,7 +581,7 @@ class SourceGoogleAnalyticsV4(AbstractSource):
         except requests.exceptions.RequestException as e:
             error_msg = e.response.json().get("error")
             if e.response.status_code == 403:
-                return False, f"Please check the permissions for the requested view_id: {config['view_id']}. {error_msg}"
+                return False, f"Please check the permissions for the requested view_id or property_id: {config['ga_id']}. {error_msg}"
             else:
                 return False, f"{error_msg}"
 
@@ -553,6 +591,7 @@ class SourceGoogleAnalyticsV4(AbstractSource):
         authenticator = self.get_authenticator(config)
 
         config["authenticator"] = authenticator
+        config["ga_id"] = self.get_ga_id(config)
 
         reports = json.loads(pkgutil.get_data("source_google_analytics_v4", "defaults/default_reports.json"))
 

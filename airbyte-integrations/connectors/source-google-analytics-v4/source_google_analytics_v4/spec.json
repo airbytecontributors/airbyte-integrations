@@ -4,14 +4,55 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "Google Analytics V4 Spec",
     "type": "object",
-    "required": ["view_id", "start_date"],
+    "required": ["start_date"],
     "additionalProperties": true,
     "properties": {
-      "view_id": {
+      "version": {
         "order": 2,
-        "type": "string",
-        "title": "View ID",
-        "description": "The ID for the Google Analytics View you want to fetch data from. This can be found from the <a href=\"https://ga-dev-tools.appspot.com/account-explorer/\">Google Analytics Account Explorer</a>."
+        "type": "object",
+        "title": "Version",
+        "oneOf": [
+          {
+            "title": "UA",
+            "type": "object",
+            "required": ["view_id"],
+            "properties": {
+              "ga_tag": {
+                "type": "string",
+                "const": "UA",
+                "enum": ["UA"],
+                "default": "UA",
+                "order": 0
+              },
+              "view_id": {
+              "order": 1,
+              "type": "string",
+              "title": "View ID",
+              "description": "The ID for the Google Analytics View you want to fetch data from. This can be found from the <a href=\"https://ga-dev-tools.appspot.com/account-explorer/\">Google Analytics Account Explorer</a>."
+              }
+            }
+          },
+          {
+            "title": "GA4",
+            "type": "object",
+            "required": ["property_id"],
+            "properties": {
+              "ga_tag": {
+                "type": "string",
+                "const": "GA4",
+                "enum": ["GA4"],
+                "default": "GA4",
+                "order": 0
+              },
+              "property_id": {
+              "order": 1,
+              "type": "string",
+              "title": "Property ID",
+              "description": "The ID for the is a website, mobile application, or blog, etc., that is associated with a unique tracking ID. This can be found from the <a href=\"https://developers.google.com/analytics/devguides/reporting/data/v1/property-id\">Property ID</a>."
+              }
+            }
+          }
+        ]
       },
       "start_date": {
         "order": 1,
