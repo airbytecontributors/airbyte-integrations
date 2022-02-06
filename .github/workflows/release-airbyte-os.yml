@@ -61,6 +61,8 @@ jobs:
           PART_TO_BUMP: ${{ github.event.inputs.partToBump }}
           CLOUDREPO_USER: ${{ secrets.CLOUDREPO_USER }}
           CLOUDREPO_PASSWORD: ${{ secrets.CLOUDREPO_PASSWORD }}
+          USER: root
+          HOME: /home/runner
         run: |
           ./tools/bin/release_version.sh
       - name: Save New Version

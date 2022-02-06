@@ -113,6 +113,9 @@ jobs:
 
       - name: Build
         run: SUB_BUILD=CONNECTORS_BASE ./gradlew build --scan
+        env:
+          USER: root
+          HOME: /home/runner
 
       - name: Ensure no file change
         run: git --no-pager diff && test -z "$(git --no-pager diff)"
