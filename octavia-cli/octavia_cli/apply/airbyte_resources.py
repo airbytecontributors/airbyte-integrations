@@ -4,9 +4,15 @@ import airbyte_api_client
 from airbyte_api_client.api import source_api, destination_api
 from airbyte_api_client.model.source_create import SourceCreate
 from airbyte_api_client.model.destination_create import DestinationCreate
+from airbyte_api_client.model.source_search import SourceSearch
 
 from typing import Callable, Any
+from click import ClickException
 import yaml
+from deepdiff import DeepDiff
+
+class DuplicateRessourceError(ClickException):
+    pass
 
 class BaseAirbyteResource(abc.ABC):
 
@@ -26,7 +32,28 @@ class BaseAirbyteResource(abc.ABC):
 
     @property
     @abc.abstractmethod
+    def search_function_name(
+        self,
+    ):  # pragma: no cover
+        pass
+
+    @property
+    @abc.abstractmethod
     def create_payload(
+        self,
+    ):  # pragma: no cover
+        pass
+
+    @property
+    @abc.abstractmethod
+    def search_payload(
+        self,
+    ):  # pragma: no cover
+        pass
+
+    @property
+    @abc.abstractmethod
+    def resource_id_field(
         self,
     ):  # pragma: no cover
         pass
@@ -35,11 +62,24 @@ class BaseAirbyteResource(abc.ABC):
     def _create_fn(self) -> Callable:
         return getattr(self.api, self.create_function_name)
 
+    @property
+    def _search_fn(self) -> Callable:
+        return getattr(self.api, self.search_function_name)
+
+
 
     def __init__(self, api_client: airbyte_api_client.ApiClient, workspace_id, yaml_config: dict) -> None:
         self.workspace_id = workspace_id
         self._yaml_config = yaml_config
         self.api_instance = self.api(api_client)
+
+    def get_connection_configuration_diff(self):
+        current_config = self.configuration
+        if self.remote_resource is not None:
+            remote_config = self.remote_resource.connection_configuration
+        
+        diff = DeepDiff(remote_config, current_config, view='tree')
+        return diff.pretty()
 
     def __getattr__(self, name: str) -> Any:
         """Map attribute of the YAML config to the BaseAirbyteResource object.
@@ -61,10 +101,30 @@ class BaseAirbyteResource(abc.ABC):
     def create(self):
         return self._create_fn(self.api_instance, self.create_payload)
 
+    def _search(self):
+        return self._search_fn(self.api_instance, self.search_payload)
+
+    @property
+    def remote_resource(self):
+        search_results = self._search()
+        if len(search_results.sources) > 1:
+            raise DuplicateRessourceError("Two or more ressource exist with the same name")
+        if len(search_results.sources) == 1:
+            return search_results.sources[0]
+        else:
+            return None
+
+    @property
+    def resource_id(self):
+        return self.remote_resource.get(self.resource_id_field)
+    
+
 
 class Source(BaseAirbyteResource):
     api = source_api.SourceApi
     create_function_name = "create_source"
+    search_function_name = "search_sources"
+    resource_id_field = "source_id"
 
     @property
     def create_payload(self):
@@ -73,6 +133,14 @@ class Source(BaseAirbyteResource):
             self.configuration,
             self.workspace_id,
             self.resource_name
+        )
+
+    @property
+    def search_payload(self):
+        return SourceSearch(
+            source_definition_id=self.definition_id,
+            workspace_id=self.workspace_id,
+            name=self.resource_name
         )
 
 class Destination(BaseAirbyteResource):
