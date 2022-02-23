@@ -9,11 +9,12 @@ import click
 from airbyte_api_client.api import workspace_api
 
 from .check_context import check_api_health, check_is_initialized, check_workspace_exists
+from .create import commands as create_commands
 from .generate import commands as generate_commands
 from .init import commands as init_commands
 from .list import commands as list_commands
 
-AVAILABLE_COMMANDS: List[click.Command] = [list_commands._list, init_commands.init, generate_commands.generate]
+AVAILABLE_COMMANDS: List[click.Command] = [list_commands._list, init_commands.init, generate_commands.generate, create_commands.create]
 
 
 @click.group()
@@ -64,11 +65,6 @@ def add_commands_to_octavia():
 @octavia.command(name="import", help="Import an existing resources from the Airbyte instance.")
 def _import() -> None:
     raise click.ClickException("The import command is not yet implemented.")
-
-
-@octavia.command(help="Create or update resources according to YAML configurations.")
-def apply() -> None:
-    raise click.ClickException("The apply command is not yet implemented.")
 
 
 @octavia.command(help="Delete resources")
