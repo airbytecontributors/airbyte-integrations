@@ -5,6 +5,7 @@ from airbyte_api_client.api import source_api, destination_api
 from airbyte_api_client.model.source_create import SourceCreate
 from airbyte_api_client.model.destination_create import DestinationCreate
 from airbyte_api_client.model.source_search import SourceSearch
+from airbyte_api_client.model.source_update import SourceUpdate
 
 from typing import Callable, Any
 from click import ClickException
@@ -32,6 +33,13 @@ class BaseAirbyteResource(abc.ABC):
 
     @property
     @abc.abstractmethod
+    def update_function_name(
+        self,
+    ):  # pragma: no cover
+        pass
+
+    @property
+    @abc.abstractmethod
     def search_function_name(
         self,
     ):  # pragma: no cover
@@ -53,6 +61,14 @@ class BaseAirbyteResource(abc.ABC):
 
     @property
     @abc.abstractmethod
+    def update_payload(
+        self,
+    ):  # pragma: no cover
+        pass
+
+
+    @property
+    @abc.abstractmethod
     def resource_id_field(
         self,
     ):  # pragma: no cover
@@ -63,10 +79,12 @@ class BaseAirbyteResource(abc.ABC):
         return getattr(self.api, self.create_function_name)
 
     @property
+    def _update_fn(self) -> Callable:
+        return getattr(self.api, self.update_function_name)
+
+    @property
     def _search_fn(self) -> Callable:
         return getattr(self.api, self.search_function_name)
-
-
 
     def __init__(self, api_client: airbyte_api_client.ApiClient, workspace_id, yaml_config: dict) -> None:
         self.workspace_id = workspace_id
@@ -99,7 +117,14 @@ class BaseAirbyteResource(abc.ABC):
 
 
     def create(self):
-        return self._create_fn(self.api_instance, self.create_payload)
+        try:
+            return self._create_fn(self.api_instance, self.create_payload)
+        except airbyte_api_client.ApiException as e:
+            #TODO check 422
+            raise e
+
+    def update(self):
+        return self._update_fn(self.api_instance, self.update_payload)
 
     def _search(self):
         return self._search_fn(self.api_instance, self.search_payload)
@@ -115,6 +140,10 @@ class BaseAirbyteResource(abc.ABC):
             return None
 
     @property
+    def exists(self):
+        return True if self.remote_resource else False
+
+    @property
     def resource_id(self):
         return self.remote_resource.get(self.resource_id_field)
     
@@ -123,6 +152,7 @@ class BaseAirbyteResource(abc.ABC):
 class Source(BaseAirbyteResource):
     api = source_api.SourceApi
     create_function_name = "create_source"
+    update_function_name = "update_source"
     search_function_name = "search_sources"
     resource_id_field = "source_id"
 
@@ -141,6 +171,14 @@ class Source(BaseAirbyteResource):
             source_definition_id=self.definition_id,
             workspace_id=self.workspace_id,
             name=self.resource_name
+        )
+
+    @property
+    def update_payload(self):
+        return SourceUpdate(
+            source_id=self.resource_id,
+            connection_configuration=self.configuration,
+            name=self.resource_name,
         )
 
 class Destination(BaseAirbyteResource):
