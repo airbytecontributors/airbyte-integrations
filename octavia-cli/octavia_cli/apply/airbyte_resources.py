@@ -84,6 +84,13 @@ class BaseAirbyteResource(abc.ABC):
         pass
 
     @property
+    @abc.abstractmethod
+    def resource_type(
+        self,
+    ):  # pragma: no cover
+        pass
+
+    @property
     def _create_fn(self) -> Callable:
         return getattr(self.api, self.create_function_name)
 
@@ -99,6 +106,8 @@ class BaseAirbyteResource(abc.ABC):
         self.workspace_id = workspace_id
         self._yaml_config = yaml_config
         self.api_instance = self.api(api_client)
+        self.remote_resource = self.get_remote_resource()
+        self.exists = True if self.remote_resource else False
 
     def get_connection_configuration_diff(self):
         current_config = self.configuration
@@ -145,19 +154,18 @@ class BaseAirbyteResource(abc.ABC):
     def _search(self):
         return self._search_fn(self.api_instance, self.search_payload)
 
-    @property
-    def remote_resource(self):
-        search_results = self._search()
-        if len(search_results.sources) > 1:
+    def get_remote_resource(self):
+        search_results = self._search().get(f"{self.resource_type}s", [])
+        if len(search_results) > 1:
             raise DuplicateRessourceError("Two or more ressource exist with the same name")
-        if len(search_results.sources) == 1:
-            return search_results.sources[0]
+        if len(search_results) == 1:
+            return search_results[0]
         else:
             return None
 
-    @property
-    def exists(self):
-        return True if self.remote_resource else False
+    # @property
+    # def exists(self):
+    #     return True if self.remote_resource else False
 
     @property
     def resource_id(self):
@@ -171,6 +179,7 @@ class Source(BaseAirbyteResource):
     resource_id_field = "source_id"
     search_function_name = "search_sources"
     update_function_name = "update_source"
+    resource_type = "source"
 
     @property
     def create_payload(self):
@@ -195,6 +204,7 @@ class Destination(BaseAirbyteResource):
     resource_id_field = "destination_id"
     search_function_name = "search_destinations"
     update_function_name = "update_destination"
+    resource_type = "destination"
 
     @property
     def create_payload(self):
@@ -211,7 +221,6 @@ class Destination(BaseAirbyteResource):
             connection_configuration=self.configuration,
             name=self.resource_name,
         )
-
 
 def factory(api_client, workspace_id, yaml_file_path):
     with open(yaml_file_path, "r") as f:

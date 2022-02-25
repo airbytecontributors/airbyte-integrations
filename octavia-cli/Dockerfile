@@ -6,7 +6,7 @@ RUN apt-get upgrade \
 WORKDIR /home/octavia-cli
 COPY . ./
 
-RUN pip install --no-cache-dir .
+RUN pip install -e .\[dev\]
 
 RUN useradd --create-home --shell /bin/bash octavia-cli
 USER octavia-cli
