@@ -1,22 +1,32 @@
+#
+# Copyright (c) 2021 Airbyte, Inc., all rights reserved.
+#
+
 import abc
+from typing import Any, Callable
 
 import airbyte_api_client
-from airbyte_api_client.api import source_api, destination_api
-from airbyte_api_client.model.source_create import SourceCreate
+import yaml
+from airbyte_api_client.api import destination_api, source_api
 from airbyte_api_client.model.destination_create import DestinationCreate
+from airbyte_api_client.model.destination_search import DestinationSearch
+from airbyte_api_client.model.destination_update import DestinationUpdate
+from airbyte_api_client.model.source_create import SourceCreate
 from airbyte_api_client.model.source_search import SourceSearch
 from airbyte_api_client.model.source_update import SourceUpdate
-
-from typing import Callable, Any
 from click import ClickException
-import yaml
 from deepdiff import DeepDiff
+
 
 class DuplicateRessourceError(ClickException):
     pass
 
-class BaseAirbyteResource(abc.ABC):
 
+class InvalidConfigurationError(ClickException):
+    pass
+
+
+class BaseAirbyteResource(abc.ABC):
     @property
     @abc.abstractmethod
     def api(
@@ -66,7 +76,6 @@ class BaseAirbyteResource(abc.ABC):
     ):  # pragma: no cover
         pass
 
-
     @property
     @abc.abstractmethod
     def resource_id_field(
@@ -95,8 +104,8 @@ class BaseAirbyteResource(abc.ABC):
         current_config = self.configuration
         if self.remote_resource is not None:
             remote_config = self.remote_resource.connection_configuration
-        
-        diff = DeepDiff(remote_config, current_config, view='tree')
+
+        diff = DeepDiff(remote_config, current_config, view="tree")
         return diff.pretty()
 
     def __getattr__(self, name: str) -> Any:
@@ -115,16 +124,23 @@ class BaseAirbyteResource(abc.ABC):
             return self._yaml_config.get(name)
         raise AttributeError(f"{self.__class__.__name__}.{name} is invalid.")
 
+    def _create_or_update(self, operation_fn, payload):
+        try:
+            return operation_fn(self.api_instance, payload)
+        except airbyte_api_client.ApiException as e:
+            if e.status == 422:
+                # TODO alafanechere: provide link to JSON schema / documentation?
+                raise InvalidConfigurationError(
+                    "Your configuration is invalid, please make sure it complies with the connector definitions."
+                )
+            else:
+                raise e
 
     def create(self):
-        try:
-            return self._create_fn(self.api_instance, self.create_payload)
-        except airbyte_api_client.ApiException as e:
-            #TODO check 422
-            raise e
+        return self._create_or_update(self._create_fn, self.create_payload)
 
     def update(self):
-        return self._update_fn(self.api_instance, self.update_payload)
+        return self._create_or_update(self._update_fn, self.update_payload)
 
     def _search(self):
         return self._search_fn(self.api_instance, self.search_payload)
@@ -146,32 +162,23 @@ class BaseAirbyteResource(abc.ABC):
     @property
     def resource_id(self):
         return self.remote_resource.get(self.resource_id_field)
-    
 
 
 class Source(BaseAirbyteResource):
+
     api = source_api.SourceApi
     create_function_name = "create_source"
-    update_function_name = "update_source"
-    search_function_name = "search_sources"
     resource_id_field = "source_id"
+    search_function_name = "search_sources"
+    update_function_name = "update_source"
 
     @property
     def create_payload(self):
-        return SourceCreate(
-            self.definition_id,
-            self.configuration,
-            self.workspace_id,
-            self.resource_name
-        )
+        return SourceCreate(self.definition_id, self.configuration, self.workspace_id, self.resource_name)
 
     @property
     def search_payload(self):
-        return SourceSearch(
-            source_definition_id=self.definition_id,
-            workspace_id=self.workspace_id,
-            name=self.resource_name
-        )
+        return SourceSearch(source_definition_id=self.definition_id, workspace_id=self.workspace_id, name=self.resource_name)
 
     @property
     def update_payload(self):
@@ -181,18 +188,30 @@ class Source(BaseAirbyteResource):
             name=self.resource_name,
         )
 
+
 class Destination(BaseAirbyteResource):
     api = destination_api.DestinationApi
     create_function_name = "create_destination"
+    resource_id_field = "destination_id"
+    search_function_name = "search_destinations"
+    update_function_name = "update_destination"
 
     @property
     def create_payload(self):
-        return DestinationCreate(
-            self.definition_id,
-            self.configuration,
-            self.workspace_id,
-            self.resource_name
+        return DestinationCreate(self.definition_id, self.configuration, self.workspace_id, self.resource_name)
+
+    @property
+    def search_payload(self):
+        return DestinationSearch(destination_definition_id=self.definition_id, workspace_id=self.workspace_id, name=self.resource_name)
+
+    @property
+    def update_payload(self):
+        return DestinationUpdate(
+            destination_id=self.resource_id,
+            connection_configuration=self.configuration,
+            name=self.resource_name,
         )
+
 
 def factory(api_client, workspace_id, yaml_file_path):
     with open(yaml_file_path, "r") as f:
