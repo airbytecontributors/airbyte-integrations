@@ -28,13 +28,16 @@ import io.airbyte.workers.temporal.scheduling.state.listener.WorkflowStateChange
 import io.airbyte.workers.temporal.scheduling.state.listener.WorkflowStateChangedListener.StateField;
 import io.airbyte.workers.temporal.scheduling.testsyncworkflow.DbtFailureSyncWorkflow;
 import io.airbyte.workers.temporal.scheduling.testsyncworkflow.EmptySyncWorkflow;
+import io.airbyte.workers.temporal.scheduling.testsyncworkflow.FailNTimesSyncWorkflow;
 import io.airbyte.workers.temporal.scheduling.testsyncworkflow.NormalizationFailureSyncWorkflow;
 import io.airbyte.workers.temporal.scheduling.testsyncworkflow.PersistFailureSyncWorkflow;
 import io.airbyte.workers.temporal.scheduling.testsyncworkflow.ReplicateFailureSyncWorkflow;
 import io.airbyte.workers.temporal.scheduling.testsyncworkflow.SleepingSyncWorkflow;
 import io.airbyte.workers.temporal.scheduling.testsyncworkflow.SourceAndDestinationFailureSyncWorkflow;
+import io.temporal.api.enums.v1.RetryState;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowOptions;
+import io.temporal.failure.ActivityFailure;
 import io.temporal.failure.ApplicationFailure;
 import io.temporal.testing.TestWorkflowEnvironment;
 import io.temporal.worker.Worker;
@@ -587,6 +590,84 @@ public class ConnectionManagerWorkflowTest {
       Assertions.assertThat(events)
           .filteredOn(changedStateEvent -> changedStateEvent.getField() == StateField.CANCELLED_FOR_RESET && changedStateEvent.isValue())
           .hasSizeGreaterThanOrEqualTo(1);
+
+      Assertions.assertThat(events)
+          .filteredOn(changedStateEvent -> changedStateEvent.getField() == StateField.RESET && changedStateEvent.isValue())
+          .hasSizeGreaterThanOrEqualTo(1);
+
+      Mockito.verify(mJobCreationAndStatusUpdateActivity).jobCancelled(Mockito.any());
+
+    }
+
+    @RepeatedTest(1) // todo
+    @Timeout(value = 10,
+             unit = TimeUnit.SECONDS)
+    @DisplayName("Test that failure of a restart retries as a reset")
+    public void resetFailureRetriesAsReset() throws InterruptedException {
+      Mockito.when(mConfigFetchActivity.getTimeToWait(Mockito.any())).thenReturn(new ScheduleRetrieverOutput(
+              Duration.ZERO));
+
+      testEnv = TestWorkflowEnvironment.newInstance();
+
+      workflow = client
+          .newWorkflowStub(
+              ConnectionManagerWorkflow.class,
+              WorkflowOptions.newBuilder()
+                  .setTaskQueue(TemporalJobType.CONNECTION_UPDATER.name())
+                  .build());
+
+//      final FailNTimesSyncWorkflow.FailNTimesReplicationActivity mReplicationActivity =
+//          Mockito.mock(FailNTimesSyncWorkflow.FailNTimesReplicationActivity.class, Mockito.withSettings().withoutAnnotations());
+//
+//      Mockito.when(mReplicationActivity.run())
+//           .thenThrow(new ActivityFailure(1L, 1L, "Replicate", "someId", RetryState.RETRY_STATE_UNSPECIFIED,
+//           "someIdentity", new RuntimeException()))
+//          .thenReturn("str");
+//
+//      final Worker syncWorker = testEnv.newWorker(TemporalJobType.SYNC.name());
+//      syncWorker.registerWorkflowImplementationTypes(FailNTimesSyncWorkflow.class);
+//      syncWorker.registerActivitiesImplementations(mReplicationActivity);
+
+      final Worker managerWorker = testEnv.newWorker(TemporalJobType.CONNECTION_UPDATER.name());
+      managerWorker.registerWorkflowImplementationTypes(ConnectionManagerWorkflowImpl.class);
+      managerWorker.registerActivitiesImplementations(mConfigFetchActivity, mConnectionDeletionActivity,
+          mGenerateInputActivityImpl, mJobCreationAndStatusUpdateActivity);
+
+      final UUID testId = UUID.randomUUID();
+      final TestStateListener testStateListener = new TestStateListener();
+      final WorkflowState workflowState = new WorkflowState(testId, testStateListener);
+
+      final ConnectionUpdaterInput input = new ConnectionUpdaterInput(
+          UUID.randomUUID(),
+          JOB_ID,
+          ATTEMPT_ID,
+          false,
+          1,
+          workflowState,
+          false);
+
+      startWorkflowAndWaitUntilReady(workflow, input);
+
+      testEnv.sleep(Duration.ofSeconds(3L));
+      workflow.resetConnection();
+      testEnv.sleep(Duration.ofSeconds(3L));
+
+      final Queue<ChangedStateEvent> eventQueue = testStateListener.events(testId);
+      final List<ChangedStateEvent> events = new ArrayList<>(eventQueue);
+
+      for (ChangedStateEvent event : events) {
+        if (event.isValue()) {
+          log.info("event = " + event);
+        }
+      }
+
+      Assertions.assertThat(events)
+          .filteredOn(changedStateEvent -> changedStateEvent.getField() == StateField.CANCELLED_FOR_RESET && changedStateEvent.isValue())
+          .hasSizeGreaterThanOrEqualTo(1);
+
+      Assertions.assertThat(events)
+              .filteredOn(changedStateEvent -> changedStateEvent.getField() == StateField.CONTINUE_AS_RESET && changedStateEvent.isValue())
+              .hasSizeGreaterThanOrEqualTo(1);
 
       Assertions.assertThat(events)
           .filteredOn(changedStateEvent -> changedStateEvent.getField() == StateField.RESET && changedStateEvent.isValue())
