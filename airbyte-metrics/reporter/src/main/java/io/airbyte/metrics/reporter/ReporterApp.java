@@ -19,6 +19,20 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import lombok.extern.slf4j.Slf4j;
 
+/**
+ * This application collects and a publishes a set of general metrics useful to the operation of
+ * Airbyte. In general, we avoid embedding metrics in applications as it often pollutes application
+ * code.
+ * <p>
+ * This is primarily intended for Airbyte Cloud. However, any OSS user is free to turn these on for
+ * consumption.
+ * <p>
+ * This currently only supports Datadog.
+ * <p>
+ * See
+ * https://docs.google.com/document/d/11pEUsHyKUhh4CtV3aReau3SUG-ncEvy6ROJRVln6YB4/edit?usp=sharing
+ * for more info.
+ */
 @Slf4j
 public class ReporterApp {
 
