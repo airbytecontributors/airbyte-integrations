@@ -6,15 +6,16 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'My Site',
-  tagline: 'Dinosaurs are cool',
-  url: 'https://your-docusaurus-test-site.com',
+  title: 'Documentation',
+  tagline: 'Data integration made simple, secure and extensible.',
+  url: 'https://docs.airbyte.com',
   baseUrl: '/',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
-  favicon: 'img/favicon.ico',
-  organizationName: 'facebook', // Usually your GitHub org/user name.
-  projectName: 'docusaurus', // Usually your repo name.
+  // missing asset
+  // favicon: 'img/favicon.ico',
+  organizationName: 'airbyte', // GitHub org/user name.
+  projectName: 'airbyte', // Repo name.
 
   presets: [
     [
@@ -23,14 +24,12 @@ const config = {
       ({
         docs: {
           sidebarPath: require.resolve('./sidebars.js'),
-          // Please change this to your repo.
-          editUrl: 'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
+          editUrl: 'https://github.com/airbytehq/airbyte/blob/gitbook/v1/README.md',
         },
         blog: {
           showReadingTime: true,
-          // Please change this to your repo.
           editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
+            'https://github.com/airbytehq/airbyte/blob/gitbook/v1/README.md',
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
@@ -43,9 +42,9 @@ const config = {
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
       navbar: {
-        title: 'My Site',
+        title: 'Airbyte Documentation',
         logo: {
-          alt: 'My Site Logo',
+          alt: 'simple, secure, extensible',
           src: 'img/logo.svg',
         },
         items: [
@@ -57,7 +56,7 @@ const config = {
           },
           {to: '/blog', label: 'Blog', position: 'left'},
           {
-            href: 'https://github.com/facebook/docusaurus',
+            href: 'https://airbyte.com/blog',
             label: 'GitHub',
             position: 'right',
           },
@@ -79,16 +78,24 @@ const config = {
             title: 'Community',
             items: [
               {
-                label: 'Stack Overflow',
-                href: 'https://stackoverflow.com/questions/tagged/docusaurus',
+                label: 'Github',
+                href: 'https://github.com/airbytehq/airbyte',
               },
               {
-                label: 'Discord',
-                href: 'https://discordapp.com/invite/docusaurus',
+                label: 'Slack',
+                href: 'https://slack.airbyte.io/',
               },
               {
                 label: 'Twitter',
-                href: 'https://twitter.com/docusaurus',
+                href: 'https://twitter.com/airbytehq',
+              },
+              {
+                label: 'LinkedIn',
+                href: 'https://www.linkedin.com/company/airbytehq/',
+              },              
+              {
+                label: 'Facebook',
+                href: 'https://www.facebook.com/AirbyteHQ',
               },
             ],
           },
@@ -106,7 +113,7 @@ const config = {
             ],
           },
         ],
-        copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+        copyright: `© ${new Date().getFullYear()} Airbyte, Inc.`,
       },
       prism: {
         theme: lightCodeTheme,
