@@ -6,7 +6,7 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'Documentation',
+  title: 'Everything you need to know about Airbyte!',
   tagline: 'Data integration made simple, secure and extensible.',
   url: 'https://docs.airbyte.com',
   baseUrl: '/',
@@ -25,6 +25,7 @@ const config = {
         docs: {
           sidebarPath: require.resolve('./sidebars.js'),
           editUrl: 'https://github.com/airbytehq/airbyte/blob/gitbook/v1/README.md',
+          path: '../docs'
         },
         blog: {
           showReadingTime: true,
@@ -48,18 +49,6 @@ const config = {
           src: 'img/logo.svg',
         },
         items: [
-          {
-            type: 'doc',
-            docId: 'intro',
-            position: 'left',
-            label: 'Tutorial',
-          },
-          {to: '/blog', label: 'Blog', position: 'left'},
-          {
-            href: 'https://airbyte.com/blog',
-            label: 'GitHub',
-            position: 'right',
-          },
         ],
       },
       footer: {
