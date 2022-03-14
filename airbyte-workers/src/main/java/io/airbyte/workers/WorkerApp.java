@@ -448,6 +448,7 @@ public class WorkerApp {
 
   public static void main(final String[] args) {
     try {
+      LOGGER.info("Starting Worker App and testing an OSS branch deploy to Cloud!");
       launchWorkerApp();
     } catch (final Throwable t) {
       LOGGER.error("Worker app failed", t);
