@@ -25,8 +25,6 @@ import io.airbyte.config.AirbyteConfig;
 import io.airbyte.config.ConfigSchema;
 import io.airbyte.config.DestinationConnection;
 import io.airbyte.config.DestinationOAuthParameter;
-import io.airbyte.config.Notification;
-import io.airbyte.config.OperatorNormalization.Option;
 import io.airbyte.config.SourceConnection;
 import io.airbyte.config.SourceOAuthParameter;
 import io.airbyte.config.StandardDestinationDefinition;
@@ -114,10 +112,11 @@ public class ConfigRepository {
     final Result<Record> result;
     if (includeTombstone) {
       result = database.query(ctx -> ctx.select(WORKSPACE.asterisk())
-          .where(WORKSPACE.SLUG.eq(slug))
-      ).fetch();
+          .from(WORKSPACE)
+          .where(WORKSPACE.SLUG.eq(slug))).fetch();
     } else {
       result = database.query(ctx -> ctx.select(WORKSPACE.asterisk())
+          .from(WORKSPACE)
           .where(WORKSPACE.SLUG.eq(slug)).andNot(WORKSPACE.TOMBSTONE)).fetch();
     }
 
