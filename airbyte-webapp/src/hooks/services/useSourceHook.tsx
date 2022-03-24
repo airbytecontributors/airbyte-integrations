@@ -2,13 +2,10 @@ import { useCallback } from "react";
 import { useFetcher, useResource } from "rest-hooks";
 
 import SourceResource from "core/resources/Source";
-import { RoutePaths } from "pages/routes";
 import ConnectionResource, { Connection } from "core/resources/Connection";
 import SchedulerResource, { Scheduler } from "core/resources/Scheduler";
 import { ConnectionConfiguration } from "core/domain/connection";
 import useWorkspace from "./useWorkspace";
-
-import useRouter from "hooks/useRouter";
 import { useAnalyticsService } from "hooks/services/Analytics/useAnalyticsService";
 import { Source } from "core/domain/connector";
 
@@ -41,7 +38,6 @@ type SourceService = {
 };
 
 const useSource = (): SourceService => {
-  const { push } = useRouter();
   const { workspace } = useWorkspace();
   const createSourcesImplementation = useFetcher(SourceResource.createShape());
   const analyticsService = useAnalyticsService();
@@ -172,8 +168,6 @@ const useSource = (): SourceService => {
     connectionsWithSource.map((item) =>
       updateConnectionsStore({ connectionId: item.connectionId }, undefined)
     );
-
-    push(RoutePaths.Source);
   };
 
   return {

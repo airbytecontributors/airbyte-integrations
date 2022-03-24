@@ -3,8 +3,6 @@ import { useFetcher, useResource } from "rest-hooks";
 
 import DestinationResource from "core/resources/Destination";
 import ConnectionResource, { Connection } from "core/resources/Connection";
-import { RoutePaths } from "pages/routes";
-import useRouter from "../useRouter";
 import SchedulerResource, { Scheduler } from "core/resources/Scheduler";
 import { ConnectionConfiguration } from "core/domain/connection";
 import useWorkspace from "./useWorkspace";
@@ -51,7 +49,6 @@ type DestinationService = {
 };
 
 const useDestination = (): DestinationService => {
-  const { push } = useRouter();
   const { workspace } = useWorkspace();
   const analyticsService = useAnalyticsService();
   const createDestinationsImplementation = useFetcher(
@@ -200,8 +197,6 @@ const useDestination = (): DestinationService => {
     connectionsWithDestination.map((item) =>
       updateConnectionsStore({ connectionId: item.connectionId }, undefined)
     );
-
-    push(RoutePaths.Destination);
   };
 
   return {

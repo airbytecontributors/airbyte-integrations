@@ -102,7 +102,7 @@ const ConnectionItemPage: React.FC = () => {
             element={<SettingsView connectionId={connectionId} />}
           />
           <Route
-            index
+            path="*"
             element={<Navigate to={ConnectionSettingsRoutes.STATUS} />}
           />
         </Routes>
