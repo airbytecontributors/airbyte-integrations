@@ -135,6 +135,11 @@ jobs:
       - name: build
         run: SUB_BUILD=PLATFORM VERSION=0.35.80-alpha ./gradlew clean build -x test
 
+      - name: docker login
+        env:
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: docker login -u airbytebot -p "${DOCKER_PASSWORD}"
+
       - name: publish
         run: VERSION=0.35.80-alpha GIT_REVISION=20f8fd5690 docker-compose -f docker-compose.build.yaml push
   # In case of self-hosted EC2 errors, remove this block.
