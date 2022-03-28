@@ -294,10 +294,28 @@ public class ConnectionManagerWorkflowImpl implements ConnectionManagerWorkflow 
 
   @Override
   public void cancelJob() {
+    if (workflowState.isQuarantined()) {
+      log.info("Quarantined workflow: attempting to cancel all non-terminal jobs for connection {}", connectionId);
+      try {
+        // Get all the currently non terminal jobs
+        // Cancel all those jobs and their related attempt
+        // Continue as new
+        final JobInformation jobInformation = getJobInformation();
+
+        cancellableSyncWorkflow.cancel();
+
+      } catch (final Exception e) { // more specifically a db error
+        // keep in quarantined state
+        log.info("Cancellation failed for quarantined workflow: ", e);
+        return;
+      }
+    }
+
     if (!workflowState.isRunning()) {
       log.info("Can't cancel a non-running sync for connection {}", connectionId);
       return;
     }
+
     workflowState.setCancelled(true);
     cancellableSyncWorkflow.cancel();
   }
@@ -378,7 +396,7 @@ public class ConnectionManagerWorkflowImpl implements ConnectionManagerWorkflow 
 
   /**
    * This is running a lambda function that takes {@param input} as an input. If the run of the lambda
-   * is thowing an exception, the workflow will be in a quarantined state and can then be manual
+   * is throwing an exception, the workflow will be in a quarantined state and can then be manual
    * un-quarantined or a retry of the failed lambda can be trigger through a signal method.
    *
    * We aimed to use this method for call of the temporal activity.
@@ -390,7 +408,10 @@ public class ConnectionManagerWorkflowImpl implements ConnectionManagerWorkflow 
       log.error("Failed to run an activity for the connection " + connectionId, e);
       workflowState.setQuarantined(true);
       workflowState.setRetryFailedActivity(false);
-      Workflow.await(() -> workflowState.isRetryFailedActivity());
+      Workflow.await(() -> workflowState.isRetryFailedActivity()); // todo tcho thread is blocked until state goes to retry
+      // do i set it to also cancel if the state is cancelled??
+      // like Workflow.await(() -> workflowState.isRetryFailedActivity() ||
+      // workflowState.isCancelledForReset);
       log.error("Retrying an activity for the connection " + connectionId, e);
       workflowState.setQuarantined(false);
       workflowState.setRetryFailedActivity(false);
