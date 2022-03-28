@@ -101,15 +101,10 @@ jobs:
     needs: start-platform-build-runner # required to start the main job when the runner is ready
     runs-on: ${{ needs.start-platform-build-runner.outputs.label }} # run the job on the newly created runner
     timeout-minutes: 90
+    environment: more-secrets
     steps:
       - name: Checkout Airbyte
         uses: actions/checkout@v2
-
-      - name: Cache Build Artifacts
-        uses: ./.github/actions/cache-build-artifacts
-        with:
-          cache-key: ${{ secrets.CACHE_VERSION }}
-          cache-python: "false"
 
       - uses: actions/setup-java@v1
         with:
