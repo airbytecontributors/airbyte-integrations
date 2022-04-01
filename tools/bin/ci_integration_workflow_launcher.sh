@@ -29,12 +29,12 @@ fi
 
 #CONNECTORS=$(./gradlew integrationTest --dry-run | grep 'integrationTest SKIPPED' | cut -d: -f 4 | sort | uniq)
 #echo "$CONNECTORS" | while read -r connector; do
-  echo "Issuing request for connector source-postgres..."
-  curl \
-    -i \
-    -X POST \
-    -H "Accept: application/vnd.github.v3+json" \
-    -H "Authorization: Bearer $GITHUB_TOKEN" \
-    "$REPO_API/actions/workflows/$WORKFLOW_ID/dispatches" \
-    -d "{\"ref\":\"master\", \"inputs\": { \"connector\": \"source-postgres\"} }"
-done
+echo "Issuing request for connector source-postgres..."
+curl \
+  -i \
+  -X POST \
+  -H "Accept: application/vnd.github.v3+json" \
+  -H "Authorization: Bearer $GITHUB_TOKEN" \
+  "$REPO_API/actions/workflows/$WORKFLOW_ID/dispatches" \
+  -d "{\"ref\":\"master\", \"inputs\": { \"connector\": \"source-postgres\"} }"
+
