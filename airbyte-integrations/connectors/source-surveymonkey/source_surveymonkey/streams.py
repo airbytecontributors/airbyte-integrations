@@ -102,7 +102,7 @@ class IncrementalSurveymonkeyStream(SurveymonkeyStream, ABC):
         params = super().request_params(stream_state=stream_state, **kwargs)
         params["sort_order"] = "ASC"
         params["sort_by"] = "date_modified"
-        params["per_page"] = 1000  # maybe as user input or bigger value
+        params["per_page"] = 100  # max page size is 100
         since_value = pendulum.parse(stream_state.get(self.cursor_field)) if stream_state.get(self.cursor_field) else self._start_date
 
         since_value = max(since_value, self._start_date)
@@ -133,14 +133,12 @@ class Surveys(IncrementalSurveymonkeyStream):
         return "surveys"
 
     def parse_response(self, response: requests.Response, stream_state: Mapping[str, Any], **kwargs) -> Iterable[Mapping]:
-        # params = super().request_params(stream_state=stream_state, **kwargs)
         survey_ids = self._survey_ids
         result = super().parse_response(response=response, stream_state=stream_state, **kwargs)
         for record in result:
             substream = SurveyDetails(
                 survey_id=record["id"], start_date=self._start_date, survey_ids=survey_ids, authenticator=self.authenticator
             )
-            child_record = substream.read_records(sync_mode=SyncMode.full_refresh)
             if not survey_ids or record["id"] in survey_ids:
                 substream = SurveyDetails(
                     survey_id=record["id"], start_date=self._start_date, survey_ids=survey_ids, authenticator=self.authenticator
@@ -250,11 +248,8 @@ class SurveyResponses(IncrementalSurveymonkeyStream):
         survey_id = latest_record.get("survey_id")
         latest_cursor_value = latest_record.get(self.cursor_field)
         current_stream_state = current_stream_state or {}
-        current_state = current_stream_state.get(survey_id) if current_stream_state else None
-        if current_state:
-            current_state = current_state.get(self.cursor_field)
-        current_state_value = current_state or latest_cursor_value
-        max_value = max(current_state_value, latest_cursor_value)
+        current_state = current_stream_state.get(survey_id) or latest_cursor_value
+        max_value = max(current_state, latest_cursor_value)
         new_value = {self.cursor_field: max_value}
 
         current_stream_state[survey_id] = new_value
@@ -262,14 +257,9 @@ class SurveyResponses(IncrementalSurveymonkeyStream):
 
     def request_params(self, stream_state: Mapping[str, Any], stream_slice: Mapping[str, Any] = None, **kwargs) -> MutableMapping[str, Any]:
         params = super().request_params(stream_state=stream_state, **kwargs)
+        survey_state = stream_state.get(stream_slice["survey_id"], {})
+        since_value = pendulum.parse(survey_state.get(self.cursor_field, self._start_date))
+        since_value = max(since_value, self._start_date)
 
-        since_value_surv = stream_state.get(stream_slice["survey_id"])
-        if since_value_surv:
-            since_value = (
-                pendulum.parse(since_value_surv.get(self.cursor_field)) if since_value_surv.get(self.cursor_field) else self._start_date
-            )
-            since_value = max(since_value, self._start_date)
-        else:
-            since_value = self._start_date
         params["start_modified_at"] = since_value.strftime("%Y-%m-%dT%H:%M:%S")
         return params
