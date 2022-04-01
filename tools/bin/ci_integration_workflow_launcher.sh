@@ -37,4 +37,3 @@ curl \
   -H "Authorization: Bearer $GITHUB_TOKEN" \
   "$REPO_API/actions/workflows/$WORKFLOW_ID/dispatches" \
   -d "{\"ref\":\"master\", \"inputs\": { \"connector\": \"source-postgres\"} }"
-
