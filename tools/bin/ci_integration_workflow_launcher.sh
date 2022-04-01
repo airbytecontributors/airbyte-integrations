@@ -20,9 +20,9 @@ if [ "$MATCHING_WORKFLOW_IDS" -ne "1" ]; then
 fi
 
 MAX_RUNNING_MASTER_WORKFLOWS=5
-RUNNING_MASTER_WORKFLOWS=$(curl "$REPO_API/actions/workflows/$WORKFLOW_ID/runs?branch=master&status=in_progress" --header "Authorization: Bearer $GITHUB_TOKEN" | jq -r ".total_count")
+RUNNING_MASTER_WORKFLOWS=$(curl "$REPO_API/actions/workflows/$WORKFLOW_ID/runs?branch=greg/testIntegration&status=in_progress" --header "Authorization: Bearer $GITHUB_TOKEN" | jq -r ".total_count")
 if [ "$RUNNING_MASTER_WORKFLOWS" -gt "$MAX_RUNNING_MASTER_WORKFLOWS" ]; then
-  echo "More than $MAX_RUNNING_MASTER_WORKFLOWS integration tests workflows running on master."
+  echo "More than $MAX_RUNNING_MASTER_WORKFLOWS integration tests workflows running on greg/testIntegration."
   echo "Skipping launching workflows."
   exit 0
 fi

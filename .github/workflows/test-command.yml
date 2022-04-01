@@ -12,7 +12,7 @@ on:
       gitref:
         description: "The git ref to check out from the specified repository."
         required: false
-        default: master
+        default: greg/testIntegration
       comment-id:
         description: "The comment-id of the slash command. Used to update the comment with the status."
         required: false
@@ -142,7 +142,7 @@ jobs:
           retention-days: 3
 
       - name: Report Status
-        if: github.ref == 'refs/heads/master' && always()
+        if: github.ref == 'refs/heads/greg/testIntegration' && always()
         run: ./tools/status/report.sh ${{ github.event.inputs.connector }} ${{github.repository}} ${{github.run_id}} ${{steps.test.outcome}}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.STATUS_API_AWS_ACCESS_KEY_ID }}
