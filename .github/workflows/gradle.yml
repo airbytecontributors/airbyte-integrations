@@ -404,7 +404,12 @@ jobs:
       - name: Run End-to-End Frontend Tests
         env:
           CYPRESS_WEBAPP_KEY: ${{ secrets.CYPRESS_WEBAPP_KEY }}
-        run: ./tools/bin/e2e_test.sh
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_on: error
+          command: ./tools/bin/e2e_test.sh
   # In case of self-hosted EC2 errors, remove this block.
   stop-frontend-runner:
     name: "Frontend: Stop Runner"
