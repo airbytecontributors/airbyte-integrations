@@ -17,7 +17,7 @@ mkdir -p /tmp/airbyte_local
 # Detach so we can run subsequent commands
 VERSION=dev TRACKING_STRATEGY=logging docker-compose up -d
 # trap 'echo "docker-compose logs:" && docker-compose logs -t --tail 1000 && docker-compose down && docker stop airbyte_ci_pg' EXIT
-trap 'echo "docker-compose logs:" && docker-compose logs -t --tail 1000' EXIT
+trap 'echo "docker-compose logs:" && docker-compose logs -t --tail 1000 && exit $exit_code' EXIT
 
 docker run --rm -d -p 5433:5432 -e POSTGRES_PASSWORD=secret_password -e POSTGRES_DB=airbyte_ci --name airbyte_ci_pg postgres
 echo "Waiting for health API to be available..."
@@ -29,3 +29,4 @@ done
 
 echo "Running e2e tests via gradle"
 SUB_BUILD=PLATFORM ./gradlew --no-daemon :airbyte-webapp-e2e-tests:e2etest -PcypressWebappKey=$CYPRESS_WEBAPP_KEY
+exit_code=$?
