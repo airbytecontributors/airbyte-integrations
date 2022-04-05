@@ -410,6 +410,7 @@ jobs:
           max_attempts: 3
           retry_on: any
           command: ./tools/bin/e2e_test.sh
+          on_retry_command: docker-compose down && docker stop airbyte_ci_pg
   # In case of self-hosted EC2 errors, remove this block.
   stop-frontend-runner:
     name: "Frontend: Stop Runner"
