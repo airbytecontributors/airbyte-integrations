@@ -406,9 +406,9 @@ jobs:
           CYPRESS_WEBAPP_KEY: ${{ secrets.CYPRESS_WEBAPP_KEY }}
         uses: nick-fields/retry@v2
         with:
-          timeout_minutes: 20
+          timeout_minutes: 5
           max_attempts: 3
-          retry_on: error
+          retry_on: any
           command: ./tools/bin/e2e_test.sh
   # In case of self-hosted EC2 errors, remove this block.
   stop-frontend-runner:
