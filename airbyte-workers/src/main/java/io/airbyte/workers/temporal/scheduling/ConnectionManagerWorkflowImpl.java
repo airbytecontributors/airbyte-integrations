@@ -18,6 +18,8 @@ import io.airbyte.workers.temporal.scheduling.activities.ConfigFetchActivity.Sch
 import io.airbyte.workers.temporal.scheduling.activities.ConfigFetchActivity.ScheduleRetrieverOutput;
 import io.airbyte.workers.temporal.scheduling.activities.ConnectionDeletionActivity;
 import io.airbyte.workers.temporal.scheduling.activities.ConnectionDeletionActivity.ConnectionDeletionInput;
+import io.airbyte.workers.temporal.scheduling.activities.ForceCancellationActivity;
+import io.airbyte.workers.temporal.scheduling.activities.ForceCancellationActivity.ForceCancellationOutput;
 import io.airbyte.workers.temporal.scheduling.activities.GenerateInputActivity;
 import io.airbyte.workers.temporal.scheduling.activities.GenerateInputActivity.GeneratedJobInput;
 import io.airbyte.workers.temporal.scheduling.activities.GenerateInputActivity.SyncInput;
@@ -82,6 +84,8 @@ public class ConnectionManagerWorkflowImpl implements ConnectionManagerWorkflow 
       Workflow.newActivityStub(ConnectionDeletionActivity.class, ActivityConfiguration.SHORT_ACTIVITY_OPTIONS);
   private final AutoDisableConnectionActivity autoDisableConnectionActivity =
       Workflow.newActivityStub(AutoDisableConnectionActivity.class, ActivityConfiguration.SHORT_ACTIVITY_OPTIONS);
+  private final ForceCancellationActivity forceCancellationActivity =
+      Workflow.newActivityStub(ForceCancellationActivity.class, ActivityConfiguration.SHORT_ACTIVITY_OPTIONS);
 
   private CancellationScope cancellableSyncWorkflow;
 
@@ -408,13 +412,30 @@ public class ConnectionManagerWorkflowImpl implements ConnectionManagerWorkflow 
       log.error("Failed to run an activity for the connection " + connectionId, e);
       workflowState.setQuarantined(true);
       workflowState.setRetryFailedActivity(false);
-      Workflow.await(() -> workflowState.isRetryFailedActivity()); // todo tcho thread is blocked until state goes to retry
-      // do i set it to also cancel if the state is cancelled??
-      // like Workflow.await(() -> workflowState.isRetryFailedActivity() ||
-      // workflowState.isCancelledForReset);
-      log.error("Retrying an activity for the connection " + connectionId, e);
+      Workflow.await(() -> workflowState.isRetryFailedActivity() || workflowState.isCancelledForReset());
+
       workflowState.setQuarantined(false);
       workflowState.setRetryFailedActivity(false);
+
+      if (workflowState.isCancelledForReset()) {
+        // run force cancellation activity
+        // or can i just
+        // return runMandatoryActivityWithOutput(forceCancellationActivity::forceCancellation, forceCancellationActivityInput);
+        log.error("Cancelling all activities for the connection " + connectionId, e);
+        final ForceCancellationOutput forceCancellationOutput = runMandatoryActivityWithOutput(forceCancellationActivity::forceCancellation,
+            forceCancellationActivityInput);
+
+        if (forceCancellationOutput.isCancelled()) {
+          // todo add log
+//          reportCancelledAndContinueWith(false, connectionUpdaterInput);
+          return ; // confused what to output, shouldn't retry the activity again after cancelling, right?
+          mapper.
+        } else {
+          log.error("Failed to cancel all activities for the connection " + connectionId);
+        }
+        // if output is false, meaning there was some db error, retry and go back to quarantine
+      }
+      log.error("Retrying an activity for the connection " + connectionId, e);
       return runMandatoryActivityWithOutput(mapper, input);
     }
   }
