@@ -57,11 +57,13 @@ public class BootloaderApp {
   private final Configs configs;
   private Runnable postLoadExecution;
   private final FeatureFlags featureFlags;
+  private ConfigPersistence configPersistence;
 
   @VisibleForTesting
-  public BootloaderApp(final Configs configs, final FeatureFlags featureFlags) {
+  public BootloaderApp(final Configs configs, final FeatureFlags featureFlags, final ConfigPersistence configPersistence) {
     this.configs = configs;
     this.featureFlags = featureFlags;
+    this.configPersistence = configPersistence;
   }
 
   /**
@@ -74,10 +76,10 @@ public class BootloaderApp {
    */
   public BootloaderApp(final Configs configs,
                        final Runnable postLoadExecution,
-                       final FeatureFlags featureFlags) {
-    this.configs = configs;
+                       final FeatureFlags featureFlags,
+                       final ConfigPersistence configPersistence) {
+    this(configs, featureFlags, configPersistence);
     this.postLoadExecution = postLoadExecution;
-    this.featureFlags = featureFlags;
   }
 
   public BootloaderApp() {
@@ -92,7 +94,7 @@ public class BootloaderApp {
             .maskSecrets(!featureFlags.exposeSecretsInExport())
             .copySecrets(true)
             .build();
-        final ConfigPersistence configPersistence =
+        configPersistence =
             DatabaseConfigPersistence.createWithValidation(configDatabase, jsonSecretsProcessor);
         configPersistence.loadData(YamlSeedConfigPersistence.getDefault());
         LOGGER.info("Loaded seed data..");
