@@ -101,7 +101,7 @@ public class BootloaderApp {
   }
 
   public void load() throws Exception {
-    LOGGER.info("Setting up config database and default workspace..");
+    LOGGER.info("Setting up config database and default workspace.. THIS IS A CHANGE ONLY IN AN OSS BRANCH!");
 
     try (
         final Database configDatabase =
