@@ -167,11 +167,12 @@ export const Routing: React.FC = () => {
       <Suspense fallback={<LoadingPage />}>
         {!user && <Auth />}
         {user && emailVerified && <MainViewRoutes />}
+        <Routes>
+          <Route path={CloudRoutes.FirebaseAction} element={<VerifyEmailAction />} />
+        </Routes>
         {user && !emailVerified && (
           <Routes>
-            <Route path={CloudRoutes.FirebaseAction} element={<VerifyEmailAction />} />
             <Route path={CloudRoutes.ConfirmVerifyEmail} element={<ConfirmEmailPage />} />
-            <Route path="*" element={<Navigate to={CloudRoutes.ConfirmVerifyEmail} replace />} />
           </Routes>
         )}
       </Suspense>
