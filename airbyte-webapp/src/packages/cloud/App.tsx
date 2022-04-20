@@ -67,6 +67,7 @@ const Services: React.FC = ({ children }) => (
 const App: React.FC = () => {
   return (
     <React.StrictMode>
+      <div>Parker Says Hi!</div>
       <StyleProvider>
         <I18NProvider>
           <StoreProvider>
