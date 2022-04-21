@@ -70,6 +70,7 @@ setup(
             "sphinx-rtd-theme~=1.0",
         ],
     },
+    data_files=[("airbyte-protocol", ["../../airbyte-protocol/models/src/main/resources/airbyte_protocol/airbyte_protocol.yaml"])],
     entry_points={
         "console_scripts": ["base-python=base_python.entrypoint:main"],
     },
