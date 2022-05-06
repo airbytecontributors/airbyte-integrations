@@ -129,6 +129,7 @@ export const useUpdateWorkspace = () => {
   return useMutation((workspace: Record<string, unknown>) => service.update(workspace), {
     onSuccess: (data) => {
       queryClient.setQueryData(workspaceKeys.detail(data.workspaceId), data);
+      queryClient.setQueryData(data.workspaceId, data);
     },
   });
 };
