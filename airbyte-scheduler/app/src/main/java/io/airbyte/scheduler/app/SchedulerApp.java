@@ -236,9 +236,6 @@ public class SchedulerApp {
     final Path workspaceRoot = configs.getWorkspaceRoot();
     LOGGER.info("workspaceRoot = " + workspaceRoot);
 
-    final String temporalHost = configs.getTemporalHost();
-    LOGGER.info("temporalHost = " + temporalHost);
-
     final DataSource configsDataSource = DataSourceFactory.create(configs.getConfigDatabaseUser(), configs.getConfigDatabasePassword(),
         DRIVER_CLASS_NAME, configs.getConfigDatabaseUrl());
 
@@ -286,7 +283,7 @@ public class SchedulerApp {
           configRepository,
           new WorkspaceHelper(configRepository, jobPersistence),
           TrackingClientSingleton.get());
-      final TemporalClient temporalClient = TemporalClient.production(temporalHost, workspaceRoot, configs);
+      final TemporalClient temporalClient = TemporalClient.production(configs);
 
       DogStatsDMetricSingleton.initialize(MetricEmittingApps.SCHEDULER, new DatadogClientConfiguration(configs));
 
