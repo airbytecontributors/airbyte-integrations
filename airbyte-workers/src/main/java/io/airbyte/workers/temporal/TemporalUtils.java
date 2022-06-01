@@ -72,6 +72,7 @@ public class TemporalUtils {
     return temporalService;
   }
 
+  // TODO consider making this private after the Temporal Cloud migration
   public static WorkflowServiceStubs createTemporalCloudService() {
     return createTemporalCloudService(
         configs.getTemporalCloudClientCert(),
@@ -80,8 +81,7 @@ public class TemporalUtils {
         configs.getTemporalCloudNamespace());
   }
 
-  @VisibleForTesting
-  public static WorkflowServiceStubs createTemporalCloudService(
+  private static WorkflowServiceStubs createTemporalCloudService(
                                                                 final String temporalCloudClientCert,
                                                                 final String temporalCloudClientKey,
                                                                 final String temporalHost,
@@ -106,10 +106,12 @@ public class TemporalUtils {
     }
   }
 
+  // TODO consider making this private after the Temporal Cloud migration
   public static WorkflowServiceStubs createTemporalAirbyteService() {
     return createTemporalAirbyteService(configs.getTemporalHost());
   }
 
+  // Public so that AcceptanceTests can call this with localhost input
   @VisibleForTesting
   public static WorkflowServiceStubs createTemporalAirbyteService(final String temporalHost) {
     final WorkflowServiceStubsOptions options = WorkflowServiceStubsOptions.newBuilder()
