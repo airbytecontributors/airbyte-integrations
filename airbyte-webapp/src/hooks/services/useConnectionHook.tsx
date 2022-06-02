@@ -11,6 +11,7 @@ import { equal } from "utils/objects";
 import { useConfig } from "../../config";
 import {
   ConnectionSchedule,
+  ConnectionState,
   DestinationRead,
   NamespaceDefinitionType,
   OperationCreate,
@@ -222,12 +223,21 @@ const useGetConnectionState = () => {
   return useMutation((connectionId: string) => service.getState(connectionId));
 };
 
+const useSetConnectionState = () => {
+  const service = useConnectionService();
+
+  return useMutation(({ connectionId, state }: { connectionId: string; state: ConnectionState }) =>
+    service.setState(connectionId, state)
+  );
+};
+
 export {
   useConnectionList,
   useGetConnection,
-  useGetConnectionState,
   useUpdateConnection,
   useCreateConnection,
   useDeleteConnection,
   invalidateConnectionsList,
+  useGetConnectionState,
+  useSetConnectionState,
 };
