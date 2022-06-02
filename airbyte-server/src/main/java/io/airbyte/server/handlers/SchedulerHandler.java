@@ -445,7 +445,7 @@ public class SchedulerHandler {
     return connectionState;
   }
 
-  public ConnectionState setState(final ConnectionUpdateStateBody connectionUpdateStateBody) throws IOException {
+  public ConnectionState updateState(final ConnectionUpdateStateBody connectionUpdateStateBody) throws IOException {
     final State state = new State();
     state.setState(connectionUpdateStateBody.getState());
     configRepository.updateConnectionState(connectionUpdateStateBody.getConnectionId(), state);

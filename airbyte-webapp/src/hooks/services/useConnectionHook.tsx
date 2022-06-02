@@ -223,11 +223,11 @@ const useGetConnectionState = () => {
   return useMutation((connectionId: string) => service.getState(connectionId));
 };
 
-const useSetConnectionState = () => {
+const useUpdateConnectionState = () => {
   const service = useConnectionService();
 
   return useMutation(({ connectionId, state }: { connectionId: string; state: ConnectionState }) =>
-    service.setState(connectionId, state)
+    service.updateState(connectionId, state)
   );
 };
 
@@ -239,5 +239,5 @@ export {
   useDeleteConnection,
   invalidateConnectionsList,
   useGetConnectionState,
-  useSetConnectionState,
+  useUpdateConnectionState,
 };
