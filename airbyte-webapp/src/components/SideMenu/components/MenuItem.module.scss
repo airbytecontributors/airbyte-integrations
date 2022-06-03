@@ -1,0 +1,33 @@
+@use "../../../scss/colors";
+
+.counter {
+  min-width: 12px;
+  height: 12px;
+  padding: 0 3px;
+  text-align: center;
+  border-radius: 15px;
+  background: colors.$dangerColor;
+  font-size: 8px;
+  line-height: 13px;
+  color: colors.$whiteColor;
+  display: inline-block;
+  margin-left: 5px;
+}
+
+.menuItem {
+  width: 100%;
+  padding: 6px 8px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-style: normal;
+  font-weight: bold;
+  font-size: 12px;
+  line-height: 15px;
+  color: colors.$greyColor60;
+
+  .active {
+    background: colors.$primaryColor12;
+    font-weight: 500;
+    color: colors.$primaryColor;
+  }
+}
