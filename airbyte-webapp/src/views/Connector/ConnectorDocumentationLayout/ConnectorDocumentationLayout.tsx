@@ -76,7 +76,7 @@ export const ConnectorDocumentationLayout: React.FC = ({ children }) => {
       {documentationPanelOpen && (
         <ReflexSplitter style={{ border: 0, background: "rgba(255, 165, 0, 0)" }}>
           <PanelGrabber>
-            <GrabberHandle icon={faGripLinesVertical} size={"1x"} />
+            <GrabberHandle icon={faGripLinesVertical} size="1x" />
           </PanelGrabber>
         </ReflexSplitter>
       )}

@@ -69,8 +69,8 @@ const SignupPage: React.FC = () => {
             }
           })
         }
-        validateOnBlur={true}
-        validateOnChange={true}
+        validateOnBlur
+        validateOnChange
       >
         {({ isValid, isSubmitting }) => (
           <Form>

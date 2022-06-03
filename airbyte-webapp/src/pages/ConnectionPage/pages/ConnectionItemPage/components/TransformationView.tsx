@@ -144,7 +144,7 @@ const TransformationView: React.FC<TransformationViewProps> = ({ connection }) =
       syncCatalog: connection.syncCatalog,
       connectionId: connection.connectionId,
       status: connection.status,
-      operations: operations,
+      operations,
     });
 
     const nextFormValues: typeof values = {};

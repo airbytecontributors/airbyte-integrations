@@ -157,7 +157,7 @@ export const StreamHeader: React.FC<StreamHeaderProps> = ({
               pathType={pkType}
               paths={paths}
               path={primaryKey}
-              isMulti={true}
+              isMulti
               placeholder={<FormattedMessage id="connectionForm.primaryKey.searchPlaceholder" />}
               onPathChange={onPrimaryKeyChange}
             />
