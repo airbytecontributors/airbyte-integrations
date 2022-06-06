@@ -1,0 +1,22 @@
+plugins {
+    id 'java'
+}
+
+group 'io.airbyte...'
+version '0.39.10-alpha'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':airbyte-integrations:bases:base-java')
+    implementation group: 'com.inception', name: 'bicycle-event-processor', version: '0.2.25502'
+    implementation group: 'com.inception', name: 'bicycle-event-publisher', version: '0.2.25502'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
+}
+
+test {
+    useJUnitPlatform()
+}
