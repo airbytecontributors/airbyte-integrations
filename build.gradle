@@ -9,6 +9,9 @@ buildscript {
     }
     dependencies {
         classpath 'com.bmuschko:gradle-docker-plugin:7.2.0'
+        classpath "gradle.plugin.com.google.cloud.artifactregistry:artifactregistry-gradle-plugin:2.1.1"
+        classpath "io.spring.gradle:dependency-management-plugin:1.0.11.RELEASE"
+        classpath "org.springframework.boot:spring-boot-gradle-plugin:2.4.7"
     }
 }
 
@@ -20,6 +23,7 @@ plugins {
     id 'com.github.spotbugs' version '5.0.6'
     id 'version-catalog'
     id 'maven-publish'
+    id 'com.google.cloud.artifactregistry.gradle-plugin' version '2.0.1'
 }
 
 apply from: "$rootDir/publish-repositories.gradle"
@@ -204,6 +208,13 @@ allprojects {
 
 allprojects {
     apply plugin: 'base'
+    apply plugin: "com.google.cloud.artifactregistry.gradle-plugin"
+  /*  apply plugin: "io.spring.dependency-management"
+    dependencyManagement {
+        imports {
+            mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
+        }
+    }*/
 
     // by default gradle uses directory as the project name. That works very well in a single project environment but
     // projects clobber each other in an environments with subprojects when projects are in directories named identically.
@@ -237,6 +248,12 @@ subprojects {
         }
         maven {
             url 'https://jitpack.io'
+        }
+        maven {
+            url "artifactregistry://us-west1-maven.pkg.dev/dev-pipeline-01/maven-repo"
+        }
+        maven {
+            url "gcs://inception-artifacts-9h2rf165k/maven-repo"
         }
     }
 

@@ -128,3 +128,8 @@ if (!System.getenv().containsKey("SUB_BUILD") || System.getenv().get("SUB_BUILD"
         }
     }
 }
+include 'bases'
+findProject(':bases')?.name = 'base-bicycle-integration'
+include 'airbyte-integrations:bases:base-bicycle-integration'
+findProject(':airbyte-integrations:bases:base-bicycle-integration')?.name = 'base-bicycle-integration'
+
