@@ -82,7 +82,7 @@
         "title": "Polling Time",
         "description": "Amount of time Kafka connector should try to poll for messages.",
         "type": "integer",
-        "default": 100
+        "default": 5000
       },
       "protocol": {
         "title": "Protocol",
@@ -161,6 +161,19 @@
                 "type": "string",
                 "default": "",
                 "airbyte_secret": true
+              },
+              "ssl_truststore_certificate_content": {
+                "title": "SSL Truststore Certificate Content",
+                "description": "Truststore Certificate for SSL/TLS connection as a base 64 encoded string.",
+                "type": "string",
+                "default": ""
+              },
+              "ssl_truststore_password": {
+                "title": "SSL Truststore Password",
+                "description": "Truststore Password for SSL/TLS connection",
+                "type": "string",
+                "default": "",
+                "airbyte_secret": true
               }
             }
           }
@@ -225,6 +238,30 @@
         "description": "The number of repeated calls to poll() if no messages were received.",
         "type": "integer",
         "default": 3
+      },
+      "reset_to_latest": {
+        "title": "Reset to Latest",
+        "description": "If true, the consumer's offset will be reset to latest.",
+        "type": "boolean",
+        "default": false
+      },
+      "fetch_min_bytes": {
+        "title": "Minimum Bytes Per Fetch, bytes",
+        "description": "The minimum amount of data the server should return for a fetch request.",
+        "type": "integer",
+        "default": 1048576
+      },
+      "fetch_max_wait_ms": {
+        "title": "Maximum Wait Time Per Fetch, ms",
+        "description": "The maximum amount of data the server should return for a fetch request.",
+        "type": "integer",
+        "default": 500
+      },
+      "max_partition_fetch_bytes": {
+        "title": "Max Partition Per Fetch, bytes",
+        "description": "The maximum amount of data per-partition the server will return.",
+        "type": "integer",
+        "default": 1048576
       }
     }
   }
