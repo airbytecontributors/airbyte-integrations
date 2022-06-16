@@ -33,7 +33,10 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private BicycleEventPublisher bicycleEventPublisher;
     private BicycleConfig bicycleConfig;
 
-    public BaseEventConnector(BicycleConfig bicycleConfig) {
+    public BaseEventConnector() {
+
+    }
+    public void setBicycleEventProcessor(BicycleConfig bicycleConfig) {
         this.bicycleConfig = bicycleConfig;
         ConfigStoreClient configStoreClient = getConfigClient(bicycleConfig);
         this.bicycleEventProcessor = new BicycleEventProcessorImpl(configStoreClient);
@@ -64,9 +67,11 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         };
     }
 
-    protected BicycleEventsResult convertRecordsToBicycleEvents(AuthInfo authInfo,
-                                                                EventSourceInfo eventSourceInfo,
-                                                                List<RawEvent> rawEvents) {
+    protected abstract List<RawEvent> convertRecordsToRawEvents(List<?> records);
+
+    public BicycleEventsResult convertRawEventsToBicycleEvents(AuthInfo authInfo,
+                                                               EventSourceInfo eventSourceInfo,
+                                                               List<RawEvent> rawEvents) {
 
         BicycleEventsResult bicycleEventsResult =
                 bicycleEventProcessor.processEventsForPipeline(authInfo, eventSourceInfo, rawEvents);
@@ -75,8 +80,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     }
 
-    protected boolean publishEvents(AuthInfo authInfo, EventSourceInfo eventSourceInfo,
-                                    BicycleEventsResult bicycleEventsResult) {
+    public boolean publishEvents(AuthInfo authInfo, EventSourceInfo eventSourceInfo,
+                                 BicycleEventsResult bicycleEventsResult) {
 
         if (bicycleEventsResult == null) {
             return true;
