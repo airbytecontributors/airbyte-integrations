@@ -87,15 +87,18 @@
         "description": "Timestamp range for querying",
         "properties":  {
           "timeField": {
+            "title": "Time Field",
             "type": "string",
             "description": "Field on which to query"
           },
           "from": {
+            "title": "From",
             "type": "string",
             "format": "date-time",
             "description": "Begin time in ISO 8601 format of YYYY-MM- DDThh:mm:ssZ in UTC time."
           },
           "to": {
+            "title": "To",
             "type": "string",
             "format": "date-time",
             "description": "Begin time in ISO 8601 format of YYYY-MM- DDThh:mm:ssZ in UTC time."
