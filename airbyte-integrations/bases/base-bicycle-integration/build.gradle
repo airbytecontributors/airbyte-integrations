@@ -11,6 +11,7 @@ repositories {
 
 dependencies {
     implementation project(':airbyte-integrations:bases:base-java')
+    implementation project(':airbyte-protocol:models')
     implementation group: 'com.inception', name: 'bicycle-event-processor', version: '0.2.25502'
     implementation group: 'com.inception', name: 'bicycle-event-publisher', version: '0.2.25502'
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
