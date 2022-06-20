@@ -14,6 +14,8 @@ dependencies {
     implementation project(':airbyte-protocol:models')
     implementation project(':airbyte-integrations:bases:base-java')
     implementation files(project(':airbyte-integrations:bases:base-java').airbyteDocker.outputs)
+    implementation group: 'com.inception', name: 'bicycle-event-processor', version: '0.2.25502'
+    implementation project(':airbyte-integrations:bases:base-bicycle-integration')
 
     implementation 'co.elastic.clients:elasticsearch-java:7.15.0'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.12.3'

@@ -76,6 +76,31 @@
             }
           }
         ]
+      },
+      "connectorType": {
+        "title": "Type of connector: entity or event",
+        "enum": ["entity", "event"],
+        "default": "event"
+      },
+      "timeRange": {
+        "type": "object",
+        "description": "Timestamp range for querying",
+        "properties":  {
+          "timeField": {
+            "type": "string",
+            "description": "Field on which to query"
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Begin time in ISO 8601 format of YYYY-MM- DDThh:mm:ssZ in UTC time."
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Begin time in ISO 8601 format of YYYY-MM- DDThh:mm:ssZ in UTC time."
+          }
+        }
       }
     }
   }

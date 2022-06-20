@@ -25,12 +25,13 @@ import org.elasticsearch.client.indices.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import static io.airbyte.integrations.source.elasticsearch.ElasticsearchConstants.*;
 
 
 /**
@@ -39,7 +40,7 @@ import org.slf4j.LoggerFactory;
 public class ElasticsearchConnection {
 
     // this is the max number of hits we can query without paging
-    private static final int MAX_HITS = 500;
+    private static final int MAX_HITS = 10000;
     private static final Logger log = LoggerFactory.getLogger(ElasticsearchConnection.class);
     private final RestHighLevelClient client;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -177,12 +178,24 @@ public class ElasticsearchConnection {
      * @return list of documents
      * @throws IOException throws IOException if Elasticsearch request fails
      */
-    public List<JsonNode> getRecords(String index) throws IOException {
+    public List<JsonNode> getRecords(final String index, final JsonNode timeRange) throws IOException {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        // check performance
+        searchSourceBuilder.size(MAX_HITS);
+        if(timeRange==null) {
+            searchSourceBuilder.query(QueryBuilders.matchAllQuery());
+        }
+        else {
+            String timeField = timeRange.has(TIME_FIELD)? timeRange.get(TIME_FIELD).textValue(): ES_DEFAULT_TIME_FIELD;
+            String to = timeRange.has(TO)? timeRange.get(TO).textValue() : NOW;
+            String from = timeRange.has(FROM)? timeRange.get(FROM).textValue() : null;
+            RangeQueryBuilder rangeQueryBuilder = QueryBuilders.rangeQuery(timeField).to(to).from(from);
+            searchSourceBuilder.query(rangeQueryBuilder);
+        }
+
         final Scroll scroll = new Scroll(TimeValue.timeValueMinutes(1L));
         SearchRequest searchRequest = new SearchRequest(index);
         searchRequest.scroll(scroll);
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.query(QueryBuilders.matchAllQuery());
         searchRequest.source(searchSourceBuilder);
 
         SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
@@ -196,10 +209,10 @@ public class ElasticsearchConnection {
             scrollRequest.scroll(scroll);
             searchResponse = client.scroll(scrollRequest, RequestOptions.DEFAULT);
             scrollId = searchResponse.getScrollId();
-            searchHits = searchResponse.getHits().getHits();
             for (SearchHit hit : searchHits) {
                 data.add(mapper.convertValue(hit, JsonNode.class).get("sourceAsMap"));
             }
+            searchHits = searchResponse.getHits().getHits();
         }
 
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
@@ -208,10 +221,10 @@ public class ElasticsearchConnection {
         boolean succeeded = clearScrollResponse.isSucceeded();
         if(succeeded) {
             log.info("scroll response cleared successfully");
-        }else {
+        } else {
             log.error("failed to clear scroll response");
         }
-
+        log.info("{} RECORDS returned", data.size());
         return data;
     }
 

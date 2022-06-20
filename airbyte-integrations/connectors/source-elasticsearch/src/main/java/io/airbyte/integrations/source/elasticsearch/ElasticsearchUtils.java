@@ -12,10 +12,13 @@ import java.util.List;
 
 public class ElasticsearchUtils {
     public static AutoCloseableIterator<JsonNode> getDataIterator(final ElasticsearchConnection connection,
-                                                            final AirbyteStream stream) {
+                                                            final AirbyteStream stream, final JsonNode timeRange) {
         return AutoCloseableIterators.lazyIterator(() -> {
             try {
-                List<JsonNode> data = connection.getRecords(stream.getName());
+//                long start1 = System.currentTimeMillis();
+                List<JsonNode> data = connection.getRecords(stream.getName(), timeRange);
+//                long end1 = System.currentTimeMillis();
+//                LoggerFactory.getLogger(ElasticsearchSource.class).info("GET_RECORDS TIME ELAPSED in millis: {}", end1-start1);
                 return AutoCloseableIterators.fromIterator(data.iterator());
             } catch (final Exception e) {
                 throw new RuntimeException(e);
