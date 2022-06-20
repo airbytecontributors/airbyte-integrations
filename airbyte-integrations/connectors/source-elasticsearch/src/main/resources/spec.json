@@ -89,7 +89,8 @@
           "timeField": {
             "title": "Time Field",
             "type": "string",
-            "description": "Field on which to query"
+            "description": "Field on which to query",
+            "default": "@timestamp"
           },
           "from": {
             "title": "From",
