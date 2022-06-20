@@ -79,6 +79,7 @@
       },
       "connectorType": {
         "title": "Type of connector: entity or event",
+        "type":  "string",
         "enum": ["entity", "event"],
         "default": "event"
       },
