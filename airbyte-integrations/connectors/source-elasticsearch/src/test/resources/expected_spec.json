@@ -1,102 +1,109 @@
 {
-  "documentationUrl": "https://docs.airbyte.io/integrations/sources/e2e-test",
+  "documentationUrl": "https://docs.airbyte.io/integrations/source/elasticsearch",
   "connectionSpecification": {
     "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "Cloud E2E Test Source Spec",
+    "title": "Elasticsearch Connection Configuration",
     "type": "object",
-    "required": ["max_messages", "mock_catalog"],
+    "required": ["endpoint"],
     "additionalProperties": false,
     "properties": {
-      "type": {
+      "endpoint": {
+        "title": "Server Endpoint",
         "type": "string",
-        "const": "CONTINUOUS_FEED",
-        "default": "CONTINUOUS_FEED",
-        "order": 10
+        "description": "The full url of the Elasticsearch server"
       },
-      "max_messages": {
-        "title": "Max Records",
-        "description": "Number of records to emit per stream. Min 1. Max 100 billion.",
-        "type": "integer",
-        "default": 100,
-        "min": 1,
-        "max": 100000000000,
-        "order": 20
-      },
-      "seed": {
-        "title": "Random Seed",
-        "description": "When the seed is unspecified, the current time millis will be used as the seed. Range: [0, 1000000].",
-        "type": "integer",
-        "default": 0,
-        "examples": [42],
-        "min": 0,
-        "max": 1000000,
-        "order": 30
-      },
-      "message_interval_ms": {
-        "title": "Message Interval (ms)",
-        "description": "Interval between messages in ms. Min 0 ms. Max 60000 ms (1 minute).",
-        "type": "integer",
-        "min": 0,
-        "max": 60000,
-        "default": 0,
-        "order": 40
-      },
-      "mock_catalog": {
-        "title": "Mock Catalog",
+      "authenticationMethod": {
+        "title": "Authentication Method",
         "type": "object",
-        "order": 50,
+        "description": "The type of authentication to be used",
         "oneOf": [
           {
-            "title": "Single Schema",
-            "description": "A catalog with one or multiple streams that share the same schema.",
-            "required": ["type", "stream_name", "stream_schema"],
+            "title": "None",
+            "additionalProperties": false,
+            "description": "No authentication will be used",
+            "required": ["method"],
             "properties": {
-              "type": {
+              "method": {
                 "type": "string",
-                "const": "SINGLE_STREAM",
-                "default": "SINGLE_STREAM"
-              },
-              "stream_name": {
-                "title": "Stream Name",
-                "description": "Name of the data stream.",
-                "type": "string",
-                "default": "data_stream"
-              },
-              "stream_schema": {
-                "title": "Stream Schema",
-                "description": "A Json schema for the stream. The schema should be compatible with <a href=\"https://json-schema.org/draft-07/json-schema-release-notes.html\">draft-07</a>. See <a href=\"https://cswr.github.io/JsonSchema/spec/introduction/\">this doc</a> for examples.",
-                "type": "string",
-                "default": "{ \"type\": \"object\", \"properties\": { \"column1\": { \"type\": \"string\" } } }"
-              },
-              "stream_duplication": {
-                "title": "Duplicate the stream N times",
-                "description": "Duplicate the stream for easy load testing. Each stream name will have a number suffix. For example, if the stream name is \"ds\", the duplicated streams will be \"ds_0\", \"ds_1\", etc.",
-                "type": "integer",
-                "default": 1,
-                "min": 1,
-                "max": 10000
+                "const": "none"
               }
             }
           },
           {
-            "title": "Multi Schema",
-            "description": "A catalog with multiple data streams, each with a different schema.",
-            "required": ["type", "stream_schemas"],
+            "title": "Api Key/Secret",
+            "additionalProperties": false,
+            "description": "Use a api key and secret combination to authenticate",
+            "required": ["method", "apiKeyId", "apiKeySecret"],
             "properties": {
-              "type": {
+              "method": {
                 "type": "string",
-                "const": "MULTI_STREAM",
-                "default": "MULTI_STREAM"
+                "const": "secret"
               },
-              "stream_schemas": {
-                "title": "Streams and Schemas",
-                "description": "A Json object specifying multiple data streams and their schemas. Each key in this object is one stream name. Each value is the schema for that stream. The schema should be compatible with <a href=\"https://json-schema.org/draft-07/json-schema-release-notes.html\">draft-07</a>. See <a href=\"https://cswr.github.io/JsonSchema/spec/introduction/\">this doc</a> for examples.",
+              "apiKeyId": {
+                "title": "API Key ID",
+                "description": "The Key ID to used when accessing an enterprise Elasticsearch instance.",
+                "type": "string"
+              },
+              "apiKeySecret": {
+                "title": "API Key Secret",
+                "description": "The secret associated with the API Key ID.",
                 "type": "string",
-                "default": "{ \"stream1\": { \"type\": \"object\", \"properties\": { \"field1\": { \"type\": \"string\" } } }, \"stream2\": { \"type\": \"object\", \"properties\": { \"field1\": { \"type\": \"boolean\" } } } }"
+                "airbyte_secret": true
+              }
+            }
+          },
+          {
+            "title": "Username/Password",
+            "additionalProperties": false,
+            "description": "Basic auth header with a username and password",
+            "required": ["method", "username", "password"],
+            "properties": {
+              "method": {
+                "type": "string",
+                "const": "basic"
+              },
+              "username": {
+                "title": "Username",
+                "description": "Basic auth username to access a secure Elasticsearch server",
+                "type": "string"
+              },
+              "password": {
+                "title": "Password",
+                "description": "Basic auth password to access a secure Elasticsearch server",
+                "type": "string",
+                "airbyte_secret": true
               }
             }
           }
         ]
+      },
+      "connectorType": {
+        "title": "Type of connector: entity or event",
+        "enum": ["entity", "event"],
+        "default": "event"
+      },
+      "timeRange": {
+        "type": "object",
+        "description": "Timestamp range for querying",
+        "properties":  {
+          "timeField": {
+            "title": "Time Field",
+            "type": "string",
+            "description": "Field on which to query"
+          },
+          "from": {
+            "title": "From",
+            "type": "string",
+            "format": "date-time",
+            "description": "Begin time in ISO 8601 format of YYYY-MM- DDThh:mm:ssZ in UTC time."
+          },
+          "to": {
+            "title": "To",
+            "type": "string",
+            "format": "date-time",
+            "description": "Begin time in ISO 8601 format of YYYY-MM- DDThh:mm:ssZ in UTC time."
+          }
+        }
       }
     }
   }

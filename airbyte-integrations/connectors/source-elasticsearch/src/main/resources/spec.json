@@ -79,7 +79,6 @@
       },
       "connectorType": {
         "title": "Type of connector: entity or event",
-        "type":  "string",
         "enum": ["entity", "event"],
         "default": "event"
       },
@@ -90,8 +89,7 @@
           "timeField": {
             "title": "Time Field",
             "type": "string",
-            "description": "Field on which to query",
-            "default": "@timestamp"
+            "description": "Field on which to query"
           },
           "from": {
             "title": "From",
