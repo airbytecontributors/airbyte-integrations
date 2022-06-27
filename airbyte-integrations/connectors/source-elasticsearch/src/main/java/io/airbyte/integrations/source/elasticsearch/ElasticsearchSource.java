@@ -78,11 +78,20 @@ public class ElasticsearchSource extends BaseEventConnector {
 
         for(var index: indices) {
             JsonNode JSONSchema = mappingsNode.get(index).get("sourceAsMap");
+            Set<String> timestampCandidates = getTimestampCandidateField(JSONSchema.get("properties"));
+            LOGGER.info("Following fields can be used for timestamp queries: {}. @timestamp is recommended by default.", timestampCandidates);
             JsonNode formattedJSONSchema = formatJSONSchema(JSONSchema);
             AirbyteStream stream = new AirbyteStream();
-            stream.setSupportedSyncModes(List.of(SyncMode.FULL_REFRESH));
+            stream.setSupportedSyncModes(List.of(SyncMode.FULL_REFRESH, SyncMode.INCREMENTAL));
             stream.setName(index);
             stream.setJsonSchema(formattedJSONSchema);
+            if(timestampCandidates.contains("@timestamp")) {
+                stream.setSourceDefinedCursor(true);
+                stream.setDefaultCursorField(List.of("@timestamp"));
+            }
+            else {
+                stream.setSourceDefinedCursor(false);
+            }
             streams.add(stream);
         }
         try {
@@ -196,7 +205,7 @@ public class ElasticsearchSource extends BaseEventConnector {
 
     }
 
-    protected List<RawEvent> convertRecordsToRawEvents(List<?> records) {
+    public List<RawEvent> convertRecordsToRawEvents(List<?> records) {
         Iterator<?> recordsIterator = (Iterator<?>) records.iterator();
         List<RawEvent> rawEvents = new ArrayList<>();
         while (recordsIterator.hasNext()) {
@@ -210,17 +219,30 @@ public class ElasticsearchSource extends BaseEventConnector {
         return rawEvents;
     }
 
+    @Override
+    public AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) {
+        final ConnectorConfiguration configObject = convertConfig(config);
+        final ElasticsearchConnection connection = new ElasticsearchConnection(configObject);
+        final AirbyteConnectionStatus check = check(config);
+        if (check.getStatus().equals(AirbyteConnectionStatus.Status.FAILED)) {
+            throw new RuntimeException("Unable to establish a connection: " + check.getMessage());
+        }
+        return readEntity(config, catalog, state, connection);
+    }
+
     private JsonNode updateTimeRange(JsonNode timeRange, final String lastEnd) {
         if(timeRange!=null) {
+            ((ObjectNode)timeRange).put("method", "custom");
             ((ObjectNode)timeRange).put(FROM, lastEnd);
-            ((ObjectNode)timeRange).put(TO, "now");
+            ((ObjectNode)timeRange).put(TO, NOW);
             return timeRange;
         }
         else {
             Map<String, String> tr = new HashMap<>() {{
+                put("method", "custom");
                 put(TIME_FIELD, "@timestamp");
                 put(FROM, lastEnd);
-                put(TO, "now");
+                put(TO, NOW);
             }};
             return mapper.convertValue(tr, JsonNode.class);
         }

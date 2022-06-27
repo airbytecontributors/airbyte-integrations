@@ -5,15 +5,20 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeType;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.airbyte.integrations.source.elasticsearch.ElasticsearchSource;
 import io.airbyte.integrations.source.elasticsearch.UnsupportedDatatypeException;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.logging.Logger;
 
 import static io.airbyte.integrations.source.elasticsearch.ElasticsearchInclusions.KEEP_LIST;
 import static java.util.Map.entry;
 
 public class ElasticsearchTypeMapper {
+    private static final org.slf4j.Logger LOGGER = LoggerFactory.getLogger(ElasticsearchTypeMapper.class);
     private static final ObjectMapper mapper = new ObjectMapper();
+    private static final Set<String> timestampCandidateTypes =  new HashSet<>(List.of("date", "date_nanos"));
 
     /*
     Mapping from elasticsearch to Airbyte types
@@ -141,6 +146,24 @@ public class ElasticsearchTypeMapper {
             }
         }
         return node;
+    }
+
+    public static Set<String> getTimestampCandidateField(final JsonNode node) {
+        Set<String> candidateFields = new HashSet<>();
+        Iterator<String> iterator = node.fieldNames();
+
+        iterator.forEachRemaining(fieldName -> {
+            LOGGER.info("Fieldname {}", fieldName);
+            LOGGER.info("Type {}", node.get(fieldName).path("type").textValue());
+            if(fieldName.equals("@timestamp")) {
+                candidateFields.add(fieldName);
+            }
+            else if(timestampCandidateTypes.contains(node.get(fieldName).path("type").textValue())) {
+                candidateFields.add(fieldName);
+            }
+
+        });
+        return candidateFields;
     }
 
     private static void retainAirbyteFieldsOnly(JsonNode jsonNode) {

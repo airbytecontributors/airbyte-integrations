@@ -80,30 +80,58 @@
       "connectorType": {
         "title": "Type of connector: entity or event",
         "enum": ["entity", "event"],
+        "type": "string",
         "default": "event"
       },
       "timeRange": {
+        "title": "Time Range",
         "type": "object",
         "description": "Timestamp range for querying",
-        "properties":  {
-          "timeField": {
-            "title": "Time Field",
-            "type": "string",
-            "description": "Field on which to query"
+        "oneOf": [
+          {
+            "title": "All",
+            "additionalProperties": false,
+            "description": "Get all data upto now",
+            "required": ["method"],
+            "properties": {
+              "method": {
+                "type": "string",
+                "const": "all"
+              }
+            }
           },
-          "from": {
-            "title": "From",
-            "type": "string",
-            "format": "date-time",
-            "description": "Begin time in ISO 8601 format of YYYY-MM- DDThh:mm:ssZ in UTC time."
-          },
-          "to": {
-            "title": "To",
-            "type": "string",
-            "format": "date-time",
-            "description": "Begin time in ISO 8601 format of YYYY-MM- DDThh:mm:ssZ in UTC time."
+          {
+            "title": "Custom",
+            "additionalProperties": false,
+            "description": "Create a custom time range query",
+            "required": ["method"],
+            "properties":  {
+              "method": {
+                "type": "string",
+                "const": "custom"
+              },
+              "timeField": {
+                "title": "Time Field",
+                "type": "string",
+                "description": "Field on which to query",
+                "default": "@timestamp"
+              },
+              "from": {
+                "title": "From",
+                "type": "string",
+                "format": "date-time",
+                "description": "Begin time in ISO 8601 format of YYYY-MM- DDThh:mm:ssZ in UTC time"
+              },
+              "to": {
+                "title": "To",
+                "type": "string",
+                "format": "date-time",
+                "description": "Begin time in ISO 8601 format of YYYY-MM- DDThh:mm:ssZ in UTC time",
+                "default": "now"
+              }
+            }
           }
-        }
+        ]
       }
     }
   }

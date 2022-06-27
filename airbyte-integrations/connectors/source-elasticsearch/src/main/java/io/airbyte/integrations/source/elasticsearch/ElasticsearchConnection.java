@@ -182,15 +182,15 @@ public class ElasticsearchConnection {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         // check performance
         searchSourceBuilder.size(MAX_HITS);
-        if(timeRange==null) {
-            searchSourceBuilder.query(QueryBuilders.matchAllQuery());
-        }
-        else {
+        if(timeRange!=null && timeRange.has("method") && timeRange.get("method").textValue().equals("custom")) {
             String timeField = timeRange.has(TIME_FIELD)? timeRange.get(TIME_FIELD).textValue(): ES_DEFAULT_TIME_FIELD;
             String to = timeRange.has(TO)? timeRange.get(TO).textValue() : NOW;
             String from = timeRange.has(FROM)? timeRange.get(FROM).textValue() : null;
             RangeQueryBuilder rangeQueryBuilder = QueryBuilders.rangeQuery(timeField).to(to).from(from);
             searchSourceBuilder.query(rangeQueryBuilder);
+        }
+        else {
+            searchSourceBuilder.query(QueryBuilders.matchAllQuery());
         }
 
         final Scroll scroll = new Scroll(TimeValue.timeValueMinutes(1L));
