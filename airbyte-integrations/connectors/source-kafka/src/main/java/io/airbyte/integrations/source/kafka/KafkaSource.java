@@ -6,16 +6,23 @@ package io.airbyte.integrations.source.kafka;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Lists;
 import io.airbyte.commons.util.AutoCloseableIterator;
+import io.airbyte.commons.util.AutoCloseableIterators;
+import io.airbyte.integrations.base.Command;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
 import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.base.Source;
 import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
+import io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator;
 import io.airbyte.protocol.models.*;
 import io.airbyte.protocol.models.AirbyteConnectionStatus.Status;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -27,6 +34,7 @@ import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,11 +45,8 @@ public class KafkaSource extends BaseEventConnector {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaSource.class);
   private static boolean setBicycleEventProcessorFlag=false;
-  public static final String TRUST_STORE_LOCATION = "trust_store_location";
-  public static final String TRUST_STORE_PASSWORD = "trust_store_password";
   public static final String STREAM_NAME = "stream_name";
-  private static final String CONSUMER_THREADS_DEFAULT_VALUE = "2";
-  private static final String CONSUMER_THREADS = "INCEPTION_CONSUMER_THREADS";
+  private static final int CONSUMER_THREADS_DEFAULT_VALUE = 2;
   private static final Map<String, Map<String, Long>> consumerToTopicPartitionRecordsRead = new HashMap<>();
 
   public KafkaSource() {
@@ -86,7 +91,7 @@ public class KafkaSource extends BaseEventConnector {
 
   @Override
   public AutoCloseableIterator<AirbyteMessage> read(final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state) {
-    int numberOfConsumers =config.has("consumer_threads") ? config.get("consumer_threads").asInt(): 2;
+    int numberOfConsumers = config.has("bicycle_consumer_threads") ? config.get("bicycle_consumer_threads").asInt(): CONSUMER_THREADS_DEFAULT_VALUE;
     int threadPoolSize = numberOfConsumers + 3;
     ScheduledExecutorService ses = Executors.newScheduledThreadPool(threadPoolSize);
 
@@ -99,17 +104,20 @@ public class KafkaSource extends BaseEventConnector {
     String uniqueIdentifier = UUID.randomUUID().toString();
     String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
     String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
-    String eventSourceType= additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : "";
+    String eventSourceType= additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : "EVENT";
 
     BicycleConfig bicycleConfig = new BicycleConfig(serverURL, token, connectorId, uniqueIdentifier);
     if (!setBicycleEventProcessorFlag) {
       setBicycleEventProcessor(bicycleConfig);
+      setBicycleEventProcessorFlag=true;
     }
     BicycleAuthInfo authInfo = new BicycleAuthInfo(bicycleConfig.getToken(), TENANT_ID);
     EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
+    MetricAsEventsGenerator metricAsEventsGenerator = new KafkaMetricAsEventsGenerator(bicycleConfig, authInfo,
+            eventSourceInfo, config, this);
 
     try {
-//      ses.scheduleAtFixedRate(metricAsEventsGenerator, 60, 300, TimeUnit.SECONDS);
+      ses.scheduleAtFixedRate(metricAsEventsGenerator, 60, 300, TimeUnit.SECONDS);
       for (int i = 0; i < numberOfConsumers; i++) {
         Map<String, Long> totalRecordsRead = new HashMap<>();
         String consumerThreadId = UUID.randomUUID().toString();
@@ -125,7 +133,7 @@ public class KafkaSource extends BaseEventConnector {
   }
 
   @Override
-  protected List<RawEvent> convertRecordsToRawEvents(List<?> records) {
+  public List<RawEvent> convertRecordsToRawEvents(List<?> records) {
     Iterator<ConsumerRecord<String, JsonNode>> recordsIterator = (Iterator<ConsumerRecord<String, JsonNode>>) records.iterator();
     List<RawEvent> rawEvents = new ArrayList<>();
     while (recordsIterator.hasNext()) {
@@ -137,6 +145,75 @@ public class KafkaSource extends BaseEventConnector {
       return null;
     }
     return rawEvents;
+  }
+
+  @Override
+  public AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) {
+    final AirbyteConnectionStatus check = check(config);
+    if (check.getStatus().equals(AirbyteConnectionStatus.Status.FAILED)) {
+      throw new RuntimeException("Unable establish a connection: " + check.getMessage());
+    }
+    ConfiguredAirbyteStream configuredAirbyteStream = (ConfiguredAirbyteStream)catalog.getStreams().get(0);
+    ((ObjectNode)config).put("stream_name", configuredAirbyteStream.getStream().getName());
+
+    final KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(),config);
+    final KafkaConsumer<String, JsonNode> consumer = kafkaSourceConfig.getConsumer(Command.READ);
+    final List<ConsumerRecord<String, JsonNode>> recordsList = new ArrayList<>();
+
+    final int retry = config.has("repeated_calls") ? config.get("repeated_calls").intValue() : 0;
+    int pollCount = 0;
+    int pollingTime = config.has("polling_time") ? config.get("polling_time").intValue() : 5000;
+    String groupId = (config.has("group_id") ? config.get("group_id").asText() : null);
+    while (true) {
+      try {
+        final ConsumerRecords<String, JsonNode> consumerRecords = consumer.poll(Duration.of(pollingTime, ChronoUnit.MILLIS));
+        if (consumerRecords.count() == 0) {
+          pollCount++;
+          if (pollCount > retry) {
+            LOGGER.info("Failed to fetch any consumer record for group id " + groupId);
+            break;
+          }
+        } else {
+          LOGGER.info("Consumer Record count " + consumerRecords.count() + " for group id " + groupId);
+          consumerRecords.forEach(record -> {
+            LOGGER.info("Consumer Record: key - {}, value - {}, partition - {}, offset - {}",
+                    record.key(), record.value(), record.partition(), record.offset());
+            recordsList.add(record);
+          });
+          consumer.commitAsync();
+          break;
+        }
+      } catch (Exception e) {
+        LOGGER.error("Exception occurred for group id " + groupId + " while fetching consumer records. Error Message: " + e.getMessage(), e);
+        break;
+      }
+    }
+
+    consumer.close();
+    final Iterator<ConsumerRecord<String, JsonNode>> iterator = recordsList.iterator();
+
+    return AutoCloseableIterators.fromIterator(new AbstractIterator<>() {
+
+      @Override
+      protected AirbyteMessage computeNext() {
+        if (iterator.hasNext()) {
+          final ConsumerRecord<String, JsonNode> record = iterator.next();
+          return new AirbyteMessage()
+                  .withType(AirbyteMessage.Type.RECORD)
+                  .withRecord(new AirbyteRecordMessage()
+                          .withStream(record.topic())
+                          .withEmittedAt(Instant.now().toEpochMilli())
+                          .withData(record.value()));
+        }
+
+        return endOfData();
+      }
+
+    });
+  }
+
+  public static Map<String, Map<String, Long>> getTopicPartitionRecordsRead() {
+    return consumerToTopicPartitionRecordsRead;
   }
 
   public static void main(final String[] args) throws Exception {

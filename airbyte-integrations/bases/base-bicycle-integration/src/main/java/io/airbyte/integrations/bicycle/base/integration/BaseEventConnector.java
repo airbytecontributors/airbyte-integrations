@@ -1,5 +1,6 @@
 package io.airbyte.integrations.bicycle.base.integration;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.inception.common.client.ServiceLocator;
 import com.inception.common.client.impl.GenericApiClient;
 import com.inception.server.auth.model.AuthInfo;
@@ -9,8 +10,11 @@ import com.inception.server.config.api.ConfigNotFoundException;
 import com.inception.server.config.api.ConfigStoreException;
 import com.inception.server.configstore.client.ConfigStoreAPIClient;
 import com.inception.server.configstore.client.ConfigStoreClient;
+import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.BaseConnector;
 import io.airbyte.integrations.base.Source;
+import io.airbyte.protocol.models.AirbyteMessage;
+import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.event.processor.api.BicycleEventProcessor;
 import io.bicycle.event.processor.impl.BicycleEventProcessorImpl;
 import io.bicycle.event.publisher.api.BicycleEventPublisher;
@@ -67,7 +71,9 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         };
     }
 
-    protected abstract List<RawEvent> convertRecordsToRawEvents(List<?> records);
+    public abstract List<RawEvent> convertRecordsToRawEvents(List<?> records);
+
+    public abstract AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state);
 
     public BicycleEventsResult convertRawEventsToBicycleEvents(AuthInfo authInfo,
                                                                EventSourceInfo eventSourceInfo,
