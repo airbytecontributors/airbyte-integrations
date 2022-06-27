@@ -82,7 +82,7 @@
         "title": "Polling Time",
         "description": "Amount of time Kafka connector should try to poll for messages.",
         "type": "integer",
-        "default": 100
+        "default": 5000
       },
       "protocol": {
         "title": "Protocol",
@@ -161,6 +161,19 @@
                 "type": "string",
                 "default": "",
                 "airbyte_secret": true
+              },
+              "ssl_truststore_certificate_content": {
+                "title": "SSL Truststore Certificate Content",
+                "description": "Truststore Certificate for SSL/TLS connection as a base 64 encoded string.",
+                "type": "string",
+                "default": ""
+              },
+              "ssl_truststore_password": {
+                "title": "SSL Truststore Password",
+                "description": "Truststore Password for SSL/TLS connection",
+                "type": "string",
+                "default": "",
+                "airbyte_secret": true
               }
             }
           }
@@ -176,7 +189,7 @@
         "title": "Enable Auto Commit",
         "description": "If true, the consumer's offset will be periodically committed in the background.",
         "type": "boolean",
-        "default": true
+        "default": false
       },
       "auto_commit_interval_ms": {
         "title": "Auto Commit Interval, ms",
@@ -225,6 +238,89 @@
         "description": "The number of repeated calls to poll() if no messages were received.",
         "type": "integer",
         "default": 3
+      },
+      "reset_to_earliest": {
+        "title": "Reset to Earliest",
+        "description": "If true, the consumer's offset will be reset to earliest.",
+        "type": "boolean",
+        "default": false
+      },
+      "fetch_min_bytes": {
+        "title": "Minimum Bytes Per Fetch, bytes",
+        "description": "The minimum amount of data the server should return for a fetch request.",
+        "type": "integer",
+        "default": 1048576
+      },
+      "fetch_max_wait_ms": {
+        "title": "Maximum Wait Time Per Fetch, ms",
+        "description": "The maximum amount of data the server should return for a fetch request.",
+        "type": "integer",
+        "default": 500
+      },
+      "max_partition_fetch_bytes": {
+        "title": "Max Partition Per Fetch, bytes",
+        "description": "The maximum amount of data per-partition the server will return.",
+        "type": "integer",
+        "default": 1048576
+      },
+      "default_api_timeout_ms": {
+        "title": "Default Api Timeout",
+        "description": "This field Specifies the timeout (in milliseconds) for client APIs .",
+        "type": "integer",
+        "default": 60000
+      },
+      "fetch_max_bytes": {
+        "title": "Maximum Bytes Per Fetch, bytes",
+        "description": "The maximum amount of data the server should return for a fetch request.",
+        "type": "integer",
+        "default": 52428800
+      },
+      "send_buffer_bytes": {
+        "title": "Size of Send Buffer",
+        "description": "The size of the TCP send buffer (SO_SNDBUF) to use when sending data. If the value is -1, the OS default will be used.",
+        "type": "integer",
+        "default": 131072
+      },
+      "schema.registry.url": {
+        "title": "Schema Registry URL",
+        "description": "The URL for Schema Registry.",
+        "type": "string"
+      },
+      "basic.auth.credentials.source": {
+        "title": "Basic Auth Credentials Source",
+        "description": "Basic Auth Credentials Source",
+        "type": "string",
+        "default": "USER_INFO"
+      },
+      "basic.auth.user.info": {
+        "title": "Basic Auth User Info",
+        "description": "Basic Auth User Info",
+        "type": "string",
+        "airbyte_secret": true
+      },
+      "heartbeat.interval.ms": {
+        "title": "Heartbeat Interval, ms",
+        "description": "The expected time between heartbeats to the consumer coordinator when using Kafka's group management facilities.",
+        "type": "integer",
+        "default": 3000
+      },
+      "max.poll.interval.ms": {
+        "title": "Max Poll Interval, ms",
+        "description": "The maximum delay between invocations of poll() when using consumer group management. ",
+        "type": "string",
+        "default": 300000
+      },
+      "bicycle_consumer_threads": {
+        "title": "Bicycle Consumer Threads",
+        "description": "The number of Kafka Consumer Threads to create.",
+        "type": "integer",
+        "default": 1
+      },
+      "sampling_rate": {
+        "title": "Sampling Rate",
+        "description": "The number of samples of a sound that are taken per second to represent the event",
+        "type": "integer",
+        "default": 100
       }
     }
   }

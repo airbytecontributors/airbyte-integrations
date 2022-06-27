@@ -13,6 +13,10 @@ dependencies {
     implementation project(':airbyte-config:models')
     implementation project(':airbyte-protocol:models')
     implementation project(':airbyte-integrations:bases:base-java')
+    implementation group: 'com.inception', name: 'bicycle-event-processor', version: '0.2.25502'
+    implementation group: 'com.inception', name: 'event-model', version: "0.1.0-snapshot.202205191419.c95071d"
+
+    implementation project(':airbyte-integrations:bases:base-bicycle-integration')
 
     implementation 'org.apache.kafka:kafka-clients:2.8.0'
     implementation 'org.apache.kafka:connect-json:2.8.0'
