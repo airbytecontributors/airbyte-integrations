@@ -103,7 +103,7 @@ public class BicycleConsumer implements Runnable {
             resetOffsetsToLatest(consumer, topic);
         }
 
-        int samplingRate =config.has("sampling_rate") ? config.get("sampling_rate").asInt(): 100;
+        int samplingRate = config.has("sampling_rate") ? config.get("sampling_rate").asInt(): 100;
 
         int sampledRecords = 0;
         try {

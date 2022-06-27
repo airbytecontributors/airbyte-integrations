@@ -11,7 +11,9 @@ import com.google.common.collect.ImmutableMap;
 import io.airbyte.commons.jackson.MoreMappers;
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.commons.resources.MoreResources;
-import io.airbyte.integrations.standardtest.source.SourceAcceptanceTest;
+import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
+import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
+import io.airbyte.integrations.standardtest.source.EventSourceAcceptanceTest;
 import io.airbyte.integrations.standardtest.source.TestDestinationEnv;
 import io.airbyte.protocol.models.CatalogHelpers;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
@@ -23,7 +25,10 @@ import io.airbyte.protocol.models.SyncMode;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+
+import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
@@ -32,15 +37,45 @@ import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.connect.json.JsonSerializer;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
-public class KafkaSourceAcceptanceTest extends SourceAcceptanceTest {
+import static io.bicycle.server.event.mapping.constants.OTELConstants.TENANT_ID;
+
+public class KafkaSourceAcceptanceTest extends EventSourceAcceptanceTest {
 
   private static final ObjectMapper mapper = MoreMappers.initMapper();
   private static final String TOPIC_NAME = "test.topic";
 
   private static KafkaContainer KAFKA;
+
+  private static BicycleConsumer bicycleConsumer;
+  private static JsonNode config;
+  private static ConfiguredAirbyteCatalog catalog;
+
+  @BeforeAll
+  public static void setupBicycleConsumer() {
+    String serverURL =  "";
+    String uniqueIdentifier = UUID.randomUUID().toString();
+    String token = "";
+    String connectorId = "";
+    String eventSourceType= "EVENT";
+
+    Map<String, Long> totalRecordsRead = null;
+    BicycleConfig bicycleConfig = new BicycleConfig(serverURL, token, connectorId, uniqueIdentifier);
+    BicycleAuthInfo authInfo = new BicycleAuthInfo(bicycleConfig.getToken(), TENANT_ID);
+    EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
+
+    config = null;
+    catalog= new ConfiguredAirbyteCatalog();
+
+    String consumerThreadId = UUID.randomUUID().toString();
+
+    bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog,authInfo,eventSourceInfo,new KafkaSource());
+  }
 
   @Override
   protected String getImageName() {
@@ -123,5 +158,14 @@ public class KafkaSourceAcceptanceTest extends SourceAcceptanceTest {
   protected JsonNode getState() throws Exception {
     return Jsons.jsonNode(new HashMap<>());
   }
+
+  // need to shift to unit-test?
+  @Test
+  protected void testBicycleConsumerCheck() {
+    config=getConfig();
+    ((ObjectNode) config).put("test_topic",TOPIC_NAME);
+    Assertions.assertEquals(bicycleConsumer.check(config),true);
+  }
+
 
 }

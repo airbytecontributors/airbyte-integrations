@@ -71,7 +71,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         };
     }
 
-    protected abstract List<RawEvent> convertRecordsToRawEvents(List<?> records);
+    public abstract List<RawEvent> convertRecordsToRawEvents(List<?> records);
 
     public abstract AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state);
 

@@ -16,6 +16,7 @@ import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.base.Source;
 import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
+import io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator;
 import io.airbyte.protocol.models.*;
 import io.airbyte.protocol.models.AirbyteConnectionStatus.Status;
 
@@ -44,11 +45,8 @@ public class KafkaSource extends BaseEventConnector {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaSource.class);
   private static boolean setBicycleEventProcessorFlag=false;
-  public static final String TRUST_STORE_LOCATION = "trust_store_location";
-  public static final String TRUST_STORE_PASSWORD = "trust_store_password";
   public static final String STREAM_NAME = "stream_name";
-  private static final String CONSUMER_THREADS_DEFAULT_VALUE = "2";
-  private static final String CONSUMER_THREADS = "INCEPTION_CONSUMER_THREADS";
+  private static final int CONSUMER_THREADS_DEFAULT_VALUE = 2;
   private static final Map<String, Map<String, Long>> consumerToTopicPartitionRecordsRead = new HashMap<>();
 
   public KafkaSource() {
@@ -93,7 +91,7 @@ public class KafkaSource extends BaseEventConnector {
 
   @Override
   public AutoCloseableIterator<AirbyteMessage> read(final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state) {
-    int numberOfConsumers =config.has("consumer_threads") ? config.get("consumer_threads").asInt(): 2;
+    int numberOfConsumers = config.has("bicycle_consumer_threads") ? config.get("bicycle_consumer_threads").asInt(): CONSUMER_THREADS_DEFAULT_VALUE;
     int threadPoolSize = numberOfConsumers + 3;
     ScheduledExecutorService ses = Executors.newScheduledThreadPool(threadPoolSize);
 
@@ -115,9 +113,11 @@ public class KafkaSource extends BaseEventConnector {
     }
     BicycleAuthInfo authInfo = new BicycleAuthInfo(bicycleConfig.getToken(), TENANT_ID);
     EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
+    MetricAsEventsGenerator metricAsEventsGenerator = new KafkaMetricAsEventsGenerator(bicycleConfig, authInfo,
+            eventSourceInfo, config, this);
 
     try {
-//      ses.scheduleAtFixedRate(metricAsEventsGenerator, 60, 300, TimeUnit.SECONDS);
+      ses.scheduleAtFixedRate(metricAsEventsGenerator, 60, 300, TimeUnit.SECONDS);
       for (int i = 0; i < numberOfConsumers; i++) {
         Map<String, Long> totalRecordsRead = new HashMap<>();
         String consumerThreadId = UUID.randomUUID().toString();
@@ -133,7 +133,7 @@ public class KafkaSource extends BaseEventConnector {
   }
 
   @Override
-  protected List<RawEvent> convertRecordsToRawEvents(List<?> records) {
+  public List<RawEvent> convertRecordsToRawEvents(List<?> records) {
     Iterator<ConsumerRecord<String, JsonNode>> recordsIterator = (Iterator<ConsumerRecord<String, JsonNode>>) records.iterator();
     List<RawEvent> rawEvents = new ArrayList<>();
     while (recordsIterator.hasNext()) {
@@ -210,6 +210,10 @@ public class KafkaSource extends BaseEventConnector {
       }
 
     });
+  }
+
+  public static Map<String, Map<String, Long>> getTopicPartitionRecordsRead() {
+    return consumerToTopicPartitionRecordsRead;
   }
 
   public static void main(final String[] args) throws Exception {
