@@ -184,8 +184,8 @@ public class ElasticsearchConnection {
         searchSourceBuilder.size(MAX_HITS);
         if(timeRange!=null && timeRange.has("method") && timeRange.get("method").textValue().equals("custom")) {
             String timeField = timeRange.has(TIME_FIELD)? timeRange.get(TIME_FIELD).textValue(): ES_DEFAULT_TIME_FIELD;
-            String to = timeRange.has(TO)? timeRange.get(TO).textValue() : NOW;
-            String from = timeRange.has(FROM)? timeRange.get(FROM).textValue() : null;
+            String to = timeRange.has(TO) && timeRange.get(TO).textValue().length()!=0? timeRange.get(TO).textValue() : NOW;
+            String from = timeRange.has(FROM) && timeRange.get(FROM).textValue().length()!=0? timeRange.get(FROM).textValue() : null;
             RangeQueryBuilder rangeQueryBuilder = QueryBuilders.rangeQuery(timeField).to(to).from(from);
             searchSourceBuilder.query(rangeQueryBuilder);
         }
@@ -200,8 +200,8 @@ public class ElasticsearchConnection {
 
         SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
         String scrollId = searchResponse.getScrollId();
-        log.info("Running scroll query with scrollId {}", scrollId);
         SearchHit[] searchHits = searchResponse.getHits().getHits();
+        log.debug("Running scroll query with scrollId {}", scrollId);
         List<JsonNode> data = new ArrayList<>();
 
         while (searchHits != null && searchHits.length > 0) {
@@ -209,6 +209,9 @@ public class ElasticsearchConnection {
             scrollRequest.scroll(scroll);
             searchResponse = client.scroll(scrollRequest, RequestOptions.DEFAULT);
             scrollId = searchResponse.getScrollId();
+            if(data.size()>200000000){
+                data.clear();
+            }
             for (SearchHit hit : searchHits) {
                 data.add(mapper.convertValue(hit, JsonNode.class).get("sourceAsMap"));
             }
@@ -219,11 +222,7 @@ public class ElasticsearchConnection {
         clearScrollRequest.addScrollId(scrollId);
         ClearScrollResponse clearScrollResponse = client.clearScroll(clearScrollRequest, RequestOptions.DEFAULT);
         boolean succeeded = clearScrollResponse.isSucceeded();
-        if(succeeded) {
-            log.info("scroll response cleared successfully");
-        } else {
-            log.error("failed to clear scroll response");
-        }
+        log.debug("Scroll response succeeded? {}", succeeded);
         log.info("{} RECORDS returned", data.size());
         return data;
     }

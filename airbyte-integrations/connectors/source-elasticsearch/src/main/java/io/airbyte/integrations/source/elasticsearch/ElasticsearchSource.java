@@ -2,6 +2,7 @@ package io.airbyte.integrations.source.elasticsearch;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
@@ -12,6 +13,7 @@ import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.protocol.models.*;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import io.airbyte.protocol.models.AirbyteCatalog;
 import io.airbyte.protocol.models.AirbyteConnectionStatus;
@@ -162,7 +164,7 @@ public class ElasticsearchSource extends BaseEventConnector {
 
         LOGGER.info("======Starting read operation for elasticsearch index" + index + "=======");
 
-        JsonNode timeRange = config.has(TIME_RANGE)? config.get(TIME_RANGE): null;
+        JsonNode timeRange = config.has(TIME_RANGE)? config.get(TIME_RANGE): JsonNodeFactory.instance.objectNode();;
         if(timeRange!=null && !timeRange.has(TIME_FIELD)) {
             ((ObjectNode)timeRange).put(TIME_FIELD, "@timestamp");
         }
@@ -171,24 +173,28 @@ public class ElasticsearchSource extends BaseEventConnector {
             String lastEnd;
             while(true) {
                 lastEnd = new DateTime().toString();
+                LOGGER.info("Time-field:{}, From:{}, To:{}", timeRange.path(TIME_FIELD).textValue(), timeRange.path(FROM).textValue(), timeRange.path(TO).textValue());
                 List<JsonNode> recordsList = connection.getRecords(index, timeRange);
                 timeRange = updateTimeRange(timeRange, lastEnd);
 
                 LOGGER.info("No of records read {}", recordsList.size());
-                if (recordsList.size() == 0) continue;
+                if (recordsList.size() == 0) {
+                    TimeUnit.SECONDS.sleep(5);
+                    continue;
+                }
                 BicycleEventsResult eventProcessorResult = null;
 
                 try {
                     List<RawEvent> rawEvents = this.convertRecordsToRawEvents(recordsList);
                     eventProcessorResult = convertRawEventsToBicycleEvents(authInfo,eventSourceInfo,rawEvents);
                     sampledRecords += recordsList.size();
-                    LOGGER.info("Finished publishing {} events, total events {}", recordsList.size(), sampledRecords);
                 } catch (Exception exception) {
                     LOGGER.error("Unable to convert raw records to bicycle events", exception);
                 }
 
                 try {
                     publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
+                    LOGGER.info("New events found:{}. Total events published:{}", recordsList.size(), sampledRecords);
                 } catch (Exception exception) {
                     LOGGER.error("Unable to publish bicycle events", exception);
                 }
