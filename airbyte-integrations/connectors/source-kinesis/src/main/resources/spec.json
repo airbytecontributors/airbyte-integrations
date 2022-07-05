@@ -1,0 +1,102 @@
+{
+  "documentationUrl": "https://docs.airbyte.io/integrations/sources/kinesis",
+  "connectionSpecification": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Kinesis Source Spec",
+    "type": "object",
+    "required": ["stream_pattern", "region", "access_key", "private_key"],
+    "additionalProperties": false,
+    "properties": {
+      "application_name": {
+        "title": "Application Name",
+        "description": "AWS Kinesis Client Application name.",
+        "type": "string"
+      },
+      "access_key": {
+        "title": "Access Key",
+        "description": "Generate the AWS Access Key for current user.",
+        "airbyte_secret": true,
+        "type": "string"
+      },
+      "private_key": {
+        "title": "Private Key",
+        "description": "The AWS Private Key - a string of numbers and letters that are unique for each account, also known as a \"recovery phrase\".",
+        "airbyte_secret": true,
+        "type": "string"
+      },
+      "region": {
+        "title": "Region",
+        "description": "AWS region. Your account determines the Regions that are available to you.",
+        "type": "string"
+      },
+      "test_stream": {
+        "title":"Test Stream",
+        "description":"The Kinesis Stream to test in case the Bicycle can consume messages.",
+        "type":"string"
+      },
+      "stream_pattern": {
+        "title": "Stream Pattern",
+        "description": "Pattern to fetch AWS Kinesis datastream.",
+        "type": "string"
+      },
+      "max_records":{
+        "title":"Max Records",
+        "description":"The maximum number of records returned in a single call.",
+        "type":"integer",
+        "default":1000
+      },
+      "failover_time_millis": {
+        "title":"Failover Time, ms",
+        "description":"The number of milliseconds that must pass before you can consider a lease owner to have failed.",
+        "type":"integer",
+        "default":1000
+      },
+      "manual_checkpoint_interval_ms": {
+        "title":"Manual Commit Interval, ms",
+        "description":"The frequency in milliseconds that the consumer offsets are auto-committed to Kafka if enable.auto.commit is set to true.",
+        "type":"integer",
+        "default":5000
+      },
+      "max_leases_for_worker": {
+        "title":"Max Leases For Worker",
+        "description":"The max number of leases (shards) this worker should process. NOTE: Setting this to a low value can cause data loss if workers are not able to pick up all shards in the stream due to the max limit.",
+        "type":"integer",
+        "default": 2147483647
+      },
+      "retry_getrecords_in_seconds": {
+        "title":"Retry GetRecords in Seconds",
+        "description":"Time to wait in seconds before the worker retries to get a record",
+        "type":"integer",
+        "default": 0
+      },
+      "idle_time_between_reads_in_millis": {
+        "title":"Idle Time Between Reads, ms",
+        "description":"The value for how long the ShardConsumer should sleep in between calls to KinesisAsyncClient.getRecords(GetRecordsRequest) in Millisecond.",
+        "type":"integer",
+        "default": 1000
+      },
+      "max_getrecords_threadpool": {
+        "title":"Max number of GetRecords ThreadPool",
+        "description":"The max number of threads in the records thread pool.",
+        "type":"integer",
+        "default": 4
+      },
+      "max_lease_renewal_threads": {
+        "title":"Max number of Lease Renewal Threads",
+        "description":"The size of the thread pool to create for the lease renewer to use.",
+        "type":"integer",
+        "default": 20
+      },
+      "initial_position_in_stream":{
+        "title":"Initial Position In Stream",
+        "description":"needed to specify the position in the stream from where a new application should start - TRIM_HORIZON: automatically reset the offset to the earliest offset, LATEST: automatically reset the offset to the latest offset.",
+        "type":"string",
+        "default":"latest",
+        "enum":[
+          "latest",
+          "trimHorizon"
+        ]
+      }
+    }
+  }
+}

@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Lists;
+import com.inception.server.auth.api.SystemAuthenticator;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.base.Command;
@@ -39,18 +40,16 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.bicycle.server.event.mapping.constants.OTELConstants.TENANT_ID;
-
 public class KafkaSource extends BaseEventConnector {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaSource.class);
   private static boolean setBicycleEventProcessorFlag=false;
   public static final String STREAM_NAME = "stream_name";
-  private static final int CONSUMER_THREADS_DEFAULT_VALUE = 2;
+  private static final int CONSUMER_THREADS_DEFAULT_VALUE = 1;
   private static final Map<String, Map<String, Long>> consumerToTopicPartitionRecordsRead = new HashMap<>();
 
-  public KafkaSource() {
-    super();
+  public KafkaSource(SystemAuthenticator systemAuthenticator) {
+    super(systemAuthenticator);
   }
 
   @Override
@@ -104,17 +103,19 @@ public class KafkaSource extends BaseEventConnector {
     String uniqueIdentifier = UUID.randomUUID().toString();
     String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
     String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
-    String eventSourceType= additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : "EVENT";
+    String eventSourceType = additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : "EVENT";
+    String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";;
+    String isOnPrem = additionalProperties.get("isOnPrem").toString();
+    boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
 
-    BicycleConfig bicycleConfig = new BicycleConfig(serverURL, token, connectorId, uniqueIdentifier);
+    BicycleConfig bicycleConfig = new BicycleConfig(serverURL, token, connectorId, uniqueIdentifier, tenantId, systemAuthenticator, isOnPremDeployment);
     if (!setBicycleEventProcessorFlag) {
       setBicycleEventProcessor(bicycleConfig);
       setBicycleEventProcessorFlag=true;
     }
-    BicycleAuthInfo authInfo = new BicycleAuthInfo(bicycleConfig.getToken(), TENANT_ID);
+
     EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
-    MetricAsEventsGenerator metricAsEventsGenerator = new KafkaMetricAsEventsGenerator(bicycleConfig, authInfo,
-            eventSourceInfo, config, this);
+    MetricAsEventsGenerator metricAsEventsGenerator = new KafkaMetricAsEventsGenerator(bicycleConfig, eventSourceInfo, config, this);
 
     try {
       ses.scheduleAtFixedRate(metricAsEventsGenerator, 60, 300, TimeUnit.SECONDS);
@@ -122,7 +123,7 @@ public class KafkaSource extends BaseEventConnector {
         Map<String, Long> totalRecordsRead = new HashMap<>();
         String consumerThreadId = UUID.randomUUID().toString();
         consumerToTopicPartitionRecordsRead.put(consumerThreadId, totalRecordsRead);
-        BicycleConsumer bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog,authInfo,eventSourceInfo,this);
+        BicycleConsumer bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog,eventSourceInfo,this);
         ses.schedule(bicycleConsumer, 1, TimeUnit.SECONDS);
       }
     } catch (Exception exception) {
@@ -217,7 +218,7 @@ public class KafkaSource extends BaseEventConnector {
   }
 
   public static void main(final String[] args) throws Exception {
-    final Source source = new KafkaSource();
+    final Source source = new KafkaSource(null);
     LOGGER.info("Starting source: {}", KafkaSource.class);
     new IntegrationRunner(source).run(args);
     LOGGER.info("Completed source: {}", KafkaSource.class);

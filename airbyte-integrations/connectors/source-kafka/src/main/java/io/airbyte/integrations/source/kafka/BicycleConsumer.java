@@ -3,6 +3,7 @@ package io.airbyte.integrations.source.kafka;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.inception.server.auth.model.AuthInfo;
 import io.airbyte.integrations.base.Command;
+import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.server.event.mapping.models.converter.BicycleEventsResult;
@@ -38,18 +39,16 @@ public class BicycleConsumer implements Runnable {
     private final Map<String, Long> topicPartitionRecordsRead;
     private final String name;
     private final ConfiguredAirbyteCatalog catalog;
-    private final AuthInfo authinfo;
     private final KafkaSource kafkaSource;
     private final EventSourceInfo eventSourceInfo;
 
-    public BicycleConsumer(String name, Map<String, Long> topicPartitionRecordsRead, BicycleConfig bicycleConfig, JsonNode connectorConfig, ConfiguredAirbyteCatalog configuredCatalog, AuthInfo authInfo, EventSourceInfo eventSourceInfo, KafkaSource instance) {
+    public BicycleConsumer(String name, Map<String, Long> topicPartitionRecordsRead, BicycleConfig bicycleConfig, JsonNode connectorConfig, ConfiguredAirbyteCatalog configuredCatalog, EventSourceInfo eventSourceInfo, KafkaSource instance) {
         this.name = name;
         this.config = connectorConfig;
         this.catalog = configuredCatalog;
         this.kafkaSourceConfig = new KafkaSourceConfig(name, config);
         this.bicycleConfig = bicycleConfig;
         this.topicPartitionRecordsRead = topicPartitionRecordsRead;
-        this.authinfo = authInfo;
         this.kafkaSource = instance;
         this.eventSourceInfo = eventSourceInfo;
         logger.info("Initialized consumer thread with name {}", name);
@@ -74,6 +73,7 @@ public class BicycleConsumer implements Runnable {
                 }
             }
         }
+        logger.info("All the retries failed, exiting the thread");
     }
 
     public int getNumberOfRecordsToBeReturnedBasedOnSamplingRate(int noOfRecords, int samplingRate) {
@@ -146,18 +146,17 @@ public class BicycleConsumer implements Runnable {
                     continue;
                 }
 
-               // BicycleEventsResult bicycleEventsResult = null;
                 BicycleEventsResult eventProcessorResult = null;
-
+                AuthInfo authInfo = new BicycleAuthInfo(bicycleConfig.getToken(), bicycleConfig.getTenantId());
                 try {
                     List<RawEvent> rawEvents = this.kafkaSource.convertRecordsToRawEvents(recordsList);
-                    eventProcessorResult = this.kafkaSource.convertRawEventsToBicycleEvents(authinfo,eventSourceInfo,rawEvents);
+                    eventProcessorResult = this.kafkaSource.convertRawEventsToBicycleEvents(authInfo,eventSourceInfo,rawEvents);
                 } catch (Exception exception) {
                     logger.error("Unable to convert raw records to bicycle events", exception);
                 }
 
                 try {
-                    this.kafkaSource.publishEvents(authinfo, eventSourceInfo, eventProcessorResult);
+                    this.kafkaSource.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
                     consumer.commitAsync();
                 } catch (Exception exception) {
                     logger.error("Unable to publish bicycle events", exception);
