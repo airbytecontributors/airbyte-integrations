@@ -23,10 +23,10 @@ public class KafkaMetricAsEventsGenerator extends MetricAsEventsGenerator {
 
     public KafkaMetricAsEventsGenerator(BicycleConfig bicycleConfig, EventSourceInfo eventSourceInfo, JsonNode config, KafkaSource kafkaSource) {
         super(bicycleConfig, eventSourceInfo, config, kafkaSource);
-        this.adminClient = getAdminClient();
-        kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config);
+        this.kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config);
         consumerGroupId = config.has("group_id") ? config.get("group_id").asText() : null;
         kafkaConsumer = getKafkaConsumer();
+        this.adminClient = getAdminClient();
     }
 
     private KafkaConsumer<String, String> getKafkaConsumer() {
@@ -136,8 +136,7 @@ public class KafkaMetricAsEventsGenerator extends MetricAsEventsGenerator {
             }
 
             Map<String, Map<String, Long>> consumerThreadToTopicPartitionMessagesRead =
-                    KafkaSource.getTopicPartitionRecordsRead();
-
+                    ((KafkaSource) this.eventConnector).getTopicPartitionRecordsRead();
 
             Long totalRecordsConsumed = 0L;
 

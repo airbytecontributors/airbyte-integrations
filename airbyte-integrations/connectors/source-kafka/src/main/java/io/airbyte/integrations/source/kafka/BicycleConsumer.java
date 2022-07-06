@@ -73,7 +73,7 @@ public class BicycleConsumer implements Runnable {
                 }
             }
         }
-        logger.info("All the retries failed, exiting the thread");
+        logger.info("All the retries failed, exiting the thread for consumer {}",name);
     }
 
     public int getNumberOfRecordsToBeReturnedBasedOnSamplingRate(int noOfRecords, int samplingRate) {
@@ -87,7 +87,7 @@ public class BicycleConsumer implements Runnable {
     public void read(BicycleConfig bicycleConfig, final JsonNode config, final ConfiguredAirbyteCatalog configuredAirbyteCatalog, final JsonNode state) {
         final boolean check = check(config);
 
-        logger.info("======Starting read operation for consumer " + name + "=======");
+        logger.info("======Starting read operation for consumer " + name + " config: " + config + " =======");
 
         if (!check) {
             throw new RuntimeException("Unable establish a connection");
@@ -152,14 +152,14 @@ public class BicycleConsumer implements Runnable {
                     List<RawEvent> rawEvents = this.kafkaSource.convertRecordsToRawEvents(recordsList);
                     eventProcessorResult = this.kafkaSource.convertRawEventsToBicycleEvents(authInfo,eventSourceInfo,rawEvents);
                 } catch (Exception exception) {
-                    logger.error("Unable to convert raw records to bicycle events", exception);
+                    logger.error("Unable to convert raw records to bicycle events for {} ",name, exception);
                 }
 
                 try {
                     this.kafkaSource.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
                     consumer.commitAsync();
                 } catch (Exception exception) {
-                    logger.error("Unable to publish bicycle events", exception);
+                    logger.error("Unable to publish bicycle events for {} ", name, exception);
                 }
             }
 

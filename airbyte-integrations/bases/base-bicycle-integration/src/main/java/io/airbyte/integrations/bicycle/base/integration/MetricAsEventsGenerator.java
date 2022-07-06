@@ -28,7 +28,7 @@ public class MetricAsEventsGenerator implements Runnable {
     protected final Map<String, String> globalTags = new HashMap<>();
     protected BicycleConfig bicycleConfig;
     private JsonNode config;
-    private BaseEventConnector eventConnector;
+    protected BaseEventConnector eventConnector;
     private BicycleEventsHelper bicycleEventsHelper;
     protected EventSourceInfo eventSourceInfo;
     private Map<String, TagEncodedMetricName> metricNameToTagEncodedMetricName = new HashMap<>();

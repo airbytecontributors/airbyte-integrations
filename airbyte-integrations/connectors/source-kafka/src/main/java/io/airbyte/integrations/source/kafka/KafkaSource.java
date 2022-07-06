@@ -43,10 +43,9 @@ import org.slf4j.LoggerFactory;
 public class KafkaSource extends BaseEventConnector {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaSource.class);
-  private static boolean setBicycleEventProcessorFlag=false;
   public static final String STREAM_NAME = "stream_name";
   private static final int CONSUMER_THREADS_DEFAULT_VALUE = 1;
-  private static final Map<String, Map<String, Long>> consumerToTopicPartitionRecordsRead = new HashMap<>();
+  private final Map<String, Map<String, Long>> consumerToTopicPartitionRecordsRead = new HashMap<>();
 
   public KafkaSource(SystemAuthenticator systemAuthenticator) {
     super(systemAuthenticator);
@@ -80,6 +79,7 @@ public class KafkaSource extends BaseEventConnector {
   @Override
   public AirbyteCatalog discover(final JsonNode config) {
     KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config);
+    kafkaSourceConfig.getConsumer(Command.DISCOVER);
     final Set<String> topicsToSubscribe = kafkaSourceConfig.getTopicsToSubscribe();
     final List<AirbyteStream> streams = topicsToSubscribe.stream().map(topic -> CatalogHelpers
         .createAirbyteStream(topic, Field.of("value", JsonSchemaType.STRING))
@@ -109,10 +109,7 @@ public class KafkaSource extends BaseEventConnector {
     boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
 
     BicycleConfig bicycleConfig = new BicycleConfig(serverURL, token, connectorId, uniqueIdentifier, tenantId, systemAuthenticator, isOnPremDeployment);
-    if (!setBicycleEventProcessorFlag) {
-      setBicycleEventProcessor(bicycleConfig);
-      setBicycleEventProcessorFlag=true;
-    }
+    setBicycleEventProcessor(bicycleConfig);
 
     EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
     MetricAsEventsGenerator metricAsEventsGenerator = new KafkaMetricAsEventsGenerator(bicycleConfig, eventSourceInfo, config, this);
@@ -213,7 +210,7 @@ public class KafkaSource extends BaseEventConnector {
     });
   }
 
-  public static Map<String, Map<String, Long>> getTopicPartitionRecordsRead() {
+  public Map<String, Map<String, Long>> getTopicPartitionRecordsRead() {
     return consumerToTopicPartitionRecordsRead;
   }
 
