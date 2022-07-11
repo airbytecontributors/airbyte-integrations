@@ -27,24 +27,21 @@ public class MetricAsEventsGenerator implements Runnable {
     protected final Logger logger = LoggerFactory.getLogger(MetricAsEventsGenerator.class.getName());
     protected final Map<String, String> globalTags = new HashMap<>();
     protected BicycleConfig bicycleConfig;
-    private AuthInfo bicycleAuthInfo;
     private JsonNode config;
-    private BaseEventConnector eventConnector;
+    protected BaseEventConnector eventConnector;
     private BicycleEventsHelper bicycleEventsHelper;
     protected EventSourceInfo eventSourceInfo;
     private Map<String, TagEncodedMetricName> metricNameToTagEncodedMetricName = new HashMap<>();
     protected Map<String, Long> metricsMap = new HashMap<>();
 
 
-    public MetricAsEventsGenerator(BicycleConfig bicycleConfig, AuthInfo bicycleAuthInfo,
-                                   EventSourceInfo eventSourceInfo, JsonNode config, BaseEventConnector eventConnector) {
+    public MetricAsEventsGenerator(BicycleConfig bicycleConfig, EventSourceInfo eventSourceInfo, JsonNode config, BaseEventConnector eventConnector) {
         this.bicycleConfig = bicycleConfig;
-        this.bicycleAuthInfo = bicycleAuthInfo;
         this.config = config;
         this.eventConnector = eventConnector;
         this.bicycleEventsHelper = new BicycleEventsHelper();
         this.eventSourceInfo = eventSourceInfo;
-        globalTags.put(TENANT_ID, bicycleAuthInfo.getTenantId());
+        globalTags.put(TENANT_ID, bicycleConfig.getTenantId());
         globalTags.put(CONNECTOR_ID, eventSourceInfo.getEventSourceId());
     }
 
@@ -58,7 +55,9 @@ public class MetricAsEventsGenerator implements Runnable {
                     bicycleEventsHelper.createPreviewBicycleEvent(eventSourceInfo, attributes);
             BicycleEventsResult bicycleEventsResult = new BicycleEventsResult(BicycleEventList.newBuilder().build(),
                     BicycleEventList.newBuilder().addEvents(bicycleEvent).build(), Collections.EMPTY_MAP);
-            eventConnector.publishEvents(bicycleAuthInfo, eventSourceInfo, bicycleEventsResult);
+
+            AuthInfo authInfo = new BicycleAuthInfo(bicycleConfig.getToken(), bicycleConfig.getTenantId());
+            eventConnector.publishEvents(authInfo, eventSourceInfo, bicycleEventsResult);
             logger.info("Successfully published bicycle event for metrics {}", bicycleEvent);
         } catch (Exception exception) {
             logger.error("Unable to publish metrics", exception);

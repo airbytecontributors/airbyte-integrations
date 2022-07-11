@@ -1,0 +1,46 @@
+plugins {
+    id 'application'
+    id 'airbyte-docker'
+    id 'airbyte-integration-test-java'
+}
+
+application {
+    mainClass = 'io.airbyte.integrations.source.kafka.KafkaSource'
+    applicationDefaultJvmArgs = ['-XX:+ExitOnOutOfMemoryError', '-XX:MaxRAMPercentage=75.0']
+}
+
+group 'io.airbyte...'
+version '0.39.10-alpha'
+
+
+repositories {
+    maven {
+        url "artifactregistry://us-west1-maven.pkg.dev/dev-pipeline-01/maven-repo"
+    }
+    mavenCentral()
+    maven {
+        url "gcs://inception-artifacts-9h2rf165k/maven-repo"
+    }
+}
+
+dependencies {
+    implementation group: 'com.inception', name: 'bicycle-event-processor', version: '0.2.25502'
+    implementation project(':airbyte-config:models')
+    implementation project(':airbyte-protocol:models')
+    implementation project(':airbyte-integrations:bases:base-java')
+    implementation project(':airbyte-integrations:bases:base-bicycle-integration')
+    implementation group: 'com.amazonaws', name: 'amazon-kinesis-client', version: '1.14.8'
+    implementation group: 'software.amazon.kinesis', name: 'amazon-kinesis-client', version: '2.4.1'
+    implementation group: 'software.amazon.awssdk', name: 'dynamodb', version: '2.17.191'
+    implementation group: 'software.amazon.awssdk', name: 'cloudwatch', version: '2.17.191'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.1'
+
+    implementation files(project(':airbyte-integrations:bases:base-java').airbyteDocker.outputs)
+
+}
+
+test {
+    useJUnitPlatform()
+}

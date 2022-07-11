@@ -62,7 +62,7 @@
       },
       "test_topic": {
         "title": "Test Topic",
-        "description": "The Topic to test in case the Airbyte can consume messages.",
+        "description": "The Topic to test in case the Bicycle can consume messages.",
         "type": "string",
         "examples": ["test.topic"]
       },
@@ -183,7 +183,7 @@
         "title": "Client ID",
         "description": "An ID string to pass to the server when making requests. The purpose of this is to be able to track the source of requests beyond just ip/port by allowing a logical application name to be included in server-side request logging.",
         "type": "string",
-        "examples": ["airbyte-consumer"]
+        "examples": ["bicycle-consumer"]
       },
       "enable_auto_commit": {
         "title": "Enable Auto Commit",
@@ -239,9 +239,9 @@
         "type": "integer",
         "default": 3
       },
-      "reset_to_earliest": {
-        "title": "Reset to Earliest",
-        "description": "If true, the consumer's offset will be reset to earliest.",
+      "reset_to_latest": {
+        "title": "Reset to latest",
+        "description": "If true, the consumer's offset will be reset to latest.",
         "type": "boolean",
         "default": false
       },
@@ -307,7 +307,7 @@
       "max.poll.interval.ms": {
         "title": "Max Poll Interval, ms",
         "description": "The maximum delay between invocations of poll() when using consumer group management. ",
-        "type": "string",
+        "type": "integer",
         "default": 300000
       },
       "bicycle_consumer_threads": {

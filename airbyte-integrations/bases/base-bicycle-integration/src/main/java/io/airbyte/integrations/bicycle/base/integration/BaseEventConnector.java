@@ -3,6 +3,7 @@ package io.airbyte.integrations.bicycle.base.integration;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.inception.common.client.ServiceLocator;
 import com.inception.common.client.impl.GenericApiClient;
+import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.config.Config;
 import com.inception.server.config.ConfigReference;
@@ -36,10 +37,15 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private BicycleEventProcessor bicycleEventProcessor;
     private BicycleEventPublisher bicycleEventPublisher;
     private BicycleConfig bicycleConfig;
-
-    public BaseEventConnector() {
-
+    protected SystemAuthenticator systemAuthenticator;
+    protected EventConnectorStatusInitiator eventConnectorStatusInitiator;
+    protected static final String TENANT_ID = "tenantId";
+    protected String ENV_TENANT_ID_KEY = "TENANT_ID";
+    public BaseEventConnector(SystemAuthenticator systemAuthenticator, EventConnectorStatusInitiator eventConnectorStatusHandler) {
+        this.systemAuthenticator = systemAuthenticator;
+        this.eventConnectorStatusInitiator = eventConnectorStatusHandler;
     }
+
     public void setBicycleEventProcessor(BicycleConfig bicycleConfig) {
         this.bicycleConfig = bicycleConfig;
         ConfigStoreClient configStoreClient = getConfigClient(bicycleConfig);
@@ -47,7 +53,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         EventMappingConfigurations eventMappingConfigurations = new EventMappingConfigurations
                 (bicycleConfig.getServerURL(), bicycleConfig.getServerURL(), bicycleConfig.getServerURL(),
                         bicycleConfig.getEventURL(), bicycleConfig.getServerURL(), bicycleConfig.getEventURL());
-        this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations);
+        this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, true);
     }
 
     static ConfigStoreClient getConfigClient(BicycleConfig bicycleConfig) {

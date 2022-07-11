@@ -8,15 +8,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Lists;
+import com.inception.server.auth.api.SystemAuthenticator;
+import com.inception.server.auth.model.AuthInfo;
+import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.base.Command;
-import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
+import io.airbyte.integrations.bicycle.base.integration.*;
 import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.base.Source;
-import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
-import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
-import io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator;
 import io.airbyte.protocol.models.*;
 import io.airbyte.protocol.models.AirbyteConnectionStatus.Status;
 
@@ -27,6 +27,7 @@ import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -39,18 +40,15 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.bicycle.server.event.mapping.constants.OTELConstants.TENANT_ID;
-
 public class KafkaSource extends BaseEventConnector {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaSource.class);
-  private static boolean setBicycleEventProcessorFlag=false;
   public static final String STREAM_NAME = "stream_name";
-  private static final int CONSUMER_THREADS_DEFAULT_VALUE = 2;
-  private static final Map<String, Map<String, Long>> consumerToTopicPartitionRecordsRead = new HashMap<>();
+  private static final int CONSUMER_THREADS_DEFAULT_VALUE = 1;
+  private final Map<String, Map<String, Long>> consumerToTopicPartitionRecordsRead = new HashMap<>();
 
-  public KafkaSource() {
-    super();
+  public KafkaSource(SystemAuthenticator systemAuthenticator, EventConnectorStatusInitiator eventConnectorStatusHandler) {
+    super(systemAuthenticator,eventConnectorStatusHandler);
   }
 
   @Override
@@ -81,6 +79,7 @@ public class KafkaSource extends BaseEventConnector {
   @Override
   public AirbyteCatalog discover(final JsonNode config) {
     KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config);
+    kafkaSourceConfig.getConsumer(Command.DISCOVER);
     final Set<String> topicsToSubscribe = kafkaSourceConfig.getTopicsToSubscribe();
     final List<AirbyteStream> streams = topicsToSubscribe.stream().map(topic -> CatalogHelpers
         .createAirbyteStream(topic, Field.of("value", JsonSchemaType.STRING))
@@ -104,30 +103,33 @@ public class KafkaSource extends BaseEventConnector {
     String uniqueIdentifier = UUID.randomUUID().toString();
     String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
     String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
-    String eventSourceType= additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : "EVENT";
+    String eventSourceType = additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : "EVENT";
+    String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";;
+    String isOnPrem = additionalProperties.get("isOnPrem").toString();
+    boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
 
-    BicycleConfig bicycleConfig = new BicycleConfig(serverURL, token, connectorId, uniqueIdentifier);
-    if (!setBicycleEventProcessorFlag) {
-      setBicycleEventProcessor(bicycleConfig);
-      setBicycleEventProcessorFlag=true;
-    }
-    BicycleAuthInfo authInfo = new BicycleAuthInfo(bicycleConfig.getToken(), TENANT_ID);
+    BicycleConfig bicycleConfig = new BicycleConfig(serverURL, token, connectorId, uniqueIdentifier, tenantId, systemAuthenticator, isOnPremDeployment);
+    setBicycleEventProcessor(bicycleConfig);
+
     EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
-    MetricAsEventsGenerator metricAsEventsGenerator = new KafkaMetricAsEventsGenerator(bicycleConfig, authInfo,
-            eventSourceInfo, config, this);
-
+    MetricAsEventsGenerator metricAsEventsGenerator = new KafkaMetricAsEventsGenerator(bicycleConfig, eventSourceInfo, config, this);
+    AuthInfo authInfo = new BicycleAuthInfo(bicycleConfig.getToken(), bicycleConfig.getTenantId());
     try {
       ses.scheduleAtFixedRate(metricAsEventsGenerator, 60, 300, TimeUnit.SECONDS);
+      eventConnectorStatusInitiator.setNumberOfThreadsRunning(new AtomicInteger(numberOfConsumers));
+      eventConnectorStatusInitiator.setScheduledExecutorService(ses);
       for (int i = 0; i < numberOfConsumers; i++) {
         Map<String, Long> totalRecordsRead = new HashMap<>();
         String consumerThreadId = UUID.randomUUID().toString();
         consumerToTopicPartitionRecordsRead.put(consumerThreadId, totalRecordsRead);
-        BicycleConsumer bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog,authInfo,eventSourceInfo,this);
+        BicycleConsumer bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog,eventSourceInfo, eventConnectorStatusInitiator,this);
         ses.schedule(bicycleConsumer, 1, TimeUnit.SECONDS);
       }
+      eventConnectorStatusInitiator.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, authInfo);
     } catch (Exception exception) {
-      LOGGER.error("Shutting down the kafka consumer application", exception);
-      ses.shutdown();
+      eventConnectorStatusInitiator.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
+      eventConnectorStatusInitiator.sendStatus(JobExecutionStatus.failure,"Shutting down the kafka Event Connector", connectorId, authInfo);
+      LOGGER.error("Shutting down the kafka Event Connector", exception);
     }
     return null;
   }
@@ -212,12 +214,12 @@ public class KafkaSource extends BaseEventConnector {
     });
   }
 
-  public static Map<String, Map<String, Long>> getTopicPartitionRecordsRead() {
+  public Map<String, Map<String, Long>> getTopicPartitionRecordsRead() {
     return consumerToTopicPartitionRecordsRead;
   }
 
   public static void main(final String[] args) throws Exception {
-    final Source source = new KafkaSource();
+    final Source source = new KafkaSource(null,null);
     LOGGER.info("Starting source: {}", KafkaSource.class);
     new IntegrationRunner(source).run(args);
     LOGGER.info("Completed source: {}", KafkaSource.class);
