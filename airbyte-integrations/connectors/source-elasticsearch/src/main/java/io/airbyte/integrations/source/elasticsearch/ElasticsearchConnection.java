@@ -152,9 +152,8 @@ public class ElasticsearchConnection {
      */
     public Map<String, MappingMetadata> getMappings(final List<String> indices) throws IOException {
         GetMappingsRequest request = new GetMappingsRequest();
-        for(var index: indices) {
-            request.indices(index);
-        }
+        String[] copiedIndices = indices.toArray(String[]::new);
+        request.indices(copiedIndices);
         GetMappingsResponse getMappingResponse = client.indices().getMapping(request, RequestOptions.DEFAULT);
         return getMappingResponse.mappings();
     }
@@ -182,11 +181,12 @@ public class ElasticsearchConnection {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         // check performance
         searchSourceBuilder.size(MAX_HITS);
+
         if(timeRange!=null && timeRange.has("method") && timeRange.get("method").textValue().equals("custom")) {
             String timeField = timeRange.has(TIME_FIELD)? timeRange.get(TIME_FIELD).textValue(): ES_DEFAULT_TIME_FIELD;
-            String to = timeRange.has(TO) && timeRange.get(TO).textValue().length()!=0? timeRange.get(TO).textValue() : NOW;
-            String from = timeRange.has(FROM) && timeRange.get(FROM).textValue().length()!=0? timeRange.get(FROM).textValue() : null;
-            RangeQueryBuilder rangeQueryBuilder = QueryBuilders.rangeQuery(timeField).to(to).from(from);
+            String from = timeRange.has(FROM)? timeRange.get(FROM).textValue() : null;
+            log.debug("Timefield {}, from {}", timeField, from);
+            RangeQueryBuilder rangeQueryBuilder = QueryBuilders.rangeQuery(timeField).from(from);
             searchSourceBuilder.query(rangeQueryBuilder);
         }
         else {
