@@ -8,11 +8,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.ImmutableMap;
+import com.inception.server.auth.api.SystemAuthenticator;
 import io.airbyte.commons.jackson.MoreMappers;
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.commons.resources.MoreResources;
 import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
+import io.airbyte.integrations.bicycle.base.integration.EventConnectorStatusInitiator;
 import io.airbyte.integrations.standardtest.source.EventSourceAcceptanceTest;
 import io.airbyte.integrations.standardtest.source.TestDestinationEnv;
 import io.airbyte.protocol.models.CatalogHelpers;
@@ -40,6 +42,7 @@ import org.apache.kafka.connect.json.JsonSerializer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -63,10 +66,10 @@ public class KafkaSourceAcceptanceTest extends EventSourceAcceptanceTest {
     String token = "";
     String connectorId = "";
     String eventSourceType= "EVENT";
+    String tenantId = "";
 
     Map<String, Long> totalRecordsRead = null;
-    BicycleConfig bicycleConfig = new BicycleConfig(serverURL, token, connectorId, uniqueIdentifier);
-    BicycleAuthInfo authInfo = new BicycleAuthInfo(bicycleConfig.getToken(), TENANT_ID);
+    BicycleConfig bicycleConfig = new BicycleConfig(serverURL, token, connectorId, uniqueIdentifier, tenantId, Mockito.mock(SystemAuthenticator.class), true);
     EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
 
     config = null;
@@ -74,7 +77,7 @@ public class KafkaSourceAcceptanceTest extends EventSourceAcceptanceTest {
 
     String consumerThreadId = UUID.randomUUID().toString();
 
-    bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog,authInfo,eventSourceInfo,new KafkaSource());
+    bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog, eventSourceInfo, Mockito.mock(EventConnectorStatusInitiator.class), Mockito.mock(KafkaSource.class));
   }
 
   @Override

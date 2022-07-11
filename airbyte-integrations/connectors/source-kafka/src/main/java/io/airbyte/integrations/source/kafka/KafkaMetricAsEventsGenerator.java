@@ -1,7 +1,6 @@
 package io.airbyte.integrations.source.kafka;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.inception.server.auth.model.AuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
@@ -22,12 +21,12 @@ public class KafkaMetricAsEventsGenerator extends MetricAsEventsGenerator {
     private String consumerGroupId;
     private KafkaConsumer kafkaConsumer;
 
-    public KafkaMetricAsEventsGenerator(BicycleConfig bicycleConfig, AuthInfo bicycleAuthInfo, EventSourceInfo eventSourceInfo, JsonNode config, KafkaSource kafkaSource) {
-        super(bicycleConfig, bicycleAuthInfo, eventSourceInfo, config, kafkaSource);
-        this.adminClient = getAdminClient();
-        kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config);
+    public KafkaMetricAsEventsGenerator(BicycleConfig bicycleConfig, EventSourceInfo eventSourceInfo, JsonNode config, KafkaSource kafkaSource) {
+        super(bicycleConfig, eventSourceInfo, config, kafkaSource);
+        this.kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config);
         consumerGroupId = config.has("group_id") ? config.get("group_id").asText() : null;
         kafkaConsumer = getKafkaConsumer();
+        this.adminClient = getAdminClient();
     }
 
     private KafkaConsumer<String, String> getKafkaConsumer() {
@@ -137,8 +136,7 @@ public class KafkaMetricAsEventsGenerator extends MetricAsEventsGenerator {
             }
 
             Map<String, Map<String, Long>> consumerThreadToTopicPartitionMessagesRead =
-                    KafkaSource.getTopicPartitionRecordsRead();
-
+                    ((KafkaSource) this.eventConnector).getTopicPartitionRecordsRead();
 
             Long totalRecordsConsumed = 0L;
 
