@@ -24,7 +24,7 @@ class ElasticsearchSourcesTest {
   @Test
   @DisplayName("Spec should match")
   public void specShouldMatch() throws Exception {
-    final ConnectorSpecification actual = new ElasticsearchSource().spec();
+    final ConnectorSpecification actual = new ElasticsearchSource(null,null).spec();
     final ConnectorSpecification expected = Jsons.deserialize(
         MoreResources.readResource("expected_spec.json"), ConnectorSpecification.class);
     assertEquals(expected, actual);
