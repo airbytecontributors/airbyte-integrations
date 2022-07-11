@@ -81,11 +81,11 @@ public class ElasticsearchSource extends BaseEventConnector {
         final var indices = connection.userIndices();
         final var mappings = connection.getMappings(indices);
 
-        JsonNode mappingsNode = mapper.convertValue(mappings, JsonNode.class);
+//        JsonNode mappingsNode = mapper.convertValue(mappings, JsonNode.class);
         List<AirbyteStream> streams = new ArrayList<>();
 
         for(var index: indices) {
-            JsonNode JSONSchema = mappingsNode.get(index).get("sourceAsMap");
+            JsonNode JSONSchema = mapper.convertValue(mappings.get(index).sourceAsMap(), JsonNode.class);
             Set<String> timestampCandidates = getTimestampCandidateField(JSONSchema.get("properties"));
             LOGGER.info("Following fields can be used for timestamp queries: {}. @timestamp is recommended by default.", timestampCandidates);
             JsonNode formattedJSONSchema = formatJSONSchema(JSONSchema);
@@ -133,14 +133,13 @@ public class ElasticsearchSource extends BaseEventConnector {
     private AutoCloseableIterator<AirbyteMessage> readEntity(final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state, final ElasticsearchConnection connection) {
         final List<AutoCloseableIterator<AirbyteMessage>> iteratorList = new ArrayList<>();
         final JsonNode timeRange = config.has(TIME_RANGE)? config.get(TIME_RANGE): null;
-        catalog.getStreams()
-                .stream()
-                .map(ConfiguredAirbyteStream::getStream)
-                .forEach(stream -> {
-                    AutoCloseableIterator<JsonNode> data = ElasticsearchUtils.getDataIterator(connection, stream, timeRange);
-                    AutoCloseableIterator<AirbyteMessage> messageIterator = ElasticsearchUtils.getMessageIterator(data, stream.getName());
-                    iteratorList.add(messageIterator);
-                });
+
+        AirbyteStream stream = catalog.getStreams().get(0).getStream();
+        LOGGER.debug("Stream {}, timeRange {}", stream, timeRange);
+        AutoCloseableIterator<JsonNode> data = ElasticsearchUtils.getDataIterator(connection, stream, timeRange);
+        AutoCloseableIterator<AirbyteMessage> messageIterator = ElasticsearchUtils.getMessageIterator(data, stream.getName());
+        iteratorList.add(messageIterator);
+
         return AutoCloseableIterators
                 .appendOnClose(AutoCloseableIterators.concatWithEagerClose(iteratorList), () -> {
                     LOGGER.info("Closing server connection.");
@@ -178,7 +177,7 @@ public class ElasticsearchSource extends BaseEventConnector {
             String lastEnd;
             while(true) {
                 lastEnd = new DateTime().toString();
-                LOGGER.info("Time-field:{}, From:{}, To:{}", timeRange.path(TIME_FIELD).textValue(), timeRange.path(FROM).textValue(), timeRange.path(TO).textValue());
+                LOGGER.info("Time-field:{}, From:{}", timeRange.path(TIME_FIELD).textValue(), timeRange.path(FROM).textValue());
                 List<JsonNode> recordsList = connection.getRecords(index, timeRange);
                 timeRange = updateTimeRange(timeRange, lastEnd);
 
@@ -245,7 +244,6 @@ public class ElasticsearchSource extends BaseEventConnector {
         if(timeRange!=null) {
             ((ObjectNode)timeRange).put("method", "custom");
             ((ObjectNode)timeRange).put(FROM, lastEnd);
-            ((ObjectNode)timeRange).put(TO, NOW);
             return timeRange;
         }
         else {
@@ -253,7 +251,6 @@ public class ElasticsearchSource extends BaseEventConnector {
                 put("method", "custom");
                 put(TIME_FIELD, "@timestamp");
                 put(FROM, lastEnd);
-                put(TO, NOW);
             }};
             return mapper.convertValue(tr, JsonNode.class);
         }

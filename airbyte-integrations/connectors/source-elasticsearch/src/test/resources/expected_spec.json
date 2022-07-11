@@ -120,14 +120,7 @@
                 "title": "From",
                 "type": "string",
                 "format": "date-time",
-                "description": "Begin time in ISO 8601 format of YYYY-MM- DDThh:mm:ssZ in UTC time"
-              },
-              "to": {
-                "title": "To",
-                "type": "string",
-                "format": "date-time",
-                "description": "Begin time in ISO 8601 format of YYYY-MM- DDThh:mm:ssZ in UTC time",
-                "default": "now"
+                "description": "Begin time in ISO 8601 format of YYYY-MM-DDThh:mm:ssZ in UTC time"
               }
             }
           }
