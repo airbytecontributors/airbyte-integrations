@@ -14,6 +14,7 @@ import io.airbyte.commons.json.Jsons;
 import io.airbyte.commons.resources.MoreResources;
 import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
+import io.airbyte.integrations.bicycle.base.integration.EventConnectorStatusInitiator;
 import io.airbyte.integrations.standardtest.source.EventSourceAcceptanceTest;
 import io.airbyte.integrations.standardtest.source.TestDestinationEnv;
 import io.airbyte.protocol.models.CatalogHelpers;
@@ -76,7 +77,7 @@ public class KafkaSourceAcceptanceTest extends EventSourceAcceptanceTest {
 
     String consumerThreadId = UUID.randomUUID().toString();
 
-    bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog, eventSourceInfo, Mockito.mock(KafkaSource.class));
+    bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog, eventSourceInfo, Mockito.mock(EventConnectorStatusInitiator.class), Mockito.mock(KafkaSource.class));
   }
 
   @Override

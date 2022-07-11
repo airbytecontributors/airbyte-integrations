@@ -47,8 +47,8 @@ public class KinesisClientConfig {
     public KinesisClientConfig(final JsonNode config, final KinesisSource kinesisSource) {
         this.config = config;
         this.kinesissource = kinesisSource;
-        streamPattern = config.has("stream") ? config.get("stream").asText() : "";
-        configuredStream = config.has("ConfiguredStreamNam") ? config.get("ConfiguredStreamName").asText() : "";
+        streamPattern = config.has("stream_pattern") ? config.get("stream_pattern").asText() : "";
+        configuredStream = config.has("stream_name") ? config.get("stream_name").asText() : "";
     }
 
     public KinesisAsyncClient getKinesisClient() {
@@ -182,12 +182,12 @@ public class KinesisClientConfig {
             BasicAWSCredentials awsCredentials = new BasicAWSCredentials(accessKey, secretKey);
             AmazonKinesis kinesis = AmazonKinesisClientBuilder.standard().withCredentials(new AWSStaticCredentialsProvider(awsCredentials)).withRegion(String.valueOf(region)).build();
             this.kinesis=kinesis;
+            LOGGER.info("Created Kinesis Check Client successfully");
             return kinesis;
         }
         catch (Exception e) {
             LOGGER.error("Exception attempting to create Kinesis Client for Check command: ", e);
         }
-        LOGGER.info("Created Check Client successfully");
         return null;
     }
 

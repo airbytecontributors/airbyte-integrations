@@ -4,14 +4,15 @@ import com.amazonaws.services.kinesis.AmazonKinesis;
 import com.amazonaws.services.kinesis.model.Shard;
 import com.amazonaws.services.kinesis.model.StreamDescription;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.Lists;
 import com.inception.server.auth.api.SystemAuthenticator;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.base.Source;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
-import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
+import io.airbyte.integrations.bicycle.base.integration.EventConnectorStatusInitiator;
 import io.airbyte.protocol.models.*;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
@@ -29,10 +30,9 @@ import java.util.stream.Collectors;
 public class KinesisSource extends BaseEventConnector {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(KinesisSource.class);
-    private static boolean setBicycleEventProcessorFlag = false;
     private static final String TENANT_ID = "tenantId";
-    public KinesisSource(SystemAuthenticator systemAuthenticator) {
-        super(systemAuthenticator);
+    public KinesisSource(SystemAuthenticator systemAuthenticator, EventConnectorStatusInitiator eventConnectorStatusHandler) {
+        super(systemAuthenticator, eventConnectorStatusHandler);
     }
 
     @Override
@@ -40,7 +40,8 @@ public class KinesisSource extends BaseEventConnector {
         try {
             final String testStream = config.has("test_stream") ? config.get("test_stream").asText() : "";
             if (!testStream.isBlank()) {
-                AmazonKinesis kinesis = new KinesisClientConfig(config, this).getCheckClient();
+                KinesisClientConfig kinesisClientConfig = new KinesisClientConfig(config, this);
+                AmazonKinesis kinesis = kinesisClientConfig.getCheckClient();
                 StreamDescription streamDesc = kinesis.describeStream(testStream).getStreamDescription();
                 List<Shard> shards = streamDesc.getShards();
                 LOGGER.info("Successfully connected to Kinesis streams for stream '{}'.",
@@ -77,7 +78,8 @@ public class KinesisSource extends BaseEventConnector {
         ScheduledExecutorService ses = Executors.newScheduledThreadPool(threadPoolSize);
 
         Map<String, Object> additionalProperties = catalog.getAdditionalProperties();
-
+        ConfiguredAirbyteStream configuredAirbyteStream = catalog.getStreams().get(0);
+        ((ObjectNode) config).put("stream_name",configuredAirbyteStream.getStream().getName());
         String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
         String uniqueIdentifier = UUID.randomUUID().toString();
         String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
@@ -88,10 +90,7 @@ public class KinesisSource extends BaseEventConnector {
         boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
 
         BicycleConfig bicycleConfig = new BicycleConfig(serverURL, token, connectorId, uniqueIdentifier, tenantId,  systemAuthenticator, isOnPremDeployment);
-        if (setBicycleEventProcessorFlag==false) {
-            setBicycleEventProcessor(bicycleConfig);
-            setBicycleEventProcessorFlag=true;
-        }
+        setBicycleEventProcessor(bicycleConfig);
         EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
 
         try {
@@ -107,6 +106,8 @@ public class KinesisSource extends BaseEventConnector {
 
             KinesisClientConfig kinesisClientConfig = new KinesisClientConfig(config,this);
             Scheduler scheduler =  kinesisClientConfig.getScheduler(bicycleConfig, eventSourceInfo);
+
+            LOGGER.info("Created Kinesis Scheduler successfully " + bicycleConfig.getUniqueIdentifier() + "=======");
 
             for (int i = 0; i < numberOfConsumers; i++) {
                 Thread schedulerThread = new Thread(scheduler);
@@ -142,7 +143,7 @@ public class KinesisSource extends BaseEventConnector {
 
     public static void main(final String[] args) throws Exception {
 
-        final Source source = new KinesisSource(null);
+        final Source source = new KinesisSource(null, null);
         LOGGER.info("Starting source: {}", KinesisSource.class);
         new IntegrationRunner(source).run(args);
         LOGGER.info("Completed source: {}", KinesisSource.class);

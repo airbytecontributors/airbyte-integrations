@@ -38,10 +38,12 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private BicycleEventPublisher bicycleEventPublisher;
     private BicycleConfig bicycleConfig;
     protected SystemAuthenticator systemAuthenticator;
+    protected EventConnectorStatusInitiator eventConnectorStatusInitiator;
     protected static final String TENANT_ID = "tenantId";
     protected String ENV_TENANT_ID_KEY = "TENANT_ID";
-    public BaseEventConnector(SystemAuthenticator systemAuthenticator) {
+    public BaseEventConnector(SystemAuthenticator systemAuthenticator, EventConnectorStatusInitiator eventConnectorStatusHandler) {
         this.systemAuthenticator = systemAuthenticator;
+        this.eventConnectorStatusInitiator = eventConnectorStatusHandler;
     }
 
     public void setBicycleEventProcessor(BicycleConfig bicycleConfig) {
