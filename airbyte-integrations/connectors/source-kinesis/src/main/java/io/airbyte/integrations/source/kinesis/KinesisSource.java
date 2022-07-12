@@ -12,7 +12,7 @@ import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.base.Source;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
-import io.airbyte.integrations.bicycle.base.integration.EventConnectorStatusInitiator;
+import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.*;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
@@ -31,7 +31,7 @@ public class KinesisSource extends BaseEventConnector {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(KinesisSource.class);
     private static final String TENANT_ID = "tenantId";
-    public KinesisSource(SystemAuthenticator systemAuthenticator, EventConnectorStatusInitiator eventConnectorStatusHandler) {
+    public KinesisSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorStatusHandler) {
         super(systemAuthenticator, eventConnectorStatusHandler);
     }
 

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.inception.server.auth.api.SystemAuthenticator;
 import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
-import io.airbyte.integrations.bicycle.base.integration.EventConnectorStatusInitiator;
+import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.integrations.source.kafka.BicycleConsumer;
 import io.airbyte.integrations.source.kafka.KafkaSource;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
@@ -53,9 +53,9 @@ public class KafkaSourceTest {
         catalog= new ConfiguredAirbyteCatalog();
 
         String consumerThreadId = UUID.randomUUID().toString();
-        kafkaSource=new KafkaSource(Mockito.mock(SystemAuthenticator.class), Mockito.mock(EventConnectorStatusInitiator.class));
+        kafkaSource=new KafkaSource(Mockito.mock(SystemAuthenticator.class), Mockito.mock(EventConnectorJobStatusNotifier.class));
         kafkaSource.setBicycleEventProcessor(bicycleConfig);
-        bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog, eventSourceInfo, Mockito.mock(EventConnectorStatusInitiator.class), Mockito.mock(KafkaSource.class));
+        bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog, eventSourceInfo, Mockito.mock(EventConnectorJobStatusNotifier.class), Mockito.mock(KafkaSource.class));
 
     }
 
@@ -69,7 +69,7 @@ public class KafkaSourceTest {
         node.put("TestKey","TestValue");
         records.add(new ConsumerRecord<String, JsonNode>("Test",0, 0,"Key",(JsonNode) node));
 
-        List<RawEvent> rawEventsFromConnector = new KafkaSource(Mockito.mock(SystemAuthenticator.class), Mockito.mock(EventConnectorStatusInitiator.class)).convertRecordsToRawEvents(records);
+        List<RawEvent> rawEventsFromConnector = new KafkaSource(Mockito.mock(SystemAuthenticator.class), Mockito.mock(EventConnectorJobStatusNotifier.class)).convertRecordsToRawEvents(records);
 
         List<RawEvent> rawEventsExpected = new ArrayList<>();
         JsonRawEvent jsonRawEvent = new JsonRawEvent(node.toString());
