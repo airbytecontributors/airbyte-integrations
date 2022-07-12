@@ -6,7 +6,7 @@ import com.inception.server.scheduler.api.JobExecutionStatus;
 
 import java.util.Map;
 
-public abstract class EventConnectorStatusListener {
+public abstract class EventConnectorJobStatusHandler {
     protected Map<String,Boolean> eventConnectorStatusMap;
     public abstract void sendEventConnectorStatus(JobExecutionStatus jobExecutionStatus, JobExecutionRequest jobExecutionRequest, String response, String sourceId, AuthInfo authInfo);
     public void removeConnectorIdFromMap(String sourceId) {

@@ -12,9 +12,8 @@ import com.inception.server.auth.api.SystemAuthenticator;
 import io.airbyte.commons.jackson.MoreMappers;
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.commons.resources.MoreResources;
-import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
-import io.airbyte.integrations.bicycle.base.integration.EventConnectorStatusInitiator;
+import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.integrations.standardtest.source.EventSourceAcceptanceTest;
 import io.airbyte.integrations.standardtest.source.TestDestinationEnv;
 import io.airbyte.protocol.models.CatalogHelpers;
@@ -46,8 +45,6 @@ import org.mockito.Mockito;
 import org.testcontainers.containers.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
-import static io.bicycle.server.event.mapping.constants.OTELConstants.TENANT_ID;
-
 public class KafkaSourceAcceptanceTest extends EventSourceAcceptanceTest {
 
   private static final ObjectMapper mapper = MoreMappers.initMapper();
@@ -77,7 +74,7 @@ public class KafkaSourceAcceptanceTest extends EventSourceAcceptanceTest {
 
     String consumerThreadId = UUID.randomUUID().toString();
 
-    bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog, eventSourceInfo, Mockito.mock(EventConnectorStatusInitiator.class), Mockito.mock(KafkaSource.class));
+    bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog, eventSourceInfo, Mockito.mock(EventConnectorJobStatusNotifier.class), Mockito.mock(KafkaSource.class));
   }
 
   @Override

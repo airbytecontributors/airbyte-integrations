@@ -7,17 +7,14 @@ import com.inception.server.scheduler.api.JobExecutionStatus;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class EventConnectorStatusInitiator {
-    EventConnectorStatusListener eventConnectorStatusResponseHandler = null;
+public class EventConnectorJobStatusNotifier {
+    EventConnectorJobStatusHandler eventConnectorJobStatusHandler = null;
     JobExecutionRequest jobExecutionRequest;
     AtomicInteger numberOfThreadsRunning=new AtomicInteger(0);
     ScheduledExecutorService ses = null;
-    public EventConnectorStatusInitiator(JobExecutionRequest jobExecutionRequest) {
+    public EventConnectorJobStatusNotifier(JobExecutionRequest jobExecutionRequest, EventConnectorJobStatusHandler eventConnectorStatusResponseHandler) {
         this.jobExecutionRequest = jobExecutionRequest;
-    }
-
-    public void setHandler(io.airbyte.integrations.bicycle.base.integration.EventConnectorStatusListener eventConnectorStatusResponseHandler) {
-        this.eventConnectorStatusResponseHandler=eventConnectorStatusResponseHandler;
+        this.eventConnectorJobStatusHandler =eventConnectorStatusResponseHandler;
     }
 
     public void setScheduledExecutorService(ScheduledExecutorService ses) {
@@ -33,11 +30,11 @@ public class EventConnectorStatusInitiator {
     }
 
     public void removeConnectorIdFromMap(String sourceId) {
-        eventConnectorStatusResponseHandler.removeConnectorIdFromMap(sourceId);
+        eventConnectorJobStatusHandler.removeConnectorIdFromMap(sourceId);
     }
 
     public void sendStatus(JobExecutionStatus jobExecutionStatus, String response, String sourceId, AuthInfo authInfo) {
-        eventConnectorStatusResponseHandler.sendEventConnectorStatus(jobExecutionStatus, jobExecutionRequest, response, sourceId, authInfo);
+        eventConnectorJobStatusHandler.sendEventConnectorStatus(jobExecutionStatus, jobExecutionRequest, response, sourceId, authInfo);
     }
 
     public ScheduledExecutorService getSchedulesExecutorService() {
