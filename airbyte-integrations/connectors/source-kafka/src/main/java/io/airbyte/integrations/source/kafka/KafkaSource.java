@@ -47,8 +47,8 @@ public class KafkaSource extends BaseEventConnector {
   private static final int CONSUMER_THREADS_DEFAULT_VALUE = 1;
   private final Map<String, Map<String, Long>> consumerToTopicPartitionRecordsRead = new HashMap<>();
 
-  public KafkaSource(SystemAuthenticator systemAuthenticator, EventConnectorStatusInitiator eventConnectorStatusHandler) {
-    super(systemAuthenticator,eventConnectorStatusHandler);
+  public KafkaSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
+    super(systemAuthenticator,eventConnectorJobStatusNotifier);
   }
 
   @Override
@@ -116,19 +116,19 @@ public class KafkaSource extends BaseEventConnector {
     AuthInfo authInfo = new BicycleAuthInfo(bicycleConfig.getToken(), bicycleConfig.getTenantId());
     try {
       ses.scheduleAtFixedRate(metricAsEventsGenerator, 60, 300, TimeUnit.SECONDS);
-      eventConnectorStatusInitiator.setNumberOfThreadsRunning(new AtomicInteger(numberOfConsumers));
-      eventConnectorStatusInitiator.setScheduledExecutorService(ses);
+      eventConnectorJobStatusNotifier.setNumberOfThreadsRunning(new AtomicInteger(numberOfConsumers));
+      eventConnectorJobStatusNotifier.setScheduledExecutorService(ses);
       for (int i = 0; i < numberOfConsumers; i++) {
         Map<String, Long> totalRecordsRead = new HashMap<>();
         String consumerThreadId = UUID.randomUUID().toString();
         consumerToTopicPartitionRecordsRead.put(consumerThreadId, totalRecordsRead);
-        BicycleConsumer bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog,eventSourceInfo, eventConnectorStatusInitiator,this);
+        BicycleConsumer bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog,eventSourceInfo, eventConnectorJobStatusNotifier,this);
         ses.schedule(bicycleConsumer, 1, TimeUnit.SECONDS);
       }
-      eventConnectorStatusInitiator.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, authInfo);
+      eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, authInfo);
     } catch (Exception exception) {
-      eventConnectorStatusInitiator.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
-      eventConnectorStatusInitiator.sendStatus(JobExecutionStatus.failure,"Shutting down the kafka Event Connector", connectorId, authInfo);
+      eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
+      eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the kafka Event Connector", connectorId, authInfo);
       LOGGER.error("Shutting down the kafka Event Connector", exception);
     }
     return null;

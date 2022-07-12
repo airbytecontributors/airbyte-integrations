@@ -6,7 +6,7 @@ import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.integrations.base.Command;
 import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
-import io.airbyte.integrations.bicycle.base.integration.EventConnectorStatusInitiator;
+import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.server.event.mapping.models.converter.BicycleEventsResult;
 
@@ -41,18 +41,18 @@ public class BicycleConsumer implements Runnable {
     private final Map<String, Long> topicPartitionRecordsRead;
     private final String name;
     private final ConfiguredAirbyteCatalog catalog;
-    private EventConnectorStatusInitiator eventConnectorStatusHandler;
+    private EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier;
     private final KafkaSource kafkaSource;
     private final EventSourceInfo eventSourceInfo;
 
-    public BicycleConsumer(String name, Map<String, Long> topicPartitionRecordsRead, BicycleConfig bicycleConfig, JsonNode connectorConfig, ConfiguredAirbyteCatalog configuredCatalog, EventSourceInfo eventSourceInfo, EventConnectorStatusInitiator eventConnectorStatusHandler, KafkaSource instance) {
+    public BicycleConsumer(String name, Map<String, Long> topicPartitionRecordsRead, BicycleConfig bicycleConfig, JsonNode connectorConfig, ConfiguredAirbyteCatalog configuredCatalog, EventSourceInfo eventSourceInfo, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier, KafkaSource instance) {
         this.name = name;
         this.config = connectorConfig;
         this.catalog = configuredCatalog;
         this.kafkaSourceConfig = new KafkaSourceConfig(name, config);
         this.bicycleConfig = bicycleConfig;
         this.topicPartitionRecordsRead = topicPartitionRecordsRead;
-        this.eventConnectorStatusHandler = eventConnectorStatusHandler;
+        this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;
         this.kafkaSource = instance;
         this.eventSourceInfo = eventSourceInfo;
         logger.info("Initialized consumer thread with name {}", name);
@@ -77,10 +77,10 @@ public class BicycleConsumer implements Runnable {
                 }
             }
         }
-        if (eventConnectorStatusHandler.getNumberOfThreadsRunning().decrementAndGet()<=0) {
-            eventConnectorStatusHandler.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
+        if (eventConnectorJobStatusNotifier.getNumberOfThreadsRunning().decrementAndGet()<=0) {
+            eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
             AuthInfo authInfo = new BicycleAuthInfo(bicycleConfig.getToken(), bicycleConfig.getTenantId());
-            eventConnectorStatusHandler.sendStatus(JobExecutionStatus.failure,"Shutting down the kafka Event Connector", eventSourceInfo.getEventSourceId(), authInfo);
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the kafka Event Connector", eventSourceInfo.getEventSourceId(), authInfo);
         }
         logger.info("All the retries failed, exiting the thread for consumer {}",name);
     }
