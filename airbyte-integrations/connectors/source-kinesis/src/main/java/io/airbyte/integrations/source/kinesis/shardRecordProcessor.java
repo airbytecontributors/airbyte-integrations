@@ -4,6 +4,7 @@ import com.inception.server.auth.model.AuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.bicycle.server.event.mapping.models.converter.BicycleEventsResult;
+import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import org.slf4j.Logger;
@@ -50,22 +51,22 @@ public class shardRecordProcessor implements ShardRecordProcessor {
                 recordsList.add(recordString);
                 logger.info("Processing record pk: " + record.partitionKey() + " shardID: " + shardId + " -- data: " + recordString);
             }
-            processRecordsInput.checkpointer().checkpoint();
             if (recordsList.size() == 0) {
                 return;
             }
-
-            BicycleEventsResult bicycleEventsResult = null;
-            AuthInfo authInfo = new BicycleAuthInfo(bicycleConfig.getToken(), bicycleConfig.getTenantId());
+            logger.info("No of records read from client are {} ", recordsList.size());
+            EventProcessorResult eventProcessorResult = null;
+            AuthInfo authInfo = bicycleConfig.getAuthInfo();
             try {
                 List<RawEvent> rawEvents = this.kinesisSource.convertRecordsToRawEvents(recordsList);
-                bicycleEventsResult = this.kinesisSource.convertRawEventsToBicycleEvents(authInfo, eventSourceinfo, rawEvents);
+                eventProcessorResult = this.kinesisSource.convertRawEventsToBicycleEvents(authInfo, eventSourceinfo, rawEvents);
             } catch (Exception exception) {
                 logger.error("Unable to convert raw records to bicycle events", exception);
             }
 
             try {
-                this.kinesisSource.publishEvents(authInfo, eventSourceinfo, bicycleEventsResult);
+                this.kinesisSource.publishEvents(authInfo, eventSourceinfo, eventProcessorResult);
+                processRecordsInput.checkpointer().checkpoint();
             } catch (Exception exception) {
                 logger.error("Unable to publish bicycle events", exception);
             }

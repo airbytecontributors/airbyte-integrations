@@ -2,6 +2,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.inception.server.auth.api.SystemAuthenticator;
+import com.inception.server.auth.model.AuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
@@ -10,6 +11,7 @@ import io.airbyte.integrations.source.kafka.KafkaSource;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.server.event.mapping.models.converter.BicycleEventsResult;
+import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -30,7 +32,7 @@ public class KafkaSourceTest {
     static BicycleConsumer bicycleConsumer;
     static JsonNode config;
     static ConfiguredAirbyteCatalog catalog;
-    private static BicycleAuthInfo authInfo;
+    private static AuthInfo authInfo;
     private static EventSourceInfo eventSourceInfo;
     private static BicycleConfig bicycleConfig;
     private static KafkaSource kafkaSource;
@@ -38,15 +40,17 @@ public class KafkaSourceTest {
     @BeforeAll
     public static void setupBicycleConsumer() {
         String serverURL =  "https://api.dev.bicycle.io";
+        String metricStoreURL =  "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details";
         String uniqueIdentifier = UUID.randomUUID().toString();
         String token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJBbnVyYWdCYWpwYWkiLCJPUkdfSUQiOiIyIiwiaXNzIjoiYWRtaW4iLCJpYXQiOjE2MDQ2NDYyNjgsIlRFTkFOVCI6IjY1ZTFlNTQxLWFhNTMtNDkyMi05MmJmLWJmNmM5NDViOTdjOCIsImp0aSI6ImM3OTBjZWVmLTU5ZTYtNGQwZC1iNmYifQ.FjRFA6uI8ARJdXn0wc3LTPfdzs5Yboyhm51YR7F41GI";
         String connectorId = "c_connector_stream:776cdc59-06da-4034-83ed-3054142ce3e1";
+        String userId = "";
         String eventSourceType= "EVENT";
         String tenantId = "";
 
         Map<String, Long> totalRecordsRead = null;
-        bicycleConfig = new BicycleConfig(serverURL, token, connectorId, uniqueIdentifier, tenantId, Mockito.mock(SystemAuthenticator.class),true);
-        authInfo = new BicycleAuthInfo(bicycleConfig.getToken(), TENANT_ID);
+        bicycleConfig = new BicycleConfig(serverURL, metricStoreURL,token, connectorId,uniqueIdentifier, tenantId, Mockito.mock(SystemAuthenticator.class),true);
+        authInfo = bicycleConfig.getAuthInfo();
         eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
 
         config = null;
@@ -87,8 +91,8 @@ public class KafkaSourceTest {
         node.put("TestKey","TestValue");
         records.add(new ConsumerRecord<String, JsonNode>("Test",0, 0,"Key",(JsonNode) node));
         List<RawEvent> rawEventsFromConnector = kafkaSource.convertRecordsToRawEvents(records);
-        BicycleEventsResult biycleEvents = kafkaSource.convertRawEventsToBicycleEvents(authInfo, eventSourceInfo, rawEventsFromConnector);
-        Assertions.assertEquals(biycleEvents.getUnmatchedBicycleEvents().getEvents(0).getData(1).getValue().getStringValue(),node.toString());
+        EventProcessorResult eventProcessorResult = kafkaSource.convertRawEventsToBicycleEvents(authInfo, eventSourceInfo, rawEventsFromConnector);
+        Assertions.assertEquals(eventProcessorResult.getUnmatchedRawEvents().get(0).getPreviewEvent().toString(),rawEventsFromConnector.get(0).getPreviewEvent().toString());
     }
 
     @Test
@@ -100,8 +104,8 @@ public class KafkaSourceTest {
         node.put("TestKey","TestValue");
         records.add(new ConsumerRecord<String, JsonNode>("Test",0, 0,"Key",(JsonNode) node));
         List<RawEvent> rawEventsFromConnector = kafkaSource.convertRecordsToRawEvents(records);
-        BicycleEventsResult biycleEvents = kafkaSource.convertRawEventsToBicycleEvents(authInfo, eventSourceInfo, rawEventsFromConnector);
-        boolean testResult = kafkaSource.publishEvents(authInfo, eventSourceInfo,biycleEvents);
+        EventProcessorResult eventProcessorResult = kafkaSource.convertRawEventsToBicycleEvents(authInfo, eventSourceInfo, rawEventsFromConnector);
+        boolean testResult = kafkaSource.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
         Assertions.assertEquals(testResult, true);
     }
 

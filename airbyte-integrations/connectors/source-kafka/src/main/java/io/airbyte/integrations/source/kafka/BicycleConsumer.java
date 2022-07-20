@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -78,8 +79,9 @@ public class BicycleConsumer implements Runnable {
             }
         }
         if (eventConnectorJobStatusNotifier.getNumberOfThreadsRunning().decrementAndGet()<=0) {
+            eventConnectorJobStatusNotifier.getSchedulesExecutorService().shutdown();
             eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
-            AuthInfo authInfo = new BicycleAuthInfo(bicycleConfig.getToken(), bicycleConfig.getTenantId());
+            AuthInfo authInfo = bicycleConfig.getAuthInfo();
             eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the kafka Event Connector", eventSourceInfo.getEventSourceId(), authInfo);
         }
         logger.info("All the retries failed, exiting the thread for consumer {}",name);
@@ -96,8 +98,7 @@ public class BicycleConsumer implements Runnable {
     public void read(BicycleConfig bicycleConfig, final JsonNode config, final ConfiguredAirbyteCatalog configuredAirbyteCatalog, final JsonNode state) {
         final boolean check = check(config);
 
-        logger.info("======Starting read operation for consumer " + name + " config: " + config + " =======");
-
+        logger.info("======Starting read operation for consumer " + name + " config: " + config + " catalog:"+ configuredAirbyteCatalog + "=======");
         if (!check) {
             throw new RuntimeException("Unable establish a connection");
         }
@@ -155,8 +156,8 @@ public class BicycleConsumer implements Runnable {
                     continue;
                 }
 
-                BicycleEventsResult eventProcessorResult = null;
-                AuthInfo authInfo = new BicycleAuthInfo(bicycleConfig.getToken(), bicycleConfig.getTenantId());
+                EventProcessorResult eventProcessorResult = null;
+                AuthInfo authInfo = bicycleConfig.getAuthInfo();
                 try {
                     List<RawEvent> rawEvents = this.kafkaSource.convertRecordsToRawEvents(recordsList);
                     eventProcessorResult = this.kafkaSource.convertRawEventsToBicycleEvents(authInfo,eventSourceInfo,rawEvents);

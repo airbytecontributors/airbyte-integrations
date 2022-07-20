@@ -59,14 +59,16 @@ public class KafkaSourceAcceptanceTest extends EventSourceAcceptanceTest {
   @BeforeAll
   public static void setupBicycleConsumer() {
     String serverURL =  "";
+    String metricStoreURL =  "";
     String uniqueIdentifier = UUID.randomUUID().toString();
     String token = "";
     String connectorId = "";
+    String userId = "";
     String eventSourceType= "EVENT";
     String tenantId = "";
 
     Map<String, Long> totalRecordsRead = null;
-    BicycleConfig bicycleConfig = new BicycleConfig(serverURL, token, connectorId, uniqueIdentifier, tenantId, Mockito.mock(SystemAuthenticator.class), true);
+    BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL,token, connectorId,uniqueIdentifier, tenantId, Mockito.mock(SystemAuthenticator.class), true);
     EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
 
     config = null;
