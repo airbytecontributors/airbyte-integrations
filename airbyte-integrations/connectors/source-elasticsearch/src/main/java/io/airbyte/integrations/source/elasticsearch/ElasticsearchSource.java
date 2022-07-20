@@ -5,13 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.inception.server.auth.api.SystemAuthenticator;
+import com.inception.server.auth.model.AuthInfo;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
-import io.airbyte.integrations.bicycle.base.integration.EventConnectorStatusInitiator;
+import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.*;
 import java.io.IOException;
 import java.util.*;
@@ -23,6 +24,7 @@ import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.server.event.mapping.models.converter.BicycleEventsResult;
+import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import org.joda.time.DateTime;
@@ -37,8 +39,8 @@ public class ElasticsearchSource extends BaseEventConnector {
     private final ObjectMapper mapper = new ObjectMapper();
     private boolean setBicycleEventProcessorFlag=false;
 
-    public ElasticsearchSource(SystemAuthenticator systemAuthenticator, EventConnectorStatusInitiator eventConnectorStatusHandler) {
-        super(systemAuthenticator, eventConnectorStatusHandler);
+    public ElasticsearchSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
+        super(systemAuthenticator, eventConnectorJobStatusNotifier);
     }
 
     public static void main(String[] args) throws Exception {
@@ -151,6 +153,7 @@ public class ElasticsearchSource extends BaseEventConnector {
     private void readEvent(final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state, final ElasticsearchConnection connection) throws IOException {
         Map<String, Object> additionalProperties = catalog.getAdditionalProperties();
         String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
+        String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
         String uniqueIdentifier = UUID.randomUUID().toString();
         String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
         String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
@@ -159,7 +162,7 @@ public class ElasticsearchSource extends BaseEventConnector {
         String isOnPrem = additionalProperties.get("isOnPrem").toString();
         boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
 
-        BicycleConfig bicycleConfig = new BicycleConfig(serverURL, token, connectorId, uniqueIdentifier, tenantId,systemAuthenticator, isOnPremDeployment);
+        BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL, token, connectorId,uniqueIdentifier, tenantId,systemAuthenticator, isOnPremDeployment);
         setBicycleEventProcessor(bicycleConfig);
         EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
         ConfiguredAirbyteStream configuredAirbyteStream = catalog.getStreams().get(0);
@@ -186,8 +189,8 @@ public class ElasticsearchSource extends BaseEventConnector {
                     TimeUnit.SECONDS.sleep(5);
                     continue;
                 }
-                BicycleEventsResult eventProcessorResult = null;
-                BicycleAuthInfo authInfo = new BicycleAuthInfo(bicycleConfig.getToken(), tenantId);
+                EventProcessorResult eventProcessorResult = null;
+                AuthInfo authInfo = bicycleConfig.getAuthInfo();
                 try {
                     List<RawEvent> rawEvents = this.convertRecordsToRawEvents(recordsList);
                     eventProcessorResult = convertRawEventsToBicycleEvents(authInfo,eventSourceInfo,rawEvents);
@@ -220,7 +223,7 @@ public class ElasticsearchSource extends BaseEventConnector {
         List<RawEvent> rawEvents = new ArrayList<>();
         while (recordsIterator.hasNext()) {
             JsonNode record = (JsonNode) recordsIterator.next();
-            JsonRawEvent jsonRawEvent = new JsonRawEvent(record.asText());
+            JsonRawEvent jsonRawEvent = new JsonRawEvent(record.toString());
             rawEvents.add(jsonRawEvent);
         }
         if (rawEvents.size() == 0) {
