@@ -21,8 +21,9 @@ import io.bicycle.event.processor.impl.BicycleEventProcessorImpl;
 import io.bicycle.event.publisher.api.BicycleEventPublisher;
 import io.bicycle.event.publisher.impl.BicycleEventPublisherImpl;
 import io.bicycle.server.event.mapping.config.EventMappingConfigurations;
-import io.bicycle.server.event.mapping.models.converter.BicycleEventsResult;
+import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
+import io.bicycle.server.event.mapping.models.publisher.EventPublisherResult;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import java.util.List;
 import org.slf4j.Logger;
@@ -35,7 +36,7 @@ import org.slf4j.LoggerFactory;
 public abstract class BaseEventConnector extends BaseConnector implements Source {
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getName());
     private BicycleEventProcessor bicycleEventProcessor;
-    private BicycleEventPublisher bicycleEventPublisher;
+    protected BicycleEventPublisher bicycleEventPublisher;
     private BicycleConfig bicycleConfig;
     protected SystemAuthenticator systemAuthenticator;
     protected EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier;
@@ -50,10 +51,9 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         this.bicycleConfig = bicycleConfig;
         ConfigStoreClient configStoreClient = getConfigClient(bicycleConfig);
         this.bicycleEventProcessor = new BicycleEventProcessorImpl(configStoreClient);
-        EventMappingConfigurations eventMappingConfigurations = new EventMappingConfigurations
-                (bicycleConfig.getServerURL(), bicycleConfig.getServerURL(), bicycleConfig.getServerURL(),
-                        bicycleConfig.getEventURL(), bicycleConfig.getServerURL(), bicycleConfig.getEventURL());
-        this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, true);
+        EventMappingConfigurations eventMappingConfigurations = new EventMappingConfigurations(bicycleConfig.getServerURL(),bicycleConfig.getMetricStoreURL(), bicycleConfig.getServerURL(),
+                bicycleConfig.getEventURL(), bicycleConfig.getServerURL(), bicycleConfig.getEventURL());
+        this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, systemAuthenticator, true);
     }
 
     static ConfigStoreClient getConfigClient(BicycleConfig bicycleConfig) {
@@ -81,30 +81,31 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     public abstract AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state);
 
-    public BicycleEventsResult convertRawEventsToBicycleEvents(AuthInfo authInfo,
+    public EventProcessorResult convertRawEventsToBicycleEvents(AuthInfo authInfo,
                                                                EventSourceInfo eventSourceInfo,
                                                                List<RawEvent> rawEvents) {
 
-        BicycleEventsResult bicycleEventsResult =
-                bicycleEventProcessor.processEventsForPipeline(authInfo, eventSourceInfo, rawEvents);
+        EventProcessorResult eventProcessorResult =
+                bicycleEventProcessor.processEvents(authInfo, eventSourceInfo, rawEvents);
 
-        return bicycleEventsResult;
+        return eventProcessorResult;
 
     }
 
     public boolean publishEvents(AuthInfo authInfo, EventSourceInfo eventSourceInfo,
-                                 BicycleEventsResult bicycleEventsResult) {
+                                 EventProcessorResult eventProcessorResult) {
 
-        if (bicycleEventsResult == null) {
+        if (eventProcessorResult == null) {
             return true;
         }
-        boolean published = bicycleEventPublisher.publishEvents(authInfo, eventSourceInfo, bicycleEventsResult);
+        EventPublisherResult publisherResult = bicycleEventPublisher.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
 
-        if (!published) {
+        if (publisherResult == null) {
             logger.warn("There was some issue in publishing events");
+            return false;
         }
 
-        return published;
+        return true;
     }
 
 }
