@@ -26,6 +26,9 @@ import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.models.publisher.EventPublisherResult;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,18 +40,45 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getName());
     private BicycleEventProcessor bicycleEventProcessor;
     protected BicycleEventPublisher bicycleEventPublisher;
-    private BicycleConfig bicycleConfig;
+    protected BicycleConfig bicycleConfig;
     protected SystemAuthenticator systemAuthenticator;
+    public static final String STREAM_NAME = "stream_name";
     protected EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier;
     protected static final String TENANT_ID = "tenantId";
     protected String ENV_TENANT_ID_KEY = "TENANT_ID";
+    private boolean isOnPremDeployment;
+    private String serverURL;
+    private String metricStoreURL;
+    private String uniqueIdentifier;
+    private String token;
+    protected String connectorId;
+    protected String eventSourceType;
+    private String tenantId;
+    private String isOnPrem;
+    protected EventSourceInfo eventSourceInfo;
+
     public BaseEventConnector(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
         this.systemAuthenticator = systemAuthenticator;
         this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;
     }
 
-    public void setBicycleEventProcessor(BicycleConfig bicycleConfig) {
-        this.bicycleConfig = bicycleConfig;
+    public void createBicycleConfigFromConfigAndCatalog (final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state) {
+        Map<String, Object> additionalProperties = catalog.getAdditionalProperties();
+        serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
+        metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
+        uniqueIdentifier = UUID.randomUUID().toString();
+        token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
+        connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
+        eventSourceType = additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : "EVENT";
+        tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";;
+        isOnPrem = additionalProperties.get("isOnPrem").toString();
+        isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
+        this.bicycleConfig = new BicycleConfig(serverURL, metricStoreURL,token, connectorId, uniqueIdentifier, tenantId, systemAuthenticator, isOnPremDeployment);
+        setBicycleEventProcessor(bicycleConfig);
+        eventSourceInfo = new EventSourceInfo(connectorId, eventSourceType);
+    }
+
+    private void setBicycleEventProcessor(BicycleConfig bicycleConfig) {
         ConfigStoreClient configStoreClient = getConfigClient(bicycleConfig);
         this.bicycleEventProcessor = new BicycleEventProcessorImpl(configStoreClient);
         EventMappingConfigurations eventMappingConfigurations = new EventMappingConfigurations(bicycleConfig.getServerURL(),bicycleConfig.getMetricStoreURL(), bicycleConfig.getServerURL(),

@@ -94,25 +94,11 @@ public class KafkaSource extends BaseEventConnector {
     int threadPoolSize = numberOfConsumers + 3;
     ScheduledExecutorService ses = Executors.newScheduledThreadPool(threadPoolSize);
 
-    Map<String, Object> additionalProperties = catalog.getAdditionalProperties();
-
+    createBicycleConfigFromConfigAndCatalog(config, catalog, state);
+//    shift this to connector executor
     ConfiguredAirbyteStream configuredAirbyteStream = catalog.getStreams().get(0);
     ((ObjectNode) config).put(STREAM_NAME,configuredAirbyteStream.getStream().getName());
 
-    String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
-    String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
-    String uniqueIdentifier = UUID.randomUUID().toString();
-    String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
-    String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
-    String eventSourceType = additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : "EVENT";
-    String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";;
-    String isOnPrem = additionalProperties.get("isOnPrem").toString();
-    boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
-
-    BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL,token, connectorId, uniqueIdentifier, tenantId, systemAuthenticator, isOnPremDeployment);
-    setBicycleEventProcessor(bicycleConfig);
-
-    EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
     MetricAsEventsGenerator metricAsEventsGenerator = new KafkaMetricAsEventsGenerator(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher,this);
     AuthInfo authInfo = bicycleConfig.getAuthInfo();
     try {
