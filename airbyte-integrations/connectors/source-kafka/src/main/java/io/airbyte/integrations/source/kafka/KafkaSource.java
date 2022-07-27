@@ -100,6 +100,7 @@ public class KafkaSource extends BaseEventConnector {
     ((ObjectNode) config).put(STREAM_NAME,configuredAirbyteStream.getStream().getName());
 
     String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
+    String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
     String uniqueIdentifier = UUID.randomUUID().toString();
     String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
     String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
@@ -108,12 +109,12 @@ public class KafkaSource extends BaseEventConnector {
     String isOnPrem = additionalProperties.get("isOnPrem").toString();
     boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
 
-    BicycleConfig bicycleConfig = new BicycleConfig(serverURL, token, connectorId, uniqueIdentifier, tenantId, systemAuthenticator, isOnPremDeployment);
+    BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL,token, connectorId, uniqueIdentifier, tenantId, systemAuthenticator, isOnPremDeployment);
     setBicycleEventProcessor(bicycleConfig);
 
     EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
-    MetricAsEventsGenerator metricAsEventsGenerator = new KafkaMetricAsEventsGenerator(bicycleConfig, eventSourceInfo, config, this);
-    AuthInfo authInfo = new BicycleAuthInfo(bicycleConfig.getToken(), bicycleConfig.getTenantId());
+    MetricAsEventsGenerator metricAsEventsGenerator = new KafkaMetricAsEventsGenerator(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher,this);
+    AuthInfo authInfo = bicycleConfig.getAuthInfo();
     try {
       ses.scheduleAtFixedRate(metricAsEventsGenerator, 60, 300, TimeUnit.SECONDS);
       eventConnectorJobStatusNotifier.setNumberOfThreadsRunning(new AtomicInteger(numberOfConsumers));
@@ -127,9 +128,10 @@ public class KafkaSource extends BaseEventConnector {
       }
       eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, authInfo);
     } catch (Exception exception) {
+      eventConnectorJobStatusNotifier.getSchedulesExecutorService().shutdown();
       eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
       eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the kafka Event Connector", connectorId, authInfo);
-      LOGGER.error("Shutting down the kafka Event Connector", exception);
+      LOGGER.error("Shutting down the kafka Event Connector for connector {}", bicycleConfig.getConnectorId() ,exception);
     }
     return null;
   }
@@ -151,6 +153,7 @@ public class KafkaSource extends BaseEventConnector {
 
   @Override
   public AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) {
+    ((ObjectNode) config).put("group_id",UUID.randomUUID().toString());
     final AirbyteConnectionStatus check = check(config);
     if (check.getStatus().equals(AirbyteConnectionStatus.Status.FAILED)) {
       throw new RuntimeException("Unable establish a connection: " + check.getMessage());
@@ -182,7 +185,6 @@ public class KafkaSource extends BaseEventConnector {
                     record.key(), record.value(), record.partition(), record.offset());
             recordsList.add(record);
           });
-          consumer.commitAsync();
           break;
         }
       } catch (Exception e) {

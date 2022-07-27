@@ -49,7 +49,7 @@
         "title":"Failover Time, ms",
         "description":"The number of milliseconds that must pass before you can consider a lease owner to have failed.",
         "type":"integer",
-        "default":1000
+        "default":5000
       },
       "manual_checkpoint_interval_ms": {
         "title":"Manual Commit Interval, ms",
