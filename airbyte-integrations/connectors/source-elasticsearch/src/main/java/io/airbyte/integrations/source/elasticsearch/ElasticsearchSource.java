@@ -27,6 +27,14 @@ import io.bicycle.server.event.mapping.models.converter.BicycleEventsResult;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.joda.time.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -179,11 +187,16 @@ public class ElasticsearchSource extends BaseEventConnector {
             // if timeRange not given
             String lastEnd;
             while(true) {
-                lastEnd = new DateTime().toString();
-                LOGGER.info("Time-field:{}, From:{}", timeRange.path(TIME_FIELD).textValue(), timeRange.path(FROM).textValue());
+                final String latestDataTimestamp = connection.getLatestTimestamp(index, timeRange.path(TIME_FIELD).textValue());
+                if(latestDataTimestamp.equals(timeRange.path(FROM).textValue())) {
+                    LOGGER.info("No new data seen after timestamp: {}, querying again in 5 seconds", latestDataTimestamp);
+                    TimeUnit.SECONDS.sleep(5);
+                    continue;
+                }
+                ((ObjectNode)timeRange).put(TO, latestDataTimestamp);
+                LOGGER.info("Getting data for time-field:{}, From:{}, To:{}", timeRange.path(TIME_FIELD).textValue(), timeRange.path(FROM).textValue(), timeRange.path(TO).textValue());
                 List<JsonNode> recordsList = connection.getRecords(index, timeRange);
-                timeRange = updateTimeRange(timeRange, lastEnd);
-
+                timeRange = updateTimeRange(timeRange, latestDataTimestamp);
                 LOGGER.info("No of records read {}", recordsList.size());
                 if (recordsList.size() == 0) {
                     TimeUnit.SECONDS.sleep(5);

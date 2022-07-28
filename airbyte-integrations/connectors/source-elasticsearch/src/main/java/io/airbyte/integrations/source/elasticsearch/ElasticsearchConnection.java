@@ -28,7 +28,11 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
+import org.joda.time.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import static io.airbyte.integrations.source.elasticsearch.ElasticsearchConstants.*;
@@ -185,8 +189,9 @@ public class ElasticsearchConnection {
         if(timeRange!=null && timeRange.has("method") && timeRange.get("method").textValue().equals("custom")) {
             String timeField = timeRange.has(TIME_FIELD)? timeRange.get(TIME_FIELD).textValue(): ES_DEFAULT_TIME_FIELD;
             String from = timeRange.has(FROM)? timeRange.get(FROM).textValue() : null;
-            log.debug("Timefield {}, from {}", timeField, from);
-            RangeQueryBuilder rangeQueryBuilder = QueryBuilders.rangeQuery(timeField).from(from);
+            String to = timeRange.has(TO)? timeRange.get(TO).textValue() : null;
+            log.debug("Timefield {}, from {}, to {}", timeField, from, to);
+            RangeQueryBuilder rangeQueryBuilder = QueryBuilders.rangeQuery(timeField).from(from).to(to);
             searchSourceBuilder.query(rangeQueryBuilder);
         }
         else {
@@ -253,4 +258,24 @@ public class ElasticsearchConnection {
         GetIndexResponse response = this.client.indices().get(request, RequestOptions.DEFAULT);
         return Arrays.asList(response.getIndices());
     }
+
+    public String getLatestTimestamp(String index, String fieldName) throws IOException {
+        SearchRequest searchRequest = new SearchRequest(index);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+//        searchSourceBuilder.query(QueryBuilders.matchAllQuery());
+        searchSourceBuilder.size(1);
+        searchSourceBuilder.sort(new FieldSortBuilder(fieldName).order(SortOrder.DESC));
+        searchRequest.source(searchSourceBuilder);
+        SearchResponse searchResponse = this.client.search(searchRequest, RequestOptions.DEFAULT);
+        SearchHit[] searchHits = searchResponse.getHits().getHits();
+        if(searchHits.length==0) {
+            return new DateTime().toString();
+        }
+        else {
+            Map<String, Object> map = searchHits[0].getSourceAsMap();
+            return (String)map.get(fieldName);
+        }
+    }
+
+
 }
