@@ -17,6 +17,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Lists;
 import com.inception.server.auth.api.SystemAuthenticator;
+import com.inception.server.auth.model.AuthInfo;
+import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.base.IntegrationRunner;
@@ -126,6 +128,7 @@ public class KinesisSource extends BaseEventConnector {
         KinesisClientConfig kinesisClientConfig = new KinesisClientConfig(config,this);
         this.kinesisClientConfig= kinesisClientConfig;
         KinesisMetricAsEventsGenerator kinesisMetricAsEventsGenerator = new KinesisMetricAsEventsGenerator(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher, this);
+        AuthInfo authInfo = bicycleConfig.getAuthInfo();
         try {
             ses.scheduleAtFixedRate(kinesisMetricAsEventsGenerator, 60, 300, TimeUnit.SECONDS);
             LOGGER.info("======Starting read operation for consumer " + bicycleConfig.getUniqueIdentifier() + "=======");
@@ -148,7 +151,11 @@ public class KinesisSource extends BaseEventConnector {
                 schedulerThread.setDaemon(true);
                 schedulerThread.start();
             }
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kinesis Event Connector started Successfully", connectorId, authInfo);
         } catch (Exception exception) {
+            eventConnectorJobStatusNotifier.getSchedulesExecutorService().shutdown();
+            eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the Kinesis Event Connector", connectorId, authInfo);
             LOGGER.error("Shutting down the kinesis Client application", exception);
             ses.shutdown();
         }
