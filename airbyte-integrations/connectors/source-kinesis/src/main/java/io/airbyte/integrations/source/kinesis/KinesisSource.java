@@ -153,7 +153,6 @@ public class KinesisSource extends BaseEventConnector {
             }
             eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kinesis Event Connector started Successfully", connectorId, authInfo);
         } catch (Exception exception) {
-            eventConnectorJobStatusNotifier.getSchedulesExecutorService().shutdown();
             eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
             eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the Kinesis Event Connector", connectorId, authInfo);
             LOGGER.error("Shutting down the kinesis Client application", exception);
