@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Lists;
 import com.inception.server.auth.api.SystemAuthenticator;
+import com.inception.server.auth.model.AuthInfo;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.base.IntegrationRunner;
@@ -22,6 +23,7 @@ import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.*;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import org.apache.commons.lang3.ObjectUtils;
@@ -32,6 +34,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.kinesis.coordinator.Scheduler;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
@@ -39,6 +42,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import com.amazonaws.services.kinesis.clientlibrary.types.UserRecord;
+import software.amazon.kinesis.exceptions.InvalidStateException;
+import software.amazon.kinesis.exceptions.ShutdownException;
+import software.amazon.kinesis.lifecycle.events.*;
+import software.amazon.kinesis.processor.ShardRecordProcessor;
+import software.amazon.kinesis.retrieval.KinesisClientRecord;
 
 
 public class KinesisSource extends BaseEventConnector {
@@ -86,28 +94,15 @@ public class KinesisSource extends BaseEventConnector {
     @Override
     public AutoCloseableIterator<AirbyteMessage> read(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws Exception {
 
-//        new SystemAuthenticator();
         int numberOfConsumers =config.has("consumer_threads") ? config.get("consumer_threads").asInt(): 1;
         int threadPoolSize = numberOfConsumers + 3;
-        ScheduledExecutorService ses = Executors.newScheduledThreadPool(threadPoolSize);
 
-        Map<String, Object> additionalProperties = catalog.getAdditionalProperties();
+        createBicycleConfigFromConfigAndCatalog(config, catalog, state);
+
         ConfiguredAirbyteStream configuredAirbyteStream = catalog.getStreams().get(0);
         ((ObjectNode) config).put("stream_name",configuredAirbyteStream.getStream().getName());
-        String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
-        String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
-        String uniqueIdentifier = UUID.randomUUID().toString();
-        String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
-        String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
-        String eventSourceType = additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : "";
-        String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";;
-        String isOnPrem = additionalProperties.get("isOnPrem").toString();
-        boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
 
-        BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL,token, connectorId, uniqueIdentifier, tenantId,  systemAuthenticator, isOnPremDeployment);
-        setBicycleEventProcessor(bicycleConfig);
-        EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
-
+        ScheduledExecutorService ses = Executors.newScheduledThreadPool(threadPoolSize);
         try {
     //      ses.scheduleAtFixedRate(metricAsEventsGenerator, 60, 300, TimeUnit.SECONDS);
             LOGGER.info("======Starting read operation for consumer " + bicycleConfig.getUniqueIdentifier() + "=======");
@@ -118,7 +113,6 @@ public class KinesisSource extends BaseEventConnector {
             }
             LOGGER.info("Check Successful " + bicycleConfig.getUniqueIdentifier() + "=======");
 //                totalRecords Read details required
-
             KinesisClientConfig kinesisClientConfig = new KinesisClientConfig(config,this);
             Scheduler scheduler =  kinesisClientConfig.getScheduler(bicycleConfig, eventSourceInfo);
 
