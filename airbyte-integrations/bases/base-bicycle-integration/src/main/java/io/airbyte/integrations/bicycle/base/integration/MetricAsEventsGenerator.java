@@ -34,7 +34,7 @@ public class MetricAsEventsGenerator implements Runnable {
     private BicycleEventsHelper bicycleEventsHelper;
     protected EventSourceInfo eventSourceInfo;
     private Map<String, TagEncodedMetricName> metricNameToTagEncodedMetricName = new HashMap<>();
-    protected Map<String, Long> metricsMap = new HashMap<>();
+    protected Map<TagEncodedMetricName, Long> metricsMap = new HashMap<>();
 
 
     public MetricAsEventsGenerator(BicycleConfig bicycleConfig, EventSourceInfo eventSourceInfo, JsonNode config, BicycleEventPublisher bicycleEventPublisher, BaseEventConnector eventConnector) {
@@ -48,35 +48,50 @@ public class MetricAsEventsGenerator implements Runnable {
         globalTags.put(CONNECTOR_ID, eventSourceInfo.getEventSourceId());
     }
 
-    protected boolean publishMetrics(Map<String, String> attributes, Map<String, Long> metricsMap) {
+    protected boolean publishMetrics(Map<String, String> attributes, Map<TagEncodedMetricName, Long> metricsMap) {
         try {
-            for (Map.Entry<String, Long> metricsEntry : metricsMap.entrySet()) {
-                MetricUtils.getMetricRegistry().gauge(getTagEncodedMetricName(metricsEntry.getKey()).toString(),
+            for (Map.Entry<TagEncodedMetricName, Long> metricsEntry : metricsMap.entrySet()) {
+                MetricUtils.getMetricRegistry().gauge(metricsEntry.getKey().toString(),
                         () -> () -> metricsMap.get(metricsEntry.getKey()));
             }
+
+            AuthInfo bicycleAuthInfo = bicycleConfig.getAuthInfo();
             BicycleEvent bicycleEvent =
                     bicycleEventsHelper.createPreviewBicycleEvent(eventSourceInfo, attributes);
             BicycleEventsResult bicycleEventsResult = new BicycleEventsResult(BicycleEventList.newBuilder().build(),
                     BicycleEventList.newBuilder().addEvents(bicycleEvent).build(), Collections.EMPTY_MAP);
-
-            AuthInfo authInfo = bicycleConfig.getAuthInfo();
-            bicycleEventPublisher.publishEvents(authInfo, eventSourceInfo, bicycleEventsResult);
+            bicycleEventPublisher.publishEvents(bicycleAuthInfo, eventSourceInfo, bicycleEventsResult);
             logger.info("Successfully published bicycle event for metrics {}", bicycleEvent);
         } catch (Exception exception) {
             logger.error("Unable to publish metrics", exception);
+            return false;
         }
         return true;
+
     }
 
-    private TagEncodedMetricName getTagEncodedMetricName(String metricName) {
-        if (metricNameToTagEncodedMetricName.containsKey(metricName)) {
-            return metricNameToTagEncodedMetricName.get(metricName);
-        }
+    protected TagEncodedMetricName getTagEncodedMetricName(String metricName, Map<String, String> tags) {
 
-        TagEncodedMetricName encodedMetricName = TagEncodedMetricName.decode(metricName).withTags(globalTags);
-        metricNameToTagEncodedMetricName.put(metricName, encodedMetricName);
+        tags.putAll(globalTags);
+
+       /* if (metricNameToTagEncodedMetricName.containsKey(metricName)) {
+            return metricNameToTagEncodedMetricName.get(metricName);
+        }*/
+
+        TagEncodedMetricName encodedMetricName = TagEncodedMetricName.decode(metricName).withTags(tags);
+        // metricNameToTagEncodedMetricName.put(metricName, encodedMetricName);
         return encodedMetricName;
     }
+//
+//    private TagEncodedMetricName getTagEncodedMetricName(String metricName) {
+//        if (metricNameToTagEncodedMetricName.containsKey(metricName)) {
+//            return metricNameToTagEncodedMetricName.get(metricName);
+//        }
+//
+//        TagEncodedMetricName encodedMetricName = TagEncodedMetricName.decode(metricName).withTags(globalTags);
+//        metricNameToTagEncodedMetricName.put(metricName, encodedMetricName);
+//        return encodedMetricName;
+//    }
 
     @Override
     public void run() {

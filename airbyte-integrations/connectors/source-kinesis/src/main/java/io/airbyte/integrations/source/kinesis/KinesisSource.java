@@ -5,8 +5,12 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.kinesis.AmazonKinesis;
 import com.amazonaws.services.kinesis.AmazonKinesisClientBuilder;
+import com.amazonaws.services.kinesis.clientlibrary.types.UserRecord;
 import com.amazonaws.services.kinesis.model.*;
-import com.amazonaws.services.kinesis.model.Record;
+import com.amazonaws.services.kinesis.model.GetRecordsRequest;
+import com.amazonaws.services.kinesis.model.GetShardIteratorRequest;
+import com.amazonaws.services.kinesis.model.Shard;
+import com.amazonaws.services.kinesis.model.StreamDescription;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -28,23 +32,34 @@ import org.apache.commons.lang3.ObjectUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.core.async.SdkPublisher;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.kinesis.KinesisAsyncClient;
+import software.amazon.awssdk.services.kinesis.model.*;
+import software.amazon.awssdk.services.kinesis.model.DescribeStreamConsumerRequest;
+import software.amazon.awssdk.services.kinesis.model.DescribeStreamRequest;
+import software.amazon.awssdk.services.kinesis.model.ListShardsRequest;
+import software.amazon.awssdk.services.kinesis.model.Record;
+import software.amazon.awssdk.services.kinesis.model.RegisterStreamConsumerRequest;
+import software.amazon.awssdk.services.kinesis.model.ShardIteratorType;
+import software.amazon.kinesis.common.InitialPositionInStream;
+import software.amazon.kinesis.common.InitialPositionInStreamExtended;
 import software.amazon.kinesis.coordinator.Scheduler;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
-import com.amazonaws.services.kinesis.clientlibrary.types.UserRecord;
 
 
 public class KinesisSource extends BaseEventConnector {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(KinesisSource.class);
     private static final String TENANT_ID = "tenantId";
+    private final Map<String, Map<String, Long>> clientToStreamShardRecordsRead = new HashMap<>();
+    protected KinesisClientConfig kinesisClientConfig;
+    private String applicationName;
     public KinesisSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorStatusHandler) {
         super(systemAuthenticator, eventConnectorStatusHandler);
     }
@@ -75,6 +90,7 @@ public class KinesisSource extends BaseEventConnector {
     public AirbyteCatalog discover(final JsonNode config) throws Exception {
         KinesisClientConfig kinesisClientConfig = new KinesisClientConfig(config, this);
         String streamPattern = kinesisClientConfig.getStreamPattern();
+        AmazonKinesis kinesis = kinesisClientConfig.getCheckClient();
         final Set<String> streamsToSubscribe = kinesisClientConfig.getStreamsToSubscribe(streamPattern);
         final List<AirbyteStream> streams = streamsToSubscribe.stream().map(stream -> CatalogHelpers
                         .createAirbyteStream(stream, Field.of("value", JsonSchemaType.STRING))
@@ -107,9 +123,11 @@ public class KinesisSource extends BaseEventConnector {
         BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL,token, connectorId, uniqueIdentifier, tenantId,  systemAuthenticator, isOnPremDeployment);
         setBicycleEventProcessor(bicycleConfig);
         EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
-
+        KinesisClientConfig kinesisClientConfig = new KinesisClientConfig(config,this);
+        this.kinesisClientConfig= kinesisClientConfig;
+        KinesisMetricAsEventsGenerator kinesisMetricAsEventsGenerator = new KinesisMetricAsEventsGenerator(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher, this);
         try {
-    //      ses.scheduleAtFixedRate(metricAsEventsGenerator, 60, 300, TimeUnit.SECONDS);
+            ses.scheduleAtFixedRate(kinesisMetricAsEventsGenerator, 60, 300, TimeUnit.SECONDS);
             LOGGER.info("======Starting read operation for consumer " + bicycleConfig.getUniqueIdentifier() + "=======");
             final AirbyteConnectionStatus check = check(config);
             if (check.getStatus().equals(AirbyteConnectionStatus.Status.FAILED)) {
@@ -119,12 +137,13 @@ public class KinesisSource extends BaseEventConnector {
             LOGGER.info("Check Successful " + bicycleConfig.getUniqueIdentifier() + "=======");
 //                totalRecords Read details required
 
-            KinesisClientConfig kinesisClientConfig = new KinesisClientConfig(config,this);
-            Scheduler scheduler =  kinesisClientConfig.getScheduler(bicycleConfig, eventSourceInfo);
-
-            LOGGER.info("Created Kinesis Scheduler successfully " + bicycleConfig.getUniqueIdentifier() + "=======");
 
             for (int i = 0; i < numberOfConsumers; i++) {
+                Map<String, Long> totalRecordsRead = new HashMap<>();
+                String clientThreadId = UUID.randomUUID().toString();
+                clientToStreamShardRecordsRead.put(clientThreadId,totalRecordsRead);
+                Scheduler scheduler =  kinesisClientConfig.getScheduler(bicycleConfig, eventSourceInfo, false, null, totalRecordsRead);
+                LOGGER.info("Created Kinesis Scheduler successfully for UUID " + bicycleConfig.getUniqueIdentifier() + "=======");
                 Thread schedulerThread = new Thread(scheduler);
                 schedulerThread.setDaemon(true);
                 schedulerThread.start();
@@ -152,74 +171,222 @@ public class KinesisSource extends BaseEventConnector {
     }
 
     @Override
-    public AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) {
-        AmazonKinesis kinesis;
-        GetRecordsRequest recordsRequest;
-        String name="KinesisConsumerTask";
+    public AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws InterruptedException, ExecutionException {
+
         ConfiguredAirbyteStream configuredAirbyteStream = catalog.getStreams().get(0);
         ((ObjectNode) config).put("stream_name",configuredAirbyteStream.getStream().getName());
         String stream = config.has("stream_name") ? config.get("stream_name").asText() : "";
-        String accessKey = config.has("access_key") ? config.get("access_key").asText() : "";
-        String secretKey = config.has("private_key") ? config.get("private_key").asText() : "";
-        String regionString = config.has("region") ? config.get("region").asText() : "";
-        Region region = Region.of(ObjectUtils.firstNonNull(regionString, "us-east-2"));
-        BasicAWSCredentials awsCredentials = new BasicAWSCredentials(accessKey, secretKey);
-        kinesis = AmazonKinesisClientBuilder.standard().withCredentials(new AWSStaticCredentialsProvider(awsCredentials)).withRegion(Regions.AP_SOUTH_1).build();
-        List<Shard> shards = null;
+        final String applicationName = config.has("application_name") ? config.get("application_name").asText() : "test-v2";
+        final AirbyteConnectionStatus check = check(config);
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+        if (check.getStatus().equals(AirbyteConnectionStatus.Status.FAILED)) {
+            LOGGER.info("Check Failure for config {} =======", config);
+            throw new RuntimeException("Unable establish a connection: " + check.getMessage());
+        }
+        LOGGER.info("Check Successful for config {} =======", config);
+//        List<String> objList = Collections.synchronizedList(new ArrayList<String>());
+//        KinesisClientConfig kinesisClientConfig = new KinesisClientConfig(config,this);
+//        Scheduler scheduler =  kinesisClientConfig.getScheduler(null, null, true, objList);
+//
+//        Thread schedulerThread = new Thread(scheduler);
+//        schedulerThread.setDaemon(true);
+//        schedulerThread.start();
+//
+//        while (true) {
+//            TimeUnit.SECONDS.sleep(1);
+//            if (objList.size()>10) {
+//                CompletableFuture<Boolean> booleanCompletableFuture = scheduler.startGracefulShutdown();
+//                try {
+//                    booleanCompletableFuture.get();
+//                } catch (ExecutionException e) {
+//                }
+//                schedulerThread.interrupt();
+//                break;
+//            }
+//        }
+//        Iterator<Object> userRecordIterator = objList.stream().iterator();
+//        ObjectMapper objectMapper = new ObjectMapper();
+//        return AutoCloseableIterators.fromIterator(new AbstractIterator<>() {
+//
+//            @Override
+//            protected AirbyteMessage computeNext() {
+//                if (userRecordIterator.hasNext()) {
+//                    final String record = (String) userRecordIterator.next();
+//                    JsonNode data = null;
+//                    try {
+//                        data = objectMapper.readTree(record);
+//                    } catch (IOException e) {
+//                        LOGGER.error("Cannot convert Record to Json",e);
+//                    }
+//                    return new AirbyteMessage()
+//                            .withType(AirbyteMessage.Type.RECORD)
+//                            .withRecord(new AirbyteRecordMessage()
+//                                    .withStream(stream)
+//                                    .withEmittedAt(Instant.now().toEpochMilli())
+//                                    .withData(data));
+//                }
+//
+//                return endOfData();
+//            }
+//
+//        });
+        final List<software.amazon.awssdk.services.kinesis.model.Record> objList = Collections.synchronizedList(new ArrayList<>());
+        KinesisClientConfig kinesisClientConfig = new KinesisClientConfig(config,this);
+        KinesisAsyncClient kinesisClient = kinesisClientConfig.getKinesisClient();
+        CompletableFuture<ListShardsResponse> listShardsResponseCompletableFuture = kinesisClient.listShards(ListShardsRequest.builder().streamName(stream).build());
+        ListShardsResponse listShardsResponse = listShardsResponseCompletableFuture.get();
+        ArrayList<CompletableFuture<Void>> completeableFutureList = new ArrayList<>();
+        CompletableFuture<DescribeStreamResponse> describeStreamResponseCompletableFuture = kinesisClient.describeStream(DescribeStreamRequest.builder().streamName(stream).build());
+        String streamARN = describeStreamResponseCompletableFuture.get().streamDescription().streamARN();
+        String consumerARN;
         try {
-            StreamDescription streamDesc = kinesis.describeStream(stream).getStreamDescription();
-            shards = streamDesc.getShards();
+            RegisterStreamConsumerRequest registerStreamConsumerRequest = RegisterStreamConsumerRequest.builder().consumerName(applicationName).streamARN(streamARN).build();
+            CompletableFuture<RegisterStreamConsumerResponse> registerStreamConsumerResponseCompletableFuture = kinesisClient.registerStreamConsumer(registerStreamConsumerRequest);
+            RegisterStreamConsumerResponse registerStreamConsumerResponse = registerStreamConsumerResponseCompletableFuture.get();
+            consumerARN = registerStreamConsumerResponse.consumer().consumerARN();
         }
         catch (Exception e) {
-            LOGGER.error("Exception while trying to get shard list",e);
+            CompletableFuture<DescribeStreamConsumerResponse> describeStreamConsumerResponseCompletableFuture = kinesisClient.describeStreamConsumer(DescribeStreamConsumerRequest.builder().streamARN(streamARN).consumerName(applicationName).build());
+            consumerARN = describeStreamConsumerResponseCompletableFuture.get().consumerDescription().consumerARN();
         }
+        int batchsize= Math.max(100/listShardsResponse.shards().size(), 20);
+        String initialPositionInStream = config.get("initial_position_in_stream").asText();
+        ShardIteratorType shardIteratorType;
+        if (initialPositionInStream == "Latest") {
+            shardIteratorType = ShardIteratorType.LATEST;
+        }
+        else {
+            shardIteratorType = ShardIteratorType.TRIM_HORIZON;
+        }
+        for (software.amazon.awssdk.services.kinesis.model.Shard shard : listShardsResponse.shards()) {
+            SubscribeToShardRequest subscribeToShardRequest = SubscribeToShardRequest.builder().shardId(shard.shardId()).consumerARN(consumerARN).startingPosition(StartingPosition.builder().type(shardIteratorType).build()).build();
+            SubscribeToShardResponseHandler responseHandler = SubscribeToShardResponseHandler
+                    .builder()
+                    .onError(e -> LOGGER.error("Error during stream - " + e.getMessage()))
+                    .onEventStream(publisher -> publisher
+                            // Filter to only SubscribeToShardEvents
+                            // Flat map into a publisher of just records
+                            // Limit to 1000 total records
+                            // Batch records into lists of 25
+                            // Print out each record batch
+                            .filter(SubscribeToShardEvent.class)
+                            .flatMapIterable(SubscribeToShardEvent::records)
+                            .limit(100)
+                            .buffer(batchsize)
+                            .subscribe(batch -> {
+                                objList.addAll(batch);
+                                if (objList.size()>=100) {
+                                    countDownLatch.countDown();
+                                }
+                            }))
+                    .build();
+            completeableFutureList.add(kinesisClient.subscribeToShard(subscribeToShardRequest, responseHandler));
+        }
+        countDownLatch.await(15,TimeUnit.SECONDS);
+        for (CompletableFuture<Void> future: completeableFutureList) {
+            future.complete(null);
+        }
+        LOGGER.info("{} records read for Preview for Kinesis Connector with Config {}", objList.size(), config);
+        Iterator<Record> userRecordIterator = objList.stream().iterator();
+        ObjectMapper objectMapper = new ObjectMapper();
+        return AutoCloseableIterators.fromIterator(new AbstractIterator<>() {
 
-        recordsRequest = new GetRecordsRequest();
-        GetShardIteratorRequest readShardsRequest = new GetShardIteratorRequest();
-        readShardsRequest.setStreamName(stream);
-        readShardsRequest.setShardIteratorType(ShardIteratorType.LATEST);
-        readShardsRequest.setShardId(((Shard) shards.toArray()[0]).getShardId());
-
-        GetShardIteratorResult shardIterator = kinesis.getShardIterator(readShardsRequest);
-        recordsRequest.setShardIterator(shardIterator.getShardIterator());
-
-        try {
-            GetRecordsResult recordsResult = kinesis.getRecords(recordsRequest);
-            List<Record> records = recordsResult.getRecords();
-            List<UserRecord> deaggregatedRecords = UserRecord.deaggregate(records);
-            Iterator<UserRecord> userRecordIterator = deaggregatedRecords.stream().iterator();
-            recordsRequest.setShardIterator(recordsResult.getNextShardIterator());
-            ObjectMapper objectMapper = new ObjectMapper();
-
-            return AutoCloseableIterators.fromIterator(new AbstractIterator<>() {
-
-                @Override
-                protected AirbyteMessage computeNext() {
-                    if (userRecordIterator.hasNext()) {
-                        final Record record = userRecordIterator.next();
-                        JsonNode data = null;
-                        try {
-                            data = objectMapper.readTree(record.getData().array());
-                        } catch (IOException e) {
-                            LOGGER.error("Cannot convert Record to Json",e);
-                        }
-                        return new AirbyteMessage()
-                                .withType(AirbyteMessage.Type.RECORD)
-                                .withRecord(new AirbyteRecordMessage()
-                                        .withStream(stream)
-                                        .withEmittedAt(Instant.now().toEpochMilli())
-                                        .withData(data));
+            @Override
+            protected AirbyteMessage computeNext() {
+                if (userRecordIterator.hasNext()) {
+                    final Record record = (Record) userRecordIterator.next();
+                    JsonNode data = null;
+                    try {
+                        data = objectMapper.readTree(record.data().asByteArray());
+                    } catch (IOException e) {
+                        LOGGER.error("Cannot convert Record to Json",e);
                     }
-
-                    return endOfData();
+                    return new AirbyteMessage()
+                            .withType(AirbyteMessage.Type.RECORD)
+                            .withRecord(new AirbyteRecordMessage()
+                                    .withStream(stream)
+                                    .withEmittedAt(Instant.now().toEpochMilli())
+                                    .withData(data));
                 }
 
-            });
-        }
-        catch (Exception e) {
-            LOGGER.error("Exception while fetching records",e);
-        }
-        return null;
+                return endOfData();
+            }
+
+        });
+
+//        AmazonKinesis kinesis;
+//        GetRecordsRequest recordsRequest;
+//        String name="KinesisConsumerTask";
+////        final List<UserRecord> objList = Collections.synchronizedList(new ArrayList<>());
+//        String accessKey = config.has("access_key") ? config.get("access_key").asText() : "";
+//        String secretKey = config.has("private_key") ? config.get("private_key").asText() : "";
+//        String regionString = config.has("region") ? config.get("region").asText() : "";
+//        Region region = Region.of(ObjectUtils.firstNonNull(regionString, "us-east-2"));
+//        BasicAWSCredentials awsCredentials = new BasicAWSCredentials(accessKey, secretKey);
+//        kinesis = AmazonKinesisClientBuilder.standard().withCredentials(new AWSStaticCredentialsProvider(awsCredentials)).withRegion(Regions.AP_SOUTH_1).build();
+//        List<Shard> shards = null;
+//        try {
+//            StreamDescription streamDesc = kinesis.describeStream(stream).getStreamDescription();
+//            shards = streamDesc.getShards();
+//        }
+//        catch (Exception e) {
+//            LOGGER.error("Exception while trying to get shard list",e);
+//        }
+//
+//        while (objList.size()<100) {
+//            for (Shard shard: shards) {
+//                try {
+//
+//                    recordsRequest = new GetRecordsRequest();
+//                    GetShardIteratorRequest readShardsRequest = new GetShardIteratorRequest();
+//                    readShardsRequest.setStreamName(stream);
+//                    readShardsRequest.setShardIteratorType(ShardIteratorType.TRIM_HORIZON);
+//                    readShardsRequest.setShardId((shard).getShardId());
+//                    GetShardIteratorResult shardIterator = kinesis.getShardIterator(readShardsRequest);
+//                    recordsRequest.setShardIterator(shardIterator.getShardIterator());
+//                    GetRecordsResult recordsResult = kinesis.getRecords(recordsRequest);
+//                    while (!recordsResult.getRecords().isEmpty()) {
+//                        List<Record> records = recordsResult.getRecords();
+//                        List<UserRecord> deaggregatedRecords = UserRecord.deaggregate(records);
+//                        objList = Stream.of(deaggregatedRecords, objList)
+//                                .flatMap(Collection::stream)
+//                                .collect(Collectors.toList());
+//                        recordsRequest.setShardIterator(recordsResult.getNextShardIterator());
+//                        recordsResult = kinesis.getRecords(recordsRequest);
+//                    }
+//                } catch (Exception e) {
+//                    LOGGER.error("Exception while fetching records", e);
+//                    return null;
+//                }
+//            }
+//        }
+//
+//        Iterator<UserRecord> userRecordIterator = objList.stream().iterator();
+//        ObjectMapper objectMapper = new ObjectMapper();
+//        return AutoCloseableIterators.fromIterator(new AbstractIterator<>() {
+//
+//            @Override
+//            protected AirbyteMessage computeNext() {
+//                if (userRecordIterator.hasNext()) {
+//                    final UserRecord record = (UserRecord) userRecordIterator.next();
+//                    JsonNode data = null;
+//                    try {
+//                        data = objectMapper.readTree(record.getData().array());
+//                    } catch (IOException e) {
+//                        LOGGER.error("Cannot convert Record to Json",e);
+//                    }
+//                    return new AirbyteMessage()
+//                            .withType(AirbyteMessage.Type.RECORD)
+//                            .withRecord(new AirbyteRecordMessage()
+//                                    .withStream(stream)
+//                                    .withEmittedAt(Instant.now().toEpochMilli())
+//                                    .withData(data));
+//                }
+//
+//                return endOfData();
+//            }
+//
+//        });
     }
 
     public static void main(final String[] args) throws Exception {
@@ -230,6 +397,17 @@ public class KinesisSource extends BaseEventConnector {
         LOGGER.info("Completed source: {}", KinesisSource.class);
     }
 
+    public Map<String, Map<String, Long>> getClientToStreamShardRecordsRead() {
+        return clientToStreamShardRecordsRead;
+    }
+
+    public String getApplicationName() {
+        return applicationName;
+    }
+
+    public void setApplicationName(String applicationName) {
+        this.applicationName = applicationName;
+    }
 }
 
 

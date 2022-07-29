@@ -14,9 +14,12 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 public class KafkaMetricAsEventsGenerator extends MetricAsEventsGenerator {
-
     private static final String LAG_METRIC = "consumer_lag";
     private static final String TOTAL_LAG_METRIC = "total_consumer_lag";
+    private static final String TOPIC = "topic";
+    private static final String TOPIC_PARTITION = "topicPartition";
+    private static final String CONSUMER_THREAD = "consumerThread";
+
     private AdminClient adminClient;
     private KafkaSourceConfig kafkaSourceConfig;
     private String consumerGroupId;
@@ -111,16 +114,20 @@ public class KafkaMetricAsEventsGenerator extends MetricAsEventsGenerator {
 
             Map<TopicPartition, Long> consumerMetrics = getConsumerLagMetric();
             Map<String, Long> topicLag = new HashMap<>();
+
             for (Map.Entry<TopicPartition, Long> entry : consumerMetrics.entrySet()) {
+                Map<String, String> labels = new HashMap<>();
                 StringBuilder stringBuilder = new StringBuilder();
                 stringBuilder.append(LAG_METRIC);
                 stringBuilder.append(METRIC_NAME_SEPARATOR);
                 stringBuilder.append(entry.getKey().topic());
                 stringBuilder.append(METRIC_NAME_SEPARATOR);
+                labels.put(TOPIC_PARTITION, entry.getKey().topic() + "-" + entry.getKey().partition());
+                labels.put(TOPIC, entry.getKey().topic());
                 stringBuilder.append(entry.getKey().partition());
                 attributes.put(stringBuilder.toString(), String.valueOf(entry.getValue()));
-                metricsMap.put(stringBuilder.toString(), entry.getValue());
-
+                metricsMap.put(getTagEncodedMetricName(LAG_METRIC, labels), entry.getValue());
+                //  populateTagEncodedMetricName(LAG_METRIC, labels);
                 if (topicLag.containsKey(entry.getKey().topic())) {
                     long value = topicLag.get(entry.getKey().topic());
                     value += entry.getValue();
@@ -131,31 +138,40 @@ public class KafkaMetricAsEventsGenerator extends MetricAsEventsGenerator {
             }
 
             for (Map.Entry<String, Long> entry : topicLag.entrySet()) {
+                Map<String, String> labels = new HashMap<>();
                 String metricName = TOTAL_LAG_METRIC + METRIC_NAME_SEPARATOR + entry.getKey();
                 attributes.put(metricName, String.valueOf(entry.getValue()));
-                metricsMap.put(metricName, entry.getValue());
+                labels.put(TOPIC, entry.getKey());
+                metricsMap.put(getTagEncodedMetricName(TOTAL_LAG_METRIC, labels), entry.getValue());
+                getTagEncodedMetricName(TOTAL_LAG_METRIC, labels);
             }
 
             Map<String, Map<String, Long>> consumerThreadToTopicPartitionMessagesRead =
-                    ((KafkaSource) this.eventConnector).getTopicPartitionRecordsRead();
+                    ((KafkaSource) eventConnector).getTopicPartitionRecordsRead();
+
 
             Long totalRecordsConsumed = 0L;
 
             for (Map.Entry<String, Map<String, Long>> consumerThreadEntry :
                     consumerThreadToTopicPartitionMessagesRead.entrySet()) {
                 for (Map.Entry<String, Long> entry : consumerThreadEntry.getValue().entrySet()) {
+                    Map<String, String> labels = new HashMap<>();
                     StringBuilder stringBuilder = new StringBuilder();
                     stringBuilder.append(EVENTS_PROCESSED_METRIC);
                     stringBuilder.append(METRIC_NAME_SEPARATOR);
                     stringBuilder.append(entry.getKey());
                     attributes.put(stringBuilder.toString(), String.valueOf(entry.getValue()));
-                    metricsMap.put(stringBuilder.toString(), entry.getValue());
+                    labels.put(CONSUMER_THREAD, consumerThreadEntry.getKey());
+                    labels.put(TOPIC_PARTITION, entry.getKey());
+                    metricsMap.put(getTagEncodedMetricName(EVENTS_PROCESSED_METRIC, labels), entry.getValue());
+                    //  populateTagEncodedMetricName(EVENTS_PROCESSED_METRIC, labels);
                     totalRecordsConsumed += entry.getValue();
                 }
             }
 
             attributes.put(TOTAL_EVENTS_PROCESSED_METRIC, String.valueOf(totalRecordsConsumed));
-            metricsMap.put(TOTAL_EVENTS_PROCESSED_METRIC, totalRecordsConsumed);
+            metricsMap.put(getTagEncodedMetricName(TOTAL_EVENTS_PROCESSED_METRIC, new HashMap<>()),
+                    totalRecordsConsumed);
             this.publishMetrics(attributes,metricsMap);
 
         } catch (Exception exception) {

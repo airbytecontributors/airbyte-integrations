@@ -26,6 +26,8 @@ import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.models.publisher.EventPublisherResult;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,7 +81,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     public abstract List<RawEvent> convertRecordsToRawEvents(List<?> records);
 
-    public abstract AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state);
+    public abstract AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws InterruptedException, ExecutionException;
 
     public EventProcessorResult convertRawEventsToBicycleEvents(AuthInfo authInfo,
                                                                EventSourceInfo eventSourceInfo,
