@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
+import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.base.IntegrationRunner;
@@ -183,9 +184,11 @@ public class ElasticsearchSource extends BaseEventConnector {
         if(timeRange!=null && !timeRange.has(TIME_FIELD)) {
             ((ObjectNode)timeRange).put(TIME_FIELD, "@timestamp");
         }
+        AuthInfo authInfo = bicycleConfig.getAuthInfo();
         try {
             // if timeRange not given
             String lastEnd;
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, authInfo);
             while(true) {
                 final String latestDataTimestamp = connection.getLatestTimestamp(index, timeRange.path(TIME_FIELD).textValue());
                 if(latestDataTimestamp.equals(timeRange.path(FROM).textValue())) {
@@ -203,7 +206,6 @@ public class ElasticsearchSource extends BaseEventConnector {
                     continue;
                 }
                 EventProcessorResult eventProcessorResult = null;
-                AuthInfo authInfo = bicycleConfig.getAuthInfo();
                 try {
                     List<RawEvent> rawEvents = this.convertRecordsToRawEvents(recordsList);
                     eventProcessorResult = convertRawEventsToBicycleEvents(authInfo,eventSourceInfo,rawEvents);
@@ -221,9 +223,11 @@ public class ElasticsearchSource extends BaseEventConnector {
             }
         }
         catch(Exception exception) {
-            LOGGER.error("Unable to publish bicycle events", exception);
+            LOGGER.error("Exception while trying to fetch records from Elasticsearch", exception);
         }
         finally {
+            eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the ElasticSearch Event Connector", connectorId, authInfo);
             LOGGER.info("Closing server connection.");
             connection.close();
             LOGGER.info("Closed server connection.");
