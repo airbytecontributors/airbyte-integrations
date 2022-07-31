@@ -53,7 +53,7 @@
       },
       "manual_checkpoint_interval_ms": {
         "title":"Manual Commit Interval, ms",
-        "description":"The frequency in milliseconds that the consumer offsets are auto-committed to Kafka if enable.auto.commit is set to true.",
+        "description":"The frequency in milliseconds that the consumer offsets are auto-committed to Kinesis",
         "type":"integer",
         "default":5000
       },
@@ -93,8 +93,8 @@
         "type":"string",
         "default":"latest",
         "enum":[
-          "latest",
-          "trimHorizon"
+          "Latest",
+          "TrimHorizon"
         ]
       }
     }

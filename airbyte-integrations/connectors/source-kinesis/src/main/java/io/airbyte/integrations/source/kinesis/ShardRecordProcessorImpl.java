@@ -1,9 +1,7 @@
 package io.airbyte.integrations.source.kinesis;
 
 import com.inception.server.auth.model.AuthInfo;
-import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
-import io.bicycle.server.event.mapping.models.converter.BicycleEventsResult;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
@@ -19,19 +17,24 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
-public class shardRecordProcessor implements ShardRecordProcessor {
+public class ShardRecordProcessorImpl implements ShardRecordProcessor {
 
     private String shardId;
     public static final Logger logger = LoggerFactory.getLogger(KinesisSource.class);
     private KinesisSource kinesisSource;
     private BicycleConfig bicycleConfig;
     private EventSourceInfo eventSourceinfo;
+    private KinesisClientConfig kinesisClientConfig;
+    private Map<String, Long> totalRecordsRead;
 
-    public shardRecordProcessor(KinesisSource kinesisSource, BicycleConfig bicycleConfig, EventSourceInfo eventSourceinfo) {
+    public ShardRecordProcessorImpl(KinesisSource kinesisSource, BicycleConfig bicycleConfig, EventSourceInfo eventSourceinfo, KinesisClientConfig kinesisClientConfig, Map<String, Long> totalRecordsRead) {
         this.kinesisSource = kinesisSource;
         this.bicycleConfig = bicycleConfig;
         this.eventSourceinfo = eventSourceinfo;
+        this.kinesisClientConfig = kinesisClientConfig;
+        this.totalRecordsRead = totalRecordsRead;
     }
 
     public void initialize(InitializationInput initializationInput) {
@@ -67,6 +70,11 @@ public class shardRecordProcessor implements ShardRecordProcessor {
             try {
                 this.kinesisSource.publishEvents(authInfo, eventSourceinfo, eventProcessorResult);
                 processRecordsInput.checkpointer().checkpoint();
+                if (!totalRecordsRead.containsKey(shardId)) {
+                    totalRecordsRead.put(shardId, Long.valueOf(0));
+                }
+                Long shardTotalRecordsRead = totalRecordsRead.get(shardId);
+                totalRecordsRead.replace(shardId,shardTotalRecordsRead + recordsList.size());
             } catch (Exception exception) {
                 logger.error("Unable to publish bicycle events", exception);
             }
@@ -105,3 +113,6 @@ public class shardRecordProcessor implements ShardRecordProcessor {
         }
     }
 }
+
+
+
