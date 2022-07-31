@@ -14,6 +14,7 @@ import com.inception.server.configstore.client.ConfigStoreClient;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.BaseConnector;
 import io.airbyte.integrations.base.Source;
+import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.event.processor.api.BicycleEventProcessor;
@@ -26,6 +27,7 @@ import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.models.publisher.EventPublisherResult;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
 import org.slf4j.Logger;
@@ -42,11 +44,16 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private BicycleConfig bicycleConfig;
     protected SystemAuthenticator systemAuthenticator;
     protected EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier;
+    protected CountDownLatch shouldStop = new CountDownLatch(1);
     protected static final String TENANT_ID = "tenantId";
     protected String ENV_TENANT_ID_KEY = "TENANT_ID";
     public BaseEventConnector(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
         this.systemAuthenticator = systemAuthenticator;
         this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;
+    }
+
+    public CountDownLatch shouldStop() {
+        return shouldStop;
     }
 
     public void setBicycleEventProcessor(BicycleConfig bicycleConfig) {
@@ -77,6 +84,12 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                 return super.getLatest(authInfo, ref);
             }
         };
+    }
+
+    public AirbyteConnectionStatus stopEventConnector() {
+        shouldStop.countDown();
+        return new AirbyteConnectionStatus()
+                .withStatus(AirbyteConnectionStatus.Status.SUCCEEDED).withMessage("Stopped Event Connector");
     }
 
     public abstract List<RawEvent> convertRecordsToRawEvents(List<?> records);
