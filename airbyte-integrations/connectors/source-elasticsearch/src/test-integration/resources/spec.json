@@ -1,0 +1,9 @@
+{
+  "endpoint": "https://my-deployment-42a788.es.us-central1.gcp.cloud.es.io",
+  "authenticationMethod":
+  {
+    "method": "basic",
+    "username": "elastic",
+    "password": "3m1KDUEFtCqXJ4yExWwEQEKK"
+  }
+}
