@@ -27,7 +27,7 @@ import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.models.publisher.EventPublisherResult;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CountDownLatch;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +43,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private BicycleConfig bicycleConfig;
     protected SystemAuthenticator systemAuthenticator;
     protected EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier;
-    protected AtomicBoolean shouldStop = new AtomicBoolean(false);
+    protected CountDownLatch shouldStop = new CountDownLatch(1);
     protected static final String TENANT_ID = "tenantId";
     protected String ENV_TENANT_ID_KEY = "TENANT_ID";
     public BaseEventConnector(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
@@ -51,7 +51,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;
     }
 
-    public AtomicBoolean shouldStop() {
+    public CountDownLatch shouldStop() {
         return shouldStop;
     }
 
@@ -86,7 +86,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     }
 
     public AirbyteConnectionStatus stopEventConnector() {
-        shouldStop.set(true);
+        shouldStop.countDown();
         return new AirbyteConnectionStatus()
                 .withStatus(AirbyteConnectionStatus.Status.SUCCEEDED).withMessage("Stopped Event Connector");
     }
