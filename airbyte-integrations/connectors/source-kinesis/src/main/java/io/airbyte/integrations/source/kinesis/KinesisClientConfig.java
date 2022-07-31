@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
@@ -26,10 +27,7 @@ import software.amazon.kinesis.leases.LeaseManagementConfig;
 import software.amazon.kinesis.retrieval.RetrievalConfig;
 import software.amazon.kinesis.retrieval.polling.PollingConfig;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class KinesisClientConfig {
@@ -42,12 +40,15 @@ public class KinesisClientConfig {
     private JsonNode config;
     private String streamPattern;
     private String configuredStream;
-
+    private String applicationName;
     public KinesisClientConfig(final JsonNode config, final KinesisSource kinesisSource) {
         this.config = config;
         this.kinesissource = kinesisSource;
         streamPattern = config.has("stream_pattern") ? config.get("stream_pattern").asText() : "";
         configuredStream = config.has("stream_name") ? config.get("stream_name").asText() : "";
+        applicationName = config.has("application_name") ? config.get("application_name").asText() : "test-v2";
+        kinesissource.setApplicationName(applicationName);
+
     }
 
     public KinesisAsyncClient getKinesisClient() {
@@ -71,16 +72,17 @@ public class KinesisClientConfig {
         return dynamoDbAsyncClient;
     }
 
-    public Scheduler getScheduler(BicycleConfig bicycleConfig, EventSourceInfo eventSourceInfo) {
+    public Scheduler getScheduler(BicycleConfig bicycleConfig, EventSourceInfo eventSourceInfo, Boolean isPreview, List<Object> objList, Map<String, Long> totalRecordsRead) {
 //        final String applicationName = "test-v2";
-        final String applicationName = config.has("application_name") ? config.get("application_name").asText() : "test-v2";
 //        final String streamName = KinesisClientConfig.getKinesisClientConfig(config).getStreamPattern();
+
         final String streamName = getConfiguredStream();
 
         KinesisAsyncClient kinesisClient = getKinesisClient();
         DynamoDbAsyncClient dynamoClient = getDynamodbConsumer();
         CloudWatchAsyncClient cloudWatchClient = getCloudWatchClient();
-        ConfigsBuilder configsBuilder = new ConfigsBuilder(configuredStream, applicationName, kinesisClient, dynamoClient, cloudWatchClient, UUID.randomUUID().toString(), new shardRecordProcessorFactory(kinesissource, bicycleConfig, eventSourceInfo));
+        ConfigsBuilder configsBuilder;
+        configsBuilder = new ConfigsBuilder(configuredStream, applicationName, kinesisClient, dynamoClient, cloudWatchClient, UUID.randomUUID().toString(), new ShardRecordProcessorFactoryImpl(kinesissource, bicycleConfig, eventSourceInfo, this, isPreview, objList, totalRecordsRead));
         /**
          * The Scheduler (also called Worker in earlier versions of the KCL) is the entry point to the KCL. This
          * instance is configured with defaults provided by the ConfigsBuilder.
@@ -117,7 +119,7 @@ public class KinesisClientConfig {
         Integer retry_getrecords_in_seconds=Integer.parseInt(config.has("retry_getrecords_in_seconds") ? config.get("retry_getrecords_in_seconds").asText() : "0");
         Integer max_records=Integer.parseInt(config.has("max_records") ? config.get("max_records").asText() : "10000");
 
-        if (initialPositionInStream == "latest") {
+        if (initialPositionInStream == "Latest") {
             initialPositionInStreamExtended = InitialPositionInStreamExtended.newInitialPosition(InitialPositionInStream.LATEST);
         }
         else {
@@ -158,6 +160,7 @@ public class KinesisClientConfig {
                     };
                 }
             };
+//
             this.kinesisClient = KinesisClientUtil.createKinesisAsyncClient(KinesisAsyncClient.builder().credentialsProvider(credentialProvider).region(region));
             this.dynamoDbAsyncClient = DynamoDbAsyncClient.builder().credentialsProvider(credentialProvider).region(region).build();
             this.cloudWatchClient = CloudWatchAsyncClient.builder().credentialsProvider(credentialProvider).region(region).build();
