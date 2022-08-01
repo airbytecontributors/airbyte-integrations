@@ -52,6 +52,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 
@@ -138,21 +139,30 @@ public class KinesisSource extends BaseEventConnector {
                 throw new RuntimeException("Unable establish a connection: " + check.getMessage());
             }
             LOGGER.info("Check Successful " + bicycleConfig.getUniqueIdentifier() + "=======");
-//                totalRecords Read details required
-
-
+            ArrayList<Scheduler> schedulerArrayList = new ArrayList<Scheduler>();
+            eventConnectorJobStatusNotifier.setNumberOfThreadsRunning(new AtomicInteger(numberOfConsumers));
+            eventConnectorJobStatusNotifier.setScheduledExecutorService(ses);
             for (int i = 0; i < numberOfConsumers; i++) {
                 Map<String, Long> totalRecordsRead = new HashMap<>();
                 String clientThreadId = UUID.randomUUID().toString();
                 clientToStreamShardRecordsRead.put(clientThreadId,totalRecordsRead);
                 Scheduler scheduler =  kinesisClientConfig.getScheduler(bicycleConfig, eventSourceInfo, false, null, totalRecordsRead);
                 LOGGER.info("Created Kinesis Scheduler successfully for UUID " + bicycleConfig.getUniqueIdentifier() + "=======");
+                schedulerArrayList.add(scheduler);
                 Thread schedulerThread = new Thread(scheduler);
                 schedulerThread.setDaemon(true);
                 schedulerThread.start();
             }
             eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kinesis Event Connector started Successfully", connectorId, authInfo);
+            this.shouldStop.await();
+            for (Scheduler scheduler: schedulerArrayList) {
+                scheduler.startGracefulShutdown().get();
+            }
+            eventConnectorJobStatusNotifier.getSchedulesExecutorService().shutdown();
+            eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.success,"Shutting down the Kinesis Event Connector manually", connectorId, authInfo);
         } catch (Exception exception) {
+            eventConnectorJobStatusNotifier.getSchedulesExecutorService().shutdown();
             eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
             eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the Kinesis Event Connector", connectorId, authInfo);
             LOGGER.error("Shutting down the kinesis Client application", exception);

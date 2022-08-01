@@ -57,6 +57,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     }
 
     public void setBicycleEventProcessor(BicycleConfig bicycleConfig) {
+        shouldStop = new CountDownLatch(1);
         this.bicycleConfig = bicycleConfig;
         ConfigStoreClient configStoreClient = getConfigClient(bicycleConfig);
         this.bicycleEventProcessor = new BicycleEventProcessorImpl(configStoreClient);

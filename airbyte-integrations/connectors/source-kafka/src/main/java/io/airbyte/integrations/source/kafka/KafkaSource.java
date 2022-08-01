@@ -127,11 +127,16 @@ public class KafkaSource extends BaseEventConnector {
         ses.schedule(bicycleConsumer, 1, TimeUnit.SECONDS);
       }
       eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, authInfo);
+      this.shouldStop.await();
+      eventConnectorJobStatusNotifier.getSchedulesExecutorService().shutdown();
+      eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
+      eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.success,"Kafka Event Connector Stopped manually", connectorId, authInfo);
+      LOGGER.info("Shutting down the Kafka Event Connector manually for connector {}", bicycleConfig.getConnectorId());
     } catch (Exception exception) {
       eventConnectorJobStatusNotifier.getSchedulesExecutorService().shutdown();
       eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
       eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the kafka Event Connector", connectorId, authInfo);
-      LOGGER.error("Shutting down the kafka Event Connector for connector {}", bicycleConfig.getConnectorId() ,exception);
+      LOGGER.error("Shutting down the Kafka Event Connector for connector {}", bicycleConfig.getConnectorId() ,exception);
     }
     return null;
   }

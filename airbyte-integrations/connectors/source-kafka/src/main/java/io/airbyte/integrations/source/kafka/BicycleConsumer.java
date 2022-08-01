@@ -66,6 +66,8 @@ public class BicycleConsumer implements Runnable {
         while (failed <= retry) {
             try {
                 read(bicycleConfig, config, catalog, null);
+//                read completed means we are manually stopping connector
+                return;
             } catch (Exception exception) {
                 int retryLeft = retry - failed;
                 logger.error("Unable to run consumer with config " + config + ", retryleft - " + retryLeft,
@@ -117,7 +119,7 @@ public class BicycleConsumer implements Runnable {
 
         int sampledRecords = 0;
         try {
-            while (true) {
+            while (this.kafkaSource.shouldStop().getCount()!=0) {
                 final List<ConsumerRecord<String, JsonNode>> recordsList = new ArrayList<>();
 
                 final ConsumerRecords<String, JsonNode> consumerRecords =
