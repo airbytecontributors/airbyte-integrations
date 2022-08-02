@@ -4,12 +4,13 @@
   "supportsNormalization": false,
   "supportsDBT": false,
   "supported_source_sync_modes": ["append"],
+  "isCloneEnabled": true,
   "connectionSpecification": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "Kafka Source Spec",
     "type": "object",
     "required": ["bootstrap_servers", "subscription", "protocol"],
-    "additionalProperties": true,
+    "additionalProperties": false,
     "properties": {
       "bootstrap_servers": {
         "title": "Bootstrap Servers",
@@ -322,12 +323,6 @@
         "type": "integer",
         "default": 100
       }
-    },
-    "isCloneEnabled": {
-      "title": "Is Clone Enabled",
-      "description": "Allow Cloning of Kafka Config",
-      "type": "boolean",
-      "default": true
     }
   }
 }
