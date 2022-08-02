@@ -5,7 +5,7 @@
     "title": "Kinesis Source Spec",
     "type": "object",
     "required": ["stream_pattern", "region", "access_key", "private_key"],
-    "additionalProperties": false,
+    "additionalProperties": true,
     "properties": {
       "application_name": {
         "title": "Application Name",
@@ -97,6 +97,12 @@
           "TrimHorizon"
         ]
       }
+    },
+    "isCloneEnabled": {
+      "title": "Is Clone Enabled",
+      "description": "Allow Cloning of Kafka Config",
+      "type": "boolean",
+      "default": true
     }
   }
 }

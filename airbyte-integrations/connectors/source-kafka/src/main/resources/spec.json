@@ -9,7 +9,7 @@
     "title": "Kafka Source Spec",
     "type": "object",
     "required": ["bootstrap_servers", "subscription", "protocol"],
-    "additionalProperties": false,
+    "additionalProperties": true,
     "properties": {
       "bootstrap_servers": {
         "title": "Bootstrap Servers",
@@ -322,6 +322,12 @@
         "type": "integer",
         "default": 100
       }
+    },
+    "isCloneEnabled": {
+      "title": "Is Clone Enabled",
+      "description": "Allow Cloning of Kafka Config",
+      "type": "boolean",
+      "default": true
     }
   }
 }
