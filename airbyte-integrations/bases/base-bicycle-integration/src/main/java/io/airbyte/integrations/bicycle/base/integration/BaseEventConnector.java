@@ -11,10 +11,10 @@ import com.inception.server.config.api.ConfigNotFoundException;
 import com.inception.server.config.api.ConfigStoreException;
 import com.inception.server.configstore.client.ConfigStoreAPIClient;
 import com.inception.server.configstore.client.ConfigStoreClient;
+import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.BaseConnector;
 import io.airbyte.integrations.base.Source;
-import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.event.processor.api.BicycleEventProcessor;
@@ -27,7 +27,6 @@ import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.models.publisher.EventPublisherResult;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
 import org.slf4j.Logger;
@@ -44,20 +43,15 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private BicycleConfig bicycleConfig;
     protected SystemAuthenticator systemAuthenticator;
     protected EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier;
-    protected CountDownLatch shouldStop = new CountDownLatch(1);
     protected static final String TENANT_ID = "tenantId";
     protected String ENV_TENANT_ID_KEY = "TENANT_ID";
+    protected EventSourceInfo eventSourceInfo;
     public BaseEventConnector(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
         this.systemAuthenticator = systemAuthenticator;
         this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;
     }
 
-    public CountDownLatch shouldStop() {
-        return shouldStop;
-    }
-
     public void setBicycleEventProcessor(BicycleConfig bicycleConfig) {
-        shouldStop = new CountDownLatch(1);
         this.bicycleConfig = bicycleConfig;
         ConfigStoreClient configStoreClient = getConfigClient(bicycleConfig);
         this.bicycleEventProcessor = new BicycleEventProcessorImpl(configStoreClient);
@@ -87,10 +81,16 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         };
     }
 
-    public AirbyteConnectionStatus stopEventConnector() {
-        shouldStop.countDown();
-        return new AirbyteConnectionStatus()
-                .withStatus(AirbyteConnectionStatus.Status.SUCCEEDED).withMessage("Stopped Event Connector");
+    public abstract void stopEventConnector();
+
+    public void stopEventConnector(String message, JobExecutionStatus jobExecutionStatus) {
+        if (eventConnectorJobStatusNotifier.getSchedulesExecutorService() != null) {
+            eventConnectorJobStatusNotifier.getSchedulesExecutorService().shutdown();
+        }
+        eventConnectorJobStatusNotifier.removeConnectorInstanceFromMap(bicycleConfig.getConnectorId());
+        AuthInfo authInfo = bicycleConfig.getAuthInfo();
+        eventConnectorJobStatusNotifier.sendStatus(jobExecutionStatus,message, bicycleConfig.getConnectorId(), authInfo);
+        logger.info(message + " for connector {}", bicycleConfig.getConnectorId());
     }
 
     public abstract List<RawEvent> convertRecordsToRawEvents(List<?> records);

@@ -11,42 +11,31 @@ import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
-import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.*;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.airbyte.protocol.models.AirbyteCatalog;
 import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
-import io.bicycle.server.event.mapping.models.converter.BicycleEventsResult;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.search.sort.SortOrder;
-import org.joda.time.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import static io.airbyte.integrations.source.elasticsearch.ElasticsearchConstants.*;
 import static io.airbyte.integrations.source.elasticsearch.typemapper.ElasticsearchTypeMapper.*;
-import static io.bicycle.server.event.mapping.constants.OTELConstants.TENANT_ID;
 
 public class ElasticsearchSource extends BaseEventConnector {
     private static final Logger LOGGER = LoggerFactory.getLogger(ElasticsearchSource.class);
     private final ObjectMapper mapper = new ObjectMapper();
-    private boolean setBicycleEventProcessorFlag=false;
+    private AtomicBoolean stopConnectorBoolean = new AtomicBoolean(false);
 
     public ElasticsearchSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
         super(systemAuthenticator, eventConnectorJobStatusNotifier);
@@ -141,6 +130,15 @@ public class ElasticsearchSource extends BaseEventConnector {
         return mapper.convertValue(config, ConnectorConfiguration.class);
     }
 
+    protected AtomicBoolean getStopConnectorBoolean() {
+        return stopConnectorBoolean;
+    }
+
+    public void stopEventConnector() {
+        stopConnectorBoolean.set(true);
+        super.stopEventConnector("Shutting down the Elasticsearch Event Connector manually", JobExecutionStatus.success);
+    }
+
     private AutoCloseableIterator<AirbyteMessage> readEntity(final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state, final ElasticsearchConnection connection) {
         final List<AutoCloseableIterator<AirbyteMessage>> iteratorList = new ArrayList<>();
         final JsonNode timeRange = config.has(TIME_RANGE)? config.get(TIME_RANGE): null;
@@ -161,6 +159,7 @@ public class ElasticsearchSource extends BaseEventConnector {
 
     private void readEvent(final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state, final ElasticsearchConnection connection) throws IOException {
         Map<String, Object> additionalProperties = catalog.getAdditionalProperties();
+        stopConnectorBoolean.set(false);
         String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
         String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
         String uniqueIdentifier = UUID.randomUUID().toString();
@@ -189,7 +188,7 @@ public class ElasticsearchSource extends BaseEventConnector {
             // if timeRange not given
             String lastEnd;
             eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, authInfo);
-            while(this.shouldStop.getCount()!=0) {
+            while(!this.getStopConnectorBoolean().get()) {
                 final String latestDataTimestamp = connection.getLatestTimestamp(index, timeRange.path(TIME_FIELD).textValue());
                 if(latestDataTimestamp.equals(timeRange.path(FROM).textValue())) {
                     LOGGER.info("No new data seen after timestamp: {}, querying again in 5 seconds", latestDataTimestamp);
@@ -221,13 +220,13 @@ public class ElasticsearchSource extends BaseEventConnector {
                     LOGGER.error("Unable to publish bicycle events", exception);
                 }
             }
-            eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
+            eventConnectorJobStatusNotifier.removeConnectorInstanceFromMap(eventSourceInfo.getEventSourceId());
             eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.success,"Shutting down the ElasticSearch Event Connector manually", connectorId, authInfo);
             LOGGER.info("Shutting down the Elasticsearch Event Connector manually for connector {}", bicycleConfig.getConnectorId());
         }
         catch(Exception exception) {
             LOGGER.error("Exception while trying to fetch records from Elasticsearch", exception);
-            eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
+            eventConnectorJobStatusNotifier.removeConnectorInstanceFromMap(eventSourceInfo.getEventSourceId());
             eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the ElasticSearch Event Connector", connectorId, authInfo);
         }
         finally {

@@ -63,6 +63,7 @@ public class KinesisSource extends BaseEventConnector {
     private final Map<String, Map<String, Long>> clientToStreamShardRecordsRead = new HashMap<>();
     protected KinesisClientConfig kinesisClientConfig;
     private String applicationName;
+    private Collection<Scheduler> schedulerArrayList = null;
     public KinesisSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorStatusHandler) {
         super(systemAuthenticator, eventConnectorStatusHandler);
     }
@@ -102,6 +103,17 @@ public class KinesisSource extends BaseEventConnector {
         return new AirbyteCatalog().withStreams(streams);
     }
 
+    public void stopEventConnector() {
+        for (Scheduler scheduler: schedulerArrayList) {
+            try {
+                scheduler.startGracefulShutdown().get();
+            } catch (Exception e) {
+                LOGGER.error("Exception while shutting down Kinesis Event Connector ", e);
+            }
+        }
+        this.stopEventConnector("Shutting down the Kinesis Event Connector manually", JobExecutionStatus.success);
+    }
+
     @Override
     public AutoCloseableIterator<AirbyteMessage> read(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws Exception {
 
@@ -130,6 +142,8 @@ public class KinesisSource extends BaseEventConnector {
         this.kinesisClientConfig= kinesisClientConfig;
         KinesisMetricAsEventsGenerator kinesisMetricAsEventsGenerator = new KinesisMetricAsEventsGenerator(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher, this);
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
+        schedulerArrayList = Collections
+                .synchronizedCollection(new ArrayList<Scheduler>());
         try {
             ses.scheduleAtFixedRate(kinesisMetricAsEventsGenerator, 60, 300, TimeUnit.SECONDS);
             LOGGER.info("======Starting read operation for consumer " + bicycleConfig.getUniqueIdentifier() + "=======");
@@ -139,7 +153,6 @@ public class KinesisSource extends BaseEventConnector {
                 throw new RuntimeException("Unable establish a connection: " + check.getMessage());
             }
             LOGGER.info("Check Successful " + bicycleConfig.getUniqueIdentifier() + "=======");
-            ArrayList<Scheduler> schedulerArrayList = new ArrayList<Scheduler>();
             eventConnectorJobStatusNotifier.setNumberOfThreadsRunning(new AtomicInteger(numberOfConsumers));
             eventConnectorJobStatusNotifier.setScheduledExecutorService(ses);
             for (int i = 0; i < numberOfConsumers; i++) {
@@ -154,19 +167,9 @@ public class KinesisSource extends BaseEventConnector {
                 schedulerThread.start();
             }
             eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kinesis Event Connector started Successfully", connectorId, authInfo);
-            this.shouldStop.await();
-            for (Scheduler scheduler: schedulerArrayList) {
-                scheduler.startGracefulShutdown().get();
-            }
-            eventConnectorJobStatusNotifier.getSchedulesExecutorService().shutdown();
-            eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.success,"Shutting down the Kinesis Event Connector manually", connectorId, authInfo);
         } catch (Exception exception) {
-            eventConnectorJobStatusNotifier.getSchedulesExecutorService().shutdown();
-            eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the Kinesis Event Connector", connectorId, authInfo);
+            this.stopEventConnector("Shutting down the Kinesis Event Connector due to Exception", JobExecutionStatus.failure);
             LOGGER.error("Shutting down the kinesis Client application", exception);
-            ses.shutdown();
         }
         return null;
     }
