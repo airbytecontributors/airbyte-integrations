@@ -220,14 +220,11 @@ public class ElasticsearchSource extends BaseEventConnector {
                     LOGGER.error("Unable to publish bicycle events", exception);
                 }
             }
-            eventConnectorJobStatusNotifier.removeConnectorInstanceFromMap(eventSourceInfo.getEventSourceId());
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.success,"Shutting down the ElasticSearch Event Connector manually", connectorId, authInfo);
             LOGGER.info("Shutting down the Elasticsearch Event Connector manually for connector {}", bicycleConfig.getConnectorId());
         }
         catch(Exception exception) {
             LOGGER.error("Exception while trying to fetch records from Elasticsearch", exception);
-            eventConnectorJobStatusNotifier.removeConnectorInstanceFromMap(eventSourceInfo.getEventSourceId());
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the ElasticSearch Event Connector", connectorId, authInfo);
+            this.stopEventConnector("Shutting down the ElasticSearch Event Connector due to Exception",JobExecutionStatus.failure);
         }
         finally {
             LOGGER.info("Closing server connection.");

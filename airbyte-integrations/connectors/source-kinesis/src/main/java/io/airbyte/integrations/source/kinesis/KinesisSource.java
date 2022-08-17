@@ -49,6 +49,7 @@ import software.amazon.kinesis.common.InitialPositionInStreamExtended;
 import software.amazon.kinesis.coordinator.Scheduler;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
@@ -271,7 +272,7 @@ public class KinesisSource extends BaseEventConnector {
         int batchsize= Math.max(100/listShardsResponse.shards().size(), 20);
         String initialPositionInStream = config.get("initial_position_in_stream").asText();
         ShardIteratorType shardIteratorType;
-        if (initialPositionInStream == "Latest") {
+        if (initialPositionInStream.equals("Latest")) {
             shardIteratorType = ShardIteratorType.LATEST;
         }
         else {
@@ -313,11 +314,11 @@ public class KinesisSource extends BaseEventConnector {
             @Override
             protected AirbyteMessage computeNext() {
                 if (userRecordIterator.hasNext()) {
-                    final Record record = (Record) userRecordIterator.next();
+                    final Record record = userRecordIterator.next();
                     JsonNode data = null;
                     try {
                         data = objectMapper.readTree(record.data().asByteArray());
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         LOGGER.error("Cannot convert Record to Json",e);
                     }
                     return new AirbyteMessage()

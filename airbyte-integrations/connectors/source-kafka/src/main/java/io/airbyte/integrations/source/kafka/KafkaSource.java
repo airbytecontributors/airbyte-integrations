@@ -100,6 +100,12 @@ public class KafkaSource extends BaseEventConnector {
   }
 
   @Override
+  public void stopEventConnector(String message, JobExecutionStatus jobExecutionStatus) {
+    stopConnectorBoolean.set(true);
+    super.stopEventConnector(message, jobExecutionStatus);
+  }
+
+  @Override
   public AutoCloseableIterator<AirbyteMessage> read(final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state) {
     int numberOfConsumers = config.has("bicycle_consumer_threads") ? config.get("bicycle_consumer_threads").asInt(): CONSUMER_THREADS_DEFAULT_VALUE;
     int threadPoolSize = numberOfConsumers + 3;

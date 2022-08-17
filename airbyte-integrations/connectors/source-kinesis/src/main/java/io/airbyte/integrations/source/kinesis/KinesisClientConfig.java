@@ -119,7 +119,7 @@ public class KinesisClientConfig {
         Integer retry_getrecords_in_seconds=Integer.parseInt(config.has("retry_getrecords_in_seconds") ? config.get("retry_getrecords_in_seconds").asText() : "0");
         Integer max_records=Integer.parseInt(config.has("max_records") ? config.get("max_records").asText() : "10000");
 
-        if (initialPositionInStream == "Latest") {
+        if (initialPositionInStream.equals("Latest")) {
             initialPositionInStreamExtended = InitialPositionInStreamExtended.newInitialPosition(InitialPositionInStream.LATEST);
         }
         else {
