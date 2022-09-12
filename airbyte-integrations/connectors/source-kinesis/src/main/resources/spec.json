@@ -92,7 +92,7 @@
         "title":"Initial Position In Stream",
         "description":"needed to specify the position in the stream from where a new application should start - TRIM_HORIZON: automatically reset the offset to the earliest offset, LATEST: automatically reset the offset to the latest offset.",
         "type":"string",
-        "default":"latest",
+        "default":"Latest",
         "enum":[
           "Latest",
           "TrimHorizon"

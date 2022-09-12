@@ -4,11 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.integrations.base.Command;
-import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
-import io.bicycle.server.event.mapping.models.converter.BicycleEventsResult;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -66,6 +64,8 @@ public class BicycleConsumer implements Runnable {
         while (failed <= retry) {
             try {
                 read(bicycleConfig, config, catalog, null);
+//                read completed means we are manually stopping connector
+                return;
             } catch (Exception exception) {
                 int retryLeft = retry - failed;
                 logger.error("Unable to run consumer with config " + config + ", retryleft - " + retryLeft,
@@ -80,7 +80,7 @@ public class BicycleConsumer implements Runnable {
         }
         if (eventConnectorJobStatusNotifier.getNumberOfThreadsRunning().decrementAndGet()<=0) {
             eventConnectorJobStatusNotifier.getSchedulesExecutorService().shutdown();
-            eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
+            eventConnectorJobStatusNotifier.removeConnectorInstanceFromMap(eventSourceInfo.getEventSourceId());
             AuthInfo authInfo = bicycleConfig.getAuthInfo();
             eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the kafka Event Connector", eventSourceInfo.getEventSourceId(), authInfo);
         }
@@ -117,9 +117,8 @@ public class BicycleConsumer implements Runnable {
 
         int sampledRecords = 0;
         try {
-            while (true) {
+            while (!this.kafkaSource.getStopConnectorBoolean().get()) {
                 final List<ConsumerRecord<String, JsonNode>> recordsList = new ArrayList<>();
-
                 final ConsumerRecords<String, JsonNode> consumerRecords =
                         consumer.poll(Duration.of(5000, ChronoUnit.MILLIS));
                 int counter = 0;
