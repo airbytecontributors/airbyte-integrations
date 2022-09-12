@@ -8,7 +8,7 @@ import java.util.Map;
 
 public abstract class EventConnectorJobStatusHandler {
     protected Map<String,Boolean> eventConnectorStatusMap;
-    public abstract void sendEventConnectorStatus(JobExecutionStatus jobExecutionStatus, JobExecutionRequest jobExecutionRequest, String response, String sourceId, AuthInfo authInfo);
+    public abstract void sendEventConnectorStatus(JobExecutionStatus jobExecutionStatus, JobExecutionRequest jobExecutionRequest, String response, String sourceId, int RecordsRead, AuthInfo authInfo);
     public void removeConnectorIdFromMap(String sourceId) {
         if(this.eventConnectorStatusMap.containsKey(sourceId)) {
             this.eventConnectorStatusMap.remove(sourceId);

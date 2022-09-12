@@ -126,14 +126,25 @@ public class KafkaSource extends BaseEventConnector {
         BicycleConsumer bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog,eventSourceInfo, eventConnectorJobStatusNotifier,this);
         ses.schedule(bicycleConsumer, 1, TimeUnit.SECONDS);
       }
-      eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, authInfo);
+      eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, getTotalRecordsConsumed(),authInfo);
     } catch (Exception exception) {
       eventConnectorJobStatusNotifier.getSchedulesExecutorService().shutdown();
       eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
-      eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the kafka Event Connector", connectorId, authInfo);
+      eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the kafka Event Connector", connectorId, getTotalRecordsConsumed(),authInfo);
       LOGGER.error("Shutting down the kafka Event Connector for connector {}", bicycleConfig.getConnectorId() ,exception);
     }
     return null;
+  }
+  protected int getTotalRecordsConsumed() {
+    int totalRecordsConsumed = 0;
+    Map<String, Map<String, Long>> consumerThreadToTopicPartitionMessagesRead = getTopicPartitionRecordsRead();
+    for (Map.Entry<String, Map<String, Long>> consumerThreadEntry :
+            consumerThreadToTopicPartitionMessagesRead.entrySet()) {
+      for (Map.Entry<String, Long> entry : consumerThreadEntry.getValue().entrySet()) {
+        totalRecordsConsumed += entry.getValue();
+      }
+    }
+    return totalRecordsConsumed;
   }
 
   @Override

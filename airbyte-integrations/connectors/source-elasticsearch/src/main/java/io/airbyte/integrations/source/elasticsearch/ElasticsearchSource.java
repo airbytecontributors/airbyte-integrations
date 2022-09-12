@@ -185,10 +185,11 @@ public class ElasticsearchSource extends BaseEventConnector {
             ((ObjectNode)timeRange).put(TIME_FIELD, "@timestamp");
         }
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
+        int totalRecordsConsumed = 0;
         try {
             // if timeRange not given
             String lastEnd;
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, authInfo);
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, 0,authInfo);
             while(true) {
                 final String latestDataTimestamp = connection.getLatestTimestamp(index, timeRange.path(TIME_FIELD).textValue());
                 if(latestDataTimestamp.equals(timeRange.path(FROM).textValue())) {
@@ -220,6 +221,7 @@ public class ElasticsearchSource extends BaseEventConnector {
                 } catch (Exception exception) {
                     LOGGER.error("Unable to publish bicycle events", exception);
                 }
+                totalRecordsConsumed += recordsList.size();
             }
         }
         catch(Exception exception) {
@@ -227,7 +229,7 @@ public class ElasticsearchSource extends BaseEventConnector {
         }
         finally {
             eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the ElasticSearch Event Connector", connectorId, authInfo);
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the ElasticSearch Event Connector", connectorId, totalRecordsConsumed, authInfo);
             LOGGER.info("Closing server connection.");
             connection.close();
             LOGGER.info("Closed server connection.");

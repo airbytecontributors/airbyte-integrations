@@ -82,7 +82,7 @@ public class BicycleConsumer implements Runnable {
             eventConnectorJobStatusNotifier.getSchedulesExecutorService().shutdown();
             eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
             AuthInfo authInfo = bicycleConfig.getAuthInfo();
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the kafka Event Connector", eventSourceInfo.getEventSourceId(), authInfo);
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the kafka Event Connector", eventSourceInfo.getEventSourceId(), this.kafkaSource.getTotalRecordsConsumed(), authInfo);
         }
         logger.info("All the retries failed, exiting the thread for consumer {}",name);
     }

@@ -104,7 +104,6 @@ public class KinesisSource extends BaseEventConnector {
     @Override
     public AutoCloseableIterator<AirbyteMessage> read(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws Exception {
 
-//        new SystemAuthenticator();
         int numberOfConsumers =config.has("consumer_threads") ? config.get("consumer_threads").asInt(): 1;
         int threadPoolSize = numberOfConsumers + 3;
         ScheduledExecutorService ses = Executors.newScheduledThreadPool(threadPoolSize);
@@ -151,17 +150,29 @@ public class KinesisSource extends BaseEventConnector {
                 schedulerThread.setDaemon(true);
                 schedulerThread.start();
             }
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kinesis Event Connector started Successfully", connectorId, authInfo);
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kinesis Event Connector started Successfully", connectorId, getTotalRecordsConsumed(),authInfo);
         } catch (Exception exception) {
             eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the Kinesis Event Connector", connectorId, authInfo);
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the Kinesis Event Connector", connectorId, getTotalRecordsConsumed(),authInfo);
             LOGGER.error("Shutting down the kinesis Client application", exception);
             ses.shutdown();
         }
         return null;
     }
 
-    @Override
+    protected int getTotalRecordsConsumed() {
+        int totalRecordsConsumed = 0;
+        Map<String, Map<String, Long>> clientToStreamShardRecordsRead = getClientToStreamShardRecordsRead();
+        for (Map.Entry<String, Map<String, Long>> consumerThreadEntry :
+                clientToStreamShardRecordsRead.entrySet()) {
+            for (Map.Entry<String, Long> entry : consumerThreadEntry.getValue().entrySet()) {
+                totalRecordsConsumed += entry.getValue();
+            }
+        }
+        return totalRecordsConsumed;
+    }
+
+        @Override
     public List<RawEvent> convertRecordsToRawEvents(List<?> records) {
         Iterator<String> recordsIterator = (Iterator<String>) records.iterator();
         List<RawEvent> rawEvents = new ArrayList<>();
@@ -258,7 +269,7 @@ public class KinesisSource extends BaseEventConnector {
         int batchsize= Math.max(100/listShardsResponse.shards().size(), 20);
         String initialPositionInStream = config.get("initial_position_in_stream").asText();
         ShardIteratorType shardIteratorType;
-        if (initialPositionInStream == "Latest") {
+        if (initialPositionInStream.equals("Latest")) {
             shardIteratorType = ShardIteratorType.LATEST;
         }
         else {

@@ -52,6 +52,10 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;
     }
 
+    public EventConnectorJobStatusNotifier getEventConnectorJobStatusNotifier() {
+        return eventConnectorJobStatusNotifier;
+    }
+
     public CountDownLatch shouldStop() {
         return shouldStop;
     }

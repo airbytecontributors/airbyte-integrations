@@ -75,6 +75,8 @@ public class ShardRecordProcessorImpl implements ShardRecordProcessor {
                 }
                 Long shardTotalRecordsRead = totalRecordsRead.get(shardId);
                 totalRecordsRead.replace(shardId,shardTotalRecordsRead + recordsList.size());
+                final int finalTotalRecordsProcessed = kinesisSource.getEventConnectorJobStatusNotifier().getRecordsRead().get();
+                kinesisSource.getEventConnectorJobStatusNotifier().getRecordsRead().getAndUpdate(n -> n + finalTotalRecordsProcessed);
             } catch (Exception exception) {
                 logger.error("Unable to publish bicycle events", exception);
             }
