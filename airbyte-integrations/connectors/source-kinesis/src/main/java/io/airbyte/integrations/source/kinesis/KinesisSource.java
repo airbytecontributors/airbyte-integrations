@@ -49,9 +49,11 @@ import software.amazon.kinesis.common.InitialPositionInStreamExtended;
 import software.amazon.kinesis.coordinator.Scheduler;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 
@@ -62,6 +64,7 @@ public class KinesisSource extends BaseEventConnector {
     private final Map<String, Map<String, Long>> clientToStreamShardRecordsRead = new HashMap<>();
     protected KinesisClientConfig kinesisClientConfig;
     private String applicationName;
+    private Collection<Scheduler> schedulerArrayList = null;
     public KinesisSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorStatusHandler) {
         super(systemAuthenticator, eventConnectorStatusHandler);
     }
@@ -101,6 +104,17 @@ public class KinesisSource extends BaseEventConnector {
         return new AirbyteCatalog().withStreams(streams);
     }
 
+    public void stopEventConnector() {
+        for (Scheduler scheduler: schedulerArrayList) {
+            try {
+                scheduler.startGracefulShutdown().get();
+            } catch (Exception e) {
+                LOGGER.error("Exception while shutting down Kinesis Event Connector ", e);
+            }
+        }
+        this.stopEventConnector("Shutting down the Kinesis Event Connector manually", JobExecutionStatus.success);
+    }
+
     @Override
     public AutoCloseableIterator<AirbyteMessage> read(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws Exception {
 
@@ -128,6 +142,8 @@ public class KinesisSource extends BaseEventConnector {
         this.kinesisClientConfig= kinesisClientConfig;
         KinesisMetricAsEventsGenerator kinesisMetricAsEventsGenerator = new KinesisMetricAsEventsGenerator(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher, this);
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
+        schedulerArrayList = Collections
+                .synchronizedCollection(new ArrayList<Scheduler>());
         try {
             ses.scheduleAtFixedRate(kinesisMetricAsEventsGenerator, 60, 300, TimeUnit.SECONDS);
             LOGGER.info("======Starting read operation for consumer " + bicycleConfig.getUniqueIdentifier() + "=======");
@@ -137,25 +153,23 @@ public class KinesisSource extends BaseEventConnector {
                 throw new RuntimeException("Unable establish a connection: " + check.getMessage());
             }
             LOGGER.info("Check Successful " + bicycleConfig.getUniqueIdentifier() + "=======");
-//                totalRecords Read details required
-
-
+            eventConnectorJobStatusNotifier.setNumberOfThreadsRunning(new AtomicInteger(numberOfConsumers));
+            eventConnectorJobStatusNotifier.setScheduledExecutorService(ses);
             for (int i = 0; i < numberOfConsumers; i++) {
                 Map<String, Long> totalRecordsRead = new HashMap<>();
                 String clientThreadId = UUID.randomUUID().toString();
                 clientToStreamShardRecordsRead.put(clientThreadId,totalRecordsRead);
                 Scheduler scheduler =  kinesisClientConfig.getScheduler(bicycleConfig, eventSourceInfo, false, null, totalRecordsRead);
                 LOGGER.info("Created Kinesis Scheduler successfully for UUID " + bicycleConfig.getUniqueIdentifier() + "=======");
+                schedulerArrayList.add(scheduler);
                 Thread schedulerThread = new Thread(scheduler);
                 schedulerThread.setDaemon(true);
                 schedulerThread.start();
             }
             eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kinesis Event Connector started Successfully", connectorId, getTotalRecordsConsumed(),authInfo);
         } catch (Exception exception) {
-            eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the Kinesis Event Connector", connectorId, getTotalRecordsConsumed(),authInfo);
+            this.stopEventConnector("Shutting down the Kinesis Event Connector due to Exception", JobExecutionStatus.failure);
             LOGGER.error("Shutting down the kinesis Client application", exception);
-            ses.shutdown();
         }
         return null;
     }
@@ -311,11 +325,11 @@ public class KinesisSource extends BaseEventConnector {
             @Override
             protected AirbyteMessage computeNext() {
                 if (userRecordIterator.hasNext()) {
-                    final Record record = (Record) userRecordIterator.next();
+                    final Record record = userRecordIterator.next();
                     JsonNode data = null;
                     try {
                         data = objectMapper.readTree(record.data().asByteArray());
-                    } catch (IOException e) {
+                    } catch (Exception e) {
                         LOGGER.error("Cannot convert Record to Json",e);
                     }
                     return new AirbyteMessage()

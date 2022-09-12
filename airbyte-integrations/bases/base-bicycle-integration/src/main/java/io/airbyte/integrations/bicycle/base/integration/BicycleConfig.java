@@ -53,7 +53,7 @@ public class BicycleConfig {
         else {
             localVariableAuthInfo = this.systemAuthenticator.authenticate(tenantId);
         }
-        LOGGER.info("TenantId: {} token {}", tenantId, localVariableAuthInfo.getToken());
+//        LOGGER.info("TenantId: {} token {}", tenantId, localVariableAuthInfo.getToken());
         return localVariableAuthInfo;
     }
 

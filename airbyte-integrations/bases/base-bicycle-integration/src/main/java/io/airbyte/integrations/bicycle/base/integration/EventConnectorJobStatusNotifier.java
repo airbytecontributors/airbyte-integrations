@@ -35,8 +35,10 @@ public class EventConnectorJobStatusNotifier {
         return numberOfThreadsRunning;
     }
 
-    public void removeConnectorIdFromMap(String sourceId) {
-        eventConnectorJobStatusHandler.removeConnectorIdFromMap(sourceId);
+    public void removeConnectorInstanceFromMap(String sourceId) {
+        if (eventConnectorJobStatusHandler.getConnectorIdToEventConnectorInstanceMap().containsKey(sourceId)) {
+            eventConnectorJobStatusHandler.getConnectorIdToEventConnectorInstanceMap().remove(sourceId);
+        }
     }
 
     public void sendStatus(JobExecutionStatus jobExecutionStatus, String response, String sourceId, int recordsRead ,AuthInfo authInfo) {

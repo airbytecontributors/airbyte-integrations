@@ -27,6 +27,7 @@ import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -45,10 +46,15 @@ public class KafkaSource extends BaseEventConnector {
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaSource.class);
   public static final String STREAM_NAME = "stream_name";
   private static final int CONSUMER_THREADS_DEFAULT_VALUE = 1;
+  protected AtomicBoolean stopConnectorBoolean = new AtomicBoolean(false);
   private final Map<String, Map<String, Long>> consumerToTopicPartitionRecordsRead = new HashMap<>();
 
   public KafkaSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
     super(systemAuthenticator,eventConnectorJobStatusNotifier);
+  }
+
+  protected AtomicBoolean getStopConnectorBoolean() {
+    return stopConnectorBoolean;
   }
 
   @Override
@@ -88,10 +94,22 @@ public class KafkaSource extends BaseEventConnector {
     return new AirbyteCatalog().withStreams(streams);
   }
 
+  public void stopEventConnector() {
+    stopConnectorBoolean.set(true);
+    super.stopEventConnector("Kafka Event Connector Stopped manually", JobExecutionStatus.success);
+  }
+
+  @Override
+  public void stopEventConnector(String message, JobExecutionStatus jobExecutionStatus) {
+    stopConnectorBoolean.set(true);
+    super.stopEventConnector(message, jobExecutionStatus);
+  }
+
   @Override
   public AutoCloseableIterator<AirbyteMessage> read(final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state) {
     int numberOfConsumers = config.has("bicycle_consumer_threads") ? config.get("bicycle_consumer_threads").asInt(): CONSUMER_THREADS_DEFAULT_VALUE;
     int threadPoolSize = numberOfConsumers + 3;
+    stopConnectorBoolean.set(false);
     ScheduledExecutorService ses = Executors.newScheduledThreadPool(threadPoolSize);
 
     Map<String, Object> additionalProperties = catalog.getAdditionalProperties();
@@ -112,7 +130,7 @@ public class KafkaSource extends BaseEventConnector {
     BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL,token, connectorId, uniqueIdentifier, tenantId, systemAuthenticator, isOnPremDeployment);
     setBicycleEventProcessor(bicycleConfig);
 
-    EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
+    eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
     MetricAsEventsGenerator metricAsEventsGenerator = new KafkaMetricAsEventsGenerator(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher,this);
     AuthInfo authInfo = bicycleConfig.getAuthInfo();
     try {
@@ -126,12 +144,11 @@ public class KafkaSource extends BaseEventConnector {
         BicycleConsumer bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog,eventSourceInfo, eventConnectorJobStatusNotifier,this);
         ses.schedule(bicycleConsumer, 1, TimeUnit.SECONDS);
       }
+      LOGGER.info("Shutting down the Kafka Event Connector manually for connector {}", bicycleConfig.getConnectorId());
       eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, getTotalRecordsConsumed(),authInfo);
     } catch (Exception exception) {
-      eventConnectorJobStatusNotifier.getSchedulesExecutorService().shutdown();
-      eventConnectorJobStatusNotifier.removeConnectorIdFromMap(eventSourceInfo.getEventSourceId());
-      eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.failure,"Shutting down the kafka Event Connector", connectorId, getTotalRecordsConsumed(),authInfo);
-      LOGGER.error("Shutting down the kafka Event Connector for connector {}", bicycleConfig.getConnectorId() ,exception);
+      this.stopEventConnector("Shutting down the kafka Event Connector due to exception",JobExecutionStatus.failure);
+      LOGGER.error("Shutting down the Kafka Event Connector for connector {}", bicycleConfig.getConnectorId() ,exception);
     }
     return null;
   }
