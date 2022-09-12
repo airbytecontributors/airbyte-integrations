@@ -58,7 +58,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     abstract protected int getTotalRecordsConsumed();
 
-        public void setBicycleEventProcessor(BicycleConfig bicycleConfig) {
+    public void setBicycleEventProcessor(BicycleConfig bicycleConfig) {
         this.bicycleConfig = bicycleConfig;
         ConfigStoreClient configStoreClient = getConfigClient(bicycleConfig);
         this.bicycleEventProcessor = new BicycleEventProcessorImpl(configStoreClient);
@@ -96,7 +96,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         }
         eventConnectorJobStatusNotifier.removeConnectorInstanceFromMap(bicycleConfig.getConnectorId());
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
-        eventConnectorJobStatusNotifier.sendStatus(jobExecutionStatus,message, bicycleConfig.getConnectorId(), getTotalRecordsConsumed(),authInfo);
+        eventConnectorJobStatusNotifier.sendStatus(jobExecutionStatus,message, bicycleConfig.getConnectorId(), getTotalRecordsConsumed(), authInfo);
         logger.info(message + " for connector {}", bicycleConfig.getConnectorId());
     }
 

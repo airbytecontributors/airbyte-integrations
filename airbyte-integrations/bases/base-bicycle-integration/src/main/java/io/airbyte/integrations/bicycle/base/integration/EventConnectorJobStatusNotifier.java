@@ -13,10 +13,6 @@ public class EventConnectorJobStatusNotifier {
     JobExecutionRequest jobExecutionRequest;
     AtomicInteger numberOfThreadsRunning=new AtomicInteger(0);
     ScheduledExecutorService ses = null;
-    AtomicInteger recordsRead = new AtomicInteger(0);
-    public AtomicInteger getRecordsRead() {
-        return recordsRead;
-    }
 
     public EventConnectorJobStatusNotifier(JobExecutionRequest jobExecutionRequest, EventConnectorJobStatusHandler eventConnectorStatusResponseHandler) {
         this.jobExecutionRequest = jobExecutionRequest;
@@ -41,8 +37,8 @@ public class EventConnectorJobStatusNotifier {
         }
     }
 
-    public void sendStatus(JobExecutionStatus jobExecutionStatus, String response, String sourceId, int recordsRead ,AuthInfo authInfo) {
-        eventConnectorJobStatusHandler.sendEventConnectorStatus(jobExecutionStatus, jobExecutionRequest, response, sourceId, recordsRead,authInfo);
+    public void sendStatus(JobExecutionStatus jobExecutionStatus, String response, String sourceId, int recordsRead, AuthInfo authInfo) {
+        eventConnectorJobStatusHandler.sendEventConnectorStatus(jobExecutionStatus, jobExecutionRequest, response, sourceId, recordsRead, authInfo);
     }
 
     public ScheduledExecutorService getSchedulesExecutorService() {

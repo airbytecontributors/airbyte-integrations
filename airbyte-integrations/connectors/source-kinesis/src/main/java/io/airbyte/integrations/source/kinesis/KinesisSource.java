@@ -166,7 +166,7 @@ public class KinesisSource extends BaseEventConnector {
                 schedulerThread.setDaemon(true);
                 schedulerThread.start();
             }
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kinesis Event Connector started Successfully", connectorId, getTotalRecordsConsumed(),authInfo);
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kinesis Event Connector started Successfully", connectorId, getTotalRecordsConsumed(), authInfo);
         } catch (Exception exception) {
             this.stopEventConnector("Shutting down the Kinesis Event Connector due to Exception", JobExecutionStatus.failure);
             LOGGER.error("Shutting down the kinesis Client application", exception);
@@ -174,6 +174,7 @@ public class KinesisSource extends BaseEventConnector {
         return null;
     }
 
+    @Override
     protected int getTotalRecordsConsumed() {
         int totalRecordsConsumed = 0;
         Map<String, Map<String, Long>> clientToStreamShardRecordsRead = getClientToStreamShardRecordsRead();
@@ -186,7 +187,7 @@ public class KinesisSource extends BaseEventConnector {
         return totalRecordsConsumed;
     }
 
-        @Override
+    @Override
     public List<RawEvent> convertRecordsToRawEvents(List<?> records) {
         Iterator<String> recordsIterator = (Iterator<String>) records.iterator();
         List<RawEvent> rawEvents = new ArrayList<>();

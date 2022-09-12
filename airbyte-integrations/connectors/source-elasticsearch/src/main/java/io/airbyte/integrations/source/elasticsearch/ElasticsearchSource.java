@@ -132,8 +132,6 @@ public class ElasticsearchSource extends BaseEventConnector {
         return null;
     }
 
-
-
     private ConnectorConfiguration convertConfig(JsonNode config) {
         return mapper.convertValue(config, ConnectorConfiguration.class);
     }
@@ -195,7 +193,7 @@ public class ElasticsearchSource extends BaseEventConnector {
         try {
             // if timeRange not given
             String lastEnd;
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, 0,authInfo);
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, 0, authInfo);
             while(!this.getStopConnectorBoolean().get()) {
                 final String latestDataTimestamp = connection.getLatestTimestamp(index, timeRange.path(TIME_FIELD).textValue());
                 if(latestDataTimestamp.equals(timeRange.path(FROM).textValue())) {
