@@ -78,9 +78,8 @@ public class BicycleConfig {
     public String getMetricStoreURL() {
         return metricStoreURL;
     }
-//
+
     private AuthInfo getAuthInfoForWorker(SystemAuthenticator systemAuthenticator, String tenantId) {
-        return null;
-//        return systemAuthenticator.authenticateAs(SAAS_AUTH_PRINCIPAL, tenantId, SAAS_AUTH_ROLE);
+        return systemAuthenticator.authenticateAs(SAAS_AUTH_PRINCIPAL, tenantId, SAAS_AUTH_ROLE);
     }
 }
