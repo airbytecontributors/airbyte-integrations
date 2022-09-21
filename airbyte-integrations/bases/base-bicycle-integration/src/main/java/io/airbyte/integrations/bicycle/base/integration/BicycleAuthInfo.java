@@ -42,4 +42,11 @@ public class BicycleAuthInfo implements AuthInfo {
     public AuthType getAuthType() {
         return AuthType.BEARER;
     }
+
+    @Override
+    public String[] getRoles() {
+        String[] roles = new String[1];
+        roles[0] = "AGENT";
+        return roles;
+    }
 }
