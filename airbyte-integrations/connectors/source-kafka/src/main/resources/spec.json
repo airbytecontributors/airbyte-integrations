@@ -254,7 +254,7 @@
       },
       "fetch_max_wait_ms": {
         "title": "Maximum Wait Time Per Fetch, ms",
-        "description": "The maximum amount of data the server should return for a fetch request.",
+        "description": "The maximum amount of time the server will block before answering the fetch request if there isn't sufficient data to immediately satisfy the requirement given by fetch.min.bytes.",
         "type": "integer",
         "default": 500
       },
