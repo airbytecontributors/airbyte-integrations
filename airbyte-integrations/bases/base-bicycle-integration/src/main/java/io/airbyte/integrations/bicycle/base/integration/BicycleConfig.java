@@ -11,6 +11,9 @@ import org.slf4j.LoggerFactory;
  */
 public class BicycleConfig {
 
+    private final static String SAAS_AUTH_PRINCIPAL = "system-user";
+    private final static String SAAS_AUTH_ROLE = "AGENT";
+
     private final String serverURL;
     private final String token;
     private final String USER_ID_SEPARATOR = "#@#@";
@@ -51,7 +54,7 @@ public class BicycleConfig {
             localVariableAuthInfo = authInfo;
         }
         else {
-            localVariableAuthInfo = this.systemAuthenticator.authenticate(tenantId);
+            localVariableAuthInfo = this.getAuthInfoForWorker(systemAuthenticator, tenantId);
         }
 //        LOGGER.info("TenantId: {} token {}", tenantId, localVariableAuthInfo.getToken());
         return localVariableAuthInfo;
@@ -74,5 +77,10 @@ public class BicycleConfig {
 
     public String getMetricStoreURL() {
         return metricStoreURL;
+    }
+//
+    private AuthInfo getAuthInfoForWorker(SystemAuthenticator systemAuthenticator, String tenantId) {
+        return null;
+//        return systemAuthenticator.authenticateAs(SAAS_AUTH_PRINCIPAL, tenantId, SAAS_AUTH_ROLE);
     }
 }

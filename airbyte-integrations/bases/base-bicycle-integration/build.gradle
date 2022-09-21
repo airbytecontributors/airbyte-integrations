@@ -12,6 +12,10 @@ repositories {
 dependencies {
     implementation project(':airbyte-integrations:bases:base-java')
     implementation project(':airbyte-protocol:models')
+//    implementation("com.inception:auth-api:0.3.31949")
+//    implementation("com.inception:auth-impl:0.3.31949")
+//    implementation group: 'com.inception', name: 'auth-impl', version: '0.3.31949'
+//    implementation group: 'com.inception', name: 'auth-api', version: '0.3.31949'
     implementation group: 'com.inception', name: 'bicycle-event-processor', version: '0.2.28418'
     implementation group: 'com.inception', name: 'bicycle-event-publisher', version: '0.2.28418'
     implementation group: 'org.springframework.kafka', name: 'spring-kafka', version: '2.8.7'
