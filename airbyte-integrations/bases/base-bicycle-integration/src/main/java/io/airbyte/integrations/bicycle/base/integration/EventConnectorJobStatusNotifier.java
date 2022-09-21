@@ -6,12 +6,14 @@ import com.inception.server.scheduler.api.JobExecutionStatus;
 
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class EventConnectorJobStatusNotifier {
     EventConnectorJobStatusHandler eventConnectorJobStatusHandler = null;
     JobExecutionRequest jobExecutionRequest;
     AtomicInteger numberOfThreadsRunning=new AtomicInteger(0);
     ScheduledExecutorService ses = null;
+
     public EventConnectorJobStatusNotifier(JobExecutionRequest jobExecutionRequest, EventConnectorJobStatusHandler eventConnectorStatusResponseHandler) {
         this.jobExecutionRequest = jobExecutionRequest;
         this.eventConnectorJobStatusHandler =eventConnectorStatusResponseHandler;
@@ -35,8 +37,8 @@ public class EventConnectorJobStatusNotifier {
         }
     }
 
-    public void sendStatus(JobExecutionStatus jobExecutionStatus, String response, String sourceId, AuthInfo authInfo) {
-        eventConnectorJobStatusHandler.sendEventConnectorStatus(jobExecutionStatus, jobExecutionRequest, response, sourceId, authInfo);
+    public void sendStatus(JobExecutionStatus jobExecutionStatus, String response, String sourceId, int recordsRead, AuthInfo authInfo) {
+        eventConnectorJobStatusHandler.sendEventConnectorStatus(jobExecutionStatus, jobExecutionRequest, response, sourceId, recordsRead, authInfo);
     }
 
     public ScheduledExecutorService getSchedulesExecutorService() {

@@ -35,10 +35,16 @@ import static io.airbyte.integrations.source.elasticsearch.typemapper.Elasticsea
 public class ElasticsearchSource extends BaseEventConnector {
     private static final Logger LOGGER = LoggerFactory.getLogger(ElasticsearchSource.class);
     private final ObjectMapper mapper = new ObjectMapper();
+    int totalRecordsConsumed = 0;
     private AtomicBoolean stopConnectorBoolean = new AtomicBoolean(false);
 
     public ElasticsearchSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
         super(systemAuthenticator, eventConnectorJobStatusNotifier);
+    }
+
+    @Override
+    protected int getTotalRecordsConsumed() {
+        return totalRecordsConsumed;
     }
 
     public static void main(String[] args) throws Exception {
@@ -187,7 +193,7 @@ public class ElasticsearchSource extends BaseEventConnector {
         try {
             // if timeRange not given
             String lastEnd;
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, authInfo);
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, 0, authInfo);
             while(!this.getStopConnectorBoolean().get()) {
                 final String latestDataTimestamp = connection.getLatestTimestamp(index, timeRange.path(TIME_FIELD).textValue());
                 if(latestDataTimestamp.equals(timeRange.path(FROM).textValue())) {
@@ -219,6 +225,7 @@ public class ElasticsearchSource extends BaseEventConnector {
                 } catch (Exception exception) {
                     LOGGER.error("Unable to publish bicycle events", exception);
                 }
+                totalRecordsConsumed += recordsList.size();
             }
             LOGGER.info("Shutting down the Elasticsearch Event Connector manually for connector {}", bicycleConfig.getConnectorId());
         }

@@ -118,7 +118,6 @@ public class KinesisSource extends BaseEventConnector {
     @Override
     public AutoCloseableIterator<AirbyteMessage> read(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws Exception {
 
-//        new SystemAuthenticator();
         int numberOfConsumers =config.has("consumer_threads") ? config.get("consumer_threads").asInt(): 1;
         int threadPoolSize = numberOfConsumers + 3;
         ScheduledExecutorService ses = Executors.newScheduledThreadPool(threadPoolSize);
@@ -167,12 +166,25 @@ public class KinesisSource extends BaseEventConnector {
                 schedulerThread.setDaemon(true);
                 schedulerThread.start();
             }
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kinesis Event Connector started Successfully", connectorId, authInfo);
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kinesis Event Connector started Successfully", connectorId, getTotalRecordsConsumed(), authInfo);
         } catch (Exception exception) {
             this.stopEventConnector("Shutting down the Kinesis Event Connector due to Exception", JobExecutionStatus.failure);
             LOGGER.error("Shutting down the kinesis Client application", exception);
         }
         return null;
+    }
+
+    @Override
+    protected int getTotalRecordsConsumed() {
+        int totalRecordsConsumed = 0;
+        Map<String, Map<String, Long>> clientToStreamShardRecordsRead = getClientToStreamShardRecordsRead();
+        for (Map.Entry<String, Map<String, Long>> consumerThreadEntry :
+                clientToStreamShardRecordsRead.entrySet()) {
+            for (Map.Entry<String, Long> entry : consumerThreadEntry.getValue().entrySet()) {
+                totalRecordsConsumed += entry.getValue();
+            }
+        }
+        return totalRecordsConsumed;
     }
 
     @Override

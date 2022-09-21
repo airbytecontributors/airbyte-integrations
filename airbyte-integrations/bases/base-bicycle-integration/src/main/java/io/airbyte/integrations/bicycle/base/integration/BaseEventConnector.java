@@ -15,6 +15,7 @@ import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.BaseConnector;
 import io.airbyte.integrations.base.Source;
+import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.event.processor.api.BicycleEventProcessor;
@@ -50,6 +51,12 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         this.systemAuthenticator = systemAuthenticator;
         this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;
     }
+
+    public EventConnectorJobStatusNotifier getEventConnectorJobStatusNotifier() {
+        return eventConnectorJobStatusNotifier;
+    }
+
+    abstract protected int getTotalRecordsConsumed();
 
     public void setBicycleEventProcessor(BicycleConfig bicycleConfig) {
         this.bicycleConfig = bicycleConfig;
@@ -89,7 +96,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         }
         eventConnectorJobStatusNotifier.removeConnectorInstanceFromMap(bicycleConfig.getConnectorId());
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
-        eventConnectorJobStatusNotifier.sendStatus(jobExecutionStatus,message, bicycleConfig.getConnectorId(), authInfo);
+        eventConnectorJobStatusNotifier.sendStatus(jobExecutionStatus,message, bicycleConfig.getConnectorId(), getTotalRecordsConsumed(), authInfo);
         logger.info(message + " for connector {}", bicycleConfig.getConnectorId());
     }
 
