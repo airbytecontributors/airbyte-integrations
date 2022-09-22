@@ -225,7 +225,7 @@
         "title": "Receive Buffer, bytes",
         "description": "The size of the TCP receive buffer (SO_RCVBUF) to use when reading data. If the value is -1, the OS default will be used.",
         "type": "integer",
-        "default": 32768
+        "default": 92768
       },
       "auto_offset_reset": {
         "title": "Auto Offset Reset",
@@ -259,10 +259,10 @@
         "default": 500
       },
       "max_partition_fetch_bytes": {
-        "title": "Max Partition Per Fetch, bytes",
+        "title": "Max Data per Partition Per Fetch, bytes",
         "description": "The maximum amount of data per-partition the server will return.",
         "type": "integer",
-        "default": 1048576
+        "default": 8388608
       },
       "default_api_timeout_ms": {
         "title": "Default Api Timeout",
