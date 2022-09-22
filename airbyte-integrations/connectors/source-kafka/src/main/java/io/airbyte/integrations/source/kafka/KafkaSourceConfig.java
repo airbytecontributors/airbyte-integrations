@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.integrations.base.Command;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
@@ -32,17 +33,17 @@ import static io.airbyte.integrations.source.kafka.KafkaSource.*;
 public class KafkaSourceConfig {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(KafkaSourceConfig.class);
-  private static final String TRUSTSTORE_FILE_PATH = "/tmp/bicycle/kafka/client.truststore.jks";
 
   private final JsonNode config;
   private KafkaConsumer<String, JsonNode> consumer;
   private Set<String> topicsToSubscribe;
   private boolean trustStoreFileInitialized;
   private final String consumerThreadName;
-
+  private final String trustStoreFilePath;
   public KafkaSourceConfig(String consumerThreadName, final JsonNode config) {
     this.config = config;
     this.consumerThreadName = consumerThreadName;
+    this.trustStoreFilePath = "/tmp/bicycle/kafka/" + UUID.randomUUID().toString() + "/client.truststore.jks";
   }
 
 
@@ -164,20 +165,23 @@ public class KafkaSourceConfig {
   private String getTrustStoreFilePath(JsonNode config) {
 
     try {
-      if (trustStoreFileInitialized) {
-        return TRUSTSTORE_FILE_PATH;
-      }
-      File file = new File(TRUSTSTORE_FILE_PATH);
-      if (file.exists()) {
-        return TRUSTSTORE_FILE_PATH;
-      }
       String trustStoreEncodedContent = config.has("ssl_truststore_certificate_content") ?
               config.get("ssl_truststore_certificate_content").asText() : null;
+      if (StringUtils.isEmpty(trustStoreEncodedContent)) {
+        return null;
+      }
+      if (trustStoreFileInitialized) {
+        return this.trustStoreFilePath;
+      }
+      File file = new File(this.trustStoreFilePath);
+      if (file.exists()) {
+        return this.trustStoreFilePath;
+      }
 
       if (trustStoreEncodedContent != null) {
         byte[] decodedBytes = Base64.getDecoder().decode(trustStoreEncodedContent);
         writeToFile(decodedBytes);
-        return TRUSTSTORE_FILE_PATH;
+        return this.trustStoreFilePath;
       }
     } catch (Exception e) {
       LOGGER.error("Unable to get truststore file path", e);
@@ -189,7 +193,7 @@ public class KafkaSourceConfig {
   public void writeToFile(byte[] content) {
     try {
       File outputFile =
-              new File(TRUSTSTORE_FILE_PATH);
+              new File(this.trustStoreFilePath);
       outputFile.getParentFile().mkdirs();
       try (FileOutputStream outputStream = new FileOutputStream(outputFile)) {
         outputStream.write(content);
