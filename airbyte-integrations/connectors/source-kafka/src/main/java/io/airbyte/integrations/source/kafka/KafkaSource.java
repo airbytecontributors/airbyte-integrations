@@ -145,7 +145,6 @@ public class KafkaSource extends BaseEventConnector {
         ses.schedule(bicycleConsumer, 1, TimeUnit.SECONDS);
       }
       eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, getTotalRecordsConsumed(),authInfo);
-      LOGGER.info("Shutting down the Kafka Event Connector manually for connector {}", bicycleConfig.getConnectorId());
     } catch (Exception exception) {
       this.stopEventConnector("Shutting down the kafka Event Connector due to exception",JobExecutionStatus.failure);
       LOGGER.error("Shutting down the Kafka Event Connector for connector {}", bicycleConfig.getConnectorId() ,exception);
@@ -184,6 +183,7 @@ public class KafkaSource extends BaseEventConnector {
   @Override
   public AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) {
     ((ObjectNode) config).put("group_id",UUID.randomUUID().toString());
+    ((ObjectNode)config).put("auto_offset_reset", "earliest");
     final AirbyteConnectionStatus check = check(config);
     if (check.getStatus().equals(AirbyteConnectionStatus.Status.FAILED)) {
       throw new RuntimeException("Unable establish a connection: " + check.getMessage());
