@@ -135,4 +135,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return this.bicycleConfig.getTenantId();
     }
 
+    public EventSourceInfo getEventSourceInfo() {
+        return eventSourceInfo;
+    }
 }
