@@ -9,7 +9,7 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "Kafka Source Spec",
     "type": "object",
-    "required": ["bootstrap_servers", "subscription", "protocol"],
+    "required": ["bootstrap_servers", "subscription", "protocol", "test_topic"],
     "additionalProperties": false,
     "properties": {
       "bootstrap_servers": {
