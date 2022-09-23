@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.integrations.base.Command;
+import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -51,7 +52,7 @@ public class KafkaSourceConfig {
     final Map<String, Object> props = new HashMap<>();
     props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, config.get("bootstrap_servers").asText());
     props.put(ConsumerConfig.GROUP_ID_CONFIG,
-            config.has("group_id") ? config.get("group_id").asText() : null);
+            config.has("group_id") ? config.get("group_id").asText() : CommonUtils.getRandomBicycleUUID());
     props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG,
             config.has("max_poll_records") ? config.get("max_poll_records").intValue() : null);
     props.putAll(propertiesByProtocol(config));

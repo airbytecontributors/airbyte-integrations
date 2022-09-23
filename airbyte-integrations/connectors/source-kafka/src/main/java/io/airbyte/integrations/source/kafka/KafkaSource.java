@@ -85,12 +85,13 @@ public class KafkaSource extends BaseEventConnector {
   @Override
   public AirbyteCatalog discover(final JsonNode config) {
     KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config);
-    kafkaSourceConfig.getConsumer(Command.DISCOVER);
+    KafkaConsumer<String, JsonNode> consumer = kafkaSourceConfig.getConsumer(Command.DISCOVER);
     final Set<String> topicsToSubscribe = kafkaSourceConfig.getTopicsToSubscribe();
     final List<AirbyteStream> streams = topicsToSubscribe.stream().map(topic -> CatalogHelpers
         .createAirbyteStream(topic, Field.of("value", JsonSchemaType.STRING))
         .withSupportedSyncModes(Lists.newArrayList(SyncMode.FULL_REFRESH, SyncMode.INCREMENTAL)))
         .collect(Collectors.toList());
+    consumer.close();
     return new AirbyteCatalog().withStreams(streams);
   }
 
@@ -125,6 +126,10 @@ public class KafkaSource extends BaseEventConnector {
     String eventSourceType = additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : "EVENT";
     String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";;
     String isOnPrem = additionalProperties.get("isOnPrem").toString();
+    if (!config.has("group_id"))
+    {
+      ((ObjectNode) config).put("group_id","bicycle_"+connectorId);
+    }
     boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
 
     BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL,token, connectorId, uniqueIdentifier, tenantId, systemAuthenticator, isOnPremDeployment);
@@ -182,7 +187,7 @@ public class KafkaSource extends BaseEventConnector {
 
   @Override
   public AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) {
-    ((ObjectNode) config).put("group_id",UUID.randomUUID().toString());
+    ((ObjectNode) config).put("group_id",CommonUtils.getRandomBicycleUUID());
     ((ObjectNode)config).put("auto_offset_reset", "earliest");
     final AirbyteConnectionStatus check = check(config);
     if (check.getStatus().equals(AirbyteConnectionStatus.Status.FAILED)) {
