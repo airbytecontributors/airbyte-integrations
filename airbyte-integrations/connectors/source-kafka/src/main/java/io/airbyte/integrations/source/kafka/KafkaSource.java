@@ -123,7 +123,7 @@ public class KafkaSource extends BaseEventConnector {
     String uniqueIdentifier = UUID.randomUUID().toString();
     String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
     String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
-    String eventSourceType = additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : "EVENT";
+    String eventSourceType = additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : "source-kafka";
     String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";;
     String isOnPrem = additionalProperties.get("isOnPrem").toString();
     if (!config.has("group_id"))

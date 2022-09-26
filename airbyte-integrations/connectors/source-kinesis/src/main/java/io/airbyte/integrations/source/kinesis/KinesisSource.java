@@ -122,7 +122,7 @@ public class KinesisSource extends BaseEventConnector {
         String uniqueIdentifier = UUID.randomUUID().toString();
         String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
         String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
-        String eventSourceType = additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : "";
+        String eventSourceType = additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : "source-kinesis";
         String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";;
         String isOnPrem = additionalProperties.get("isOnPrem").toString();
         boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
