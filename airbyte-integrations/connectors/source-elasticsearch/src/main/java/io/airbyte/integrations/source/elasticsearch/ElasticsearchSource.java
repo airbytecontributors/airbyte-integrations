@@ -12,6 +12,7 @@ import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
+import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.*;
 import java.io.IOException;
@@ -171,7 +172,7 @@ public class ElasticsearchSource extends BaseEventConnector {
         String uniqueIdentifier = UUID.randomUUID().toString();
         String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
         String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
-        String eventSourceType= additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : "";
+        String eventSourceType= additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : CommonUtils.UNKNOWN_EVENT_CONNECTOR;
         String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";;
         String isOnPrem = additionalProperties.get("isOnPrem").toString();
         boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
