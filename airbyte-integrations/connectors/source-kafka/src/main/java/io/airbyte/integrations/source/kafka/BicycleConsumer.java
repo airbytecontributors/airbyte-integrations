@@ -48,7 +48,7 @@ public class BicycleConsumer implements Runnable {
         this.name = name;
         this.config = connectorConfig;
         this.catalog = configuredCatalog;
-        this.kafkaSourceConfig = new KafkaSourceConfig(name, config);
+        this.kafkaSourceConfig = new KafkaSourceConfig(name, config, getConnectorId(catalog));
         this.bicycleConfig = bicycleConfig;
         this.topicPartitionRecordsRead = topicPartitionRecordsRead;
         this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;
@@ -216,6 +216,12 @@ public class BicycleConsumer implements Runnable {
         } catch (Exception exception) {
             logger.error("Unable to reset offsets to latest", exception);
         }
+    }
+
+    private String getConnectorId(ConfiguredAirbyteCatalog catalog) {
+        Map<String, Object> additionalProperties = catalog.getAdditionalProperties();
+        return additionalProperties.containsKey("bicycleConnectorId")
+                ? additionalProperties.get("bicycleConnectorId").toString() : "";
     }
 
 }

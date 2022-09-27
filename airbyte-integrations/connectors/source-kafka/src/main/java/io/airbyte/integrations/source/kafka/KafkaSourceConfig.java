@@ -41,10 +41,11 @@ public class KafkaSourceConfig {
   private boolean trustStoreFileInitialized;
   private final String consumerThreadName;
   private final String trustStoreFilePath;
-  public KafkaSourceConfig(String consumerThreadName, final JsonNode config) {
+  public KafkaSourceConfig(String consumerThreadName, final JsonNode config, String connectorId) {
     this.config = config;
     this.consumerThreadName = consumerThreadName;
-    this.trustStoreFilePath = "/tmp/bicycle/kafka/" + UUID.randomUUID().toString() + "/client.truststore.jks";
+    String trustStoreFileIdentifier = connectorId.length() != 0 ? connectorId : UUID.randomUUID().toString();
+    this.trustStoreFilePath = "/tmp/bicycle/kafka/" + trustStoreFileIdentifier + "/client.truststore.jks";
   }
 
 
