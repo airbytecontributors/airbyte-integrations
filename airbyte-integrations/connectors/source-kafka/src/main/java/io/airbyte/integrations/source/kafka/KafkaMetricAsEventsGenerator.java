@@ -27,7 +27,7 @@ public class KafkaMetricAsEventsGenerator extends MetricAsEventsGenerator {
 
     public KafkaMetricAsEventsGenerator(BicycleConfig bicycleConfig, EventSourceInfo eventSourceInfo, JsonNode config, BicycleEventPublisher bicycleEventPublisher, KafkaSource kafkaSource) {
         super(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher,kafkaSource);
-        this.kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config, null);
+        this.kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config, bicycleConfig.getConnectorId());
         consumerGroupId = config.has("group_id") ? config.get("group_id").asText() : null;
         kafkaConsumer = getKafkaConsumer();
         this.adminClient = getAdminClient();
