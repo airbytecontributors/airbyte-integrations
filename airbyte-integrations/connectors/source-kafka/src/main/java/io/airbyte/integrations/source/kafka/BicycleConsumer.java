@@ -221,7 +221,7 @@ public class BicycleConsumer implements Runnable {
     private String getConnectorId(ConfiguredAirbyteCatalog catalog) {
         Map<String, Object> additionalProperties = catalog.getAdditionalProperties();
         return additionalProperties.containsKey("bicycleConnectorId")
-                ? additionalProperties.get("bicycleConnectorId").toString() : "";
+                ? additionalProperties.get("bicycleConnectorId").toString() : null;
     }
 
 }

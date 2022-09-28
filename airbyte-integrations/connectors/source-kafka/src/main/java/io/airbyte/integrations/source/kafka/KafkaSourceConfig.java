@@ -44,7 +44,7 @@ public class KafkaSourceConfig {
   public KafkaSourceConfig(String consumerThreadName, final JsonNode config, String connectorId) {
     this.config = config;
     this.consumerThreadName = consumerThreadName;
-    String trustStoreFileIdentifier = connectorId.length() != 0 ? connectorId : UUID.randomUUID().toString();
+    String trustStoreFileIdentifier = StringUtils.isEmpty(connectorId) ? UUID.randomUUID().toString() : connectorId;
     this.trustStoreFilePath = "/tmp/bicycle/kafka/" + trustStoreFileIdentifier + "/client.truststore.jks";
   }
 

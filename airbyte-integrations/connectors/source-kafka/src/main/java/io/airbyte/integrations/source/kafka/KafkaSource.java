@@ -59,7 +59,7 @@ public class KafkaSource extends BaseEventConnector {
 
   @Override
   public AirbyteConnectionStatus check(final JsonNode config) {
-    KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config, "");
+    KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config, null);
     KafkaConsumer<String, JsonNode> consumer = null;
     try {
       final String testTopic = config.has("test_topic") ? config.get("test_topic").asText() : "";
@@ -84,7 +84,7 @@ public class KafkaSource extends BaseEventConnector {
 
   @Override
   public AirbyteCatalog discover(final JsonNode config) {
-    KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config, "");
+    KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config, null);
     KafkaConsumer<String, JsonNode> consumer = kafkaSourceConfig.getConsumer(Command.DISCOVER);
     final Set<String> topicsToSubscribe = kafkaSourceConfig.getTopicsToSubscribe();
     final List<AirbyteStream> streams = topicsToSubscribe.stream().map(topic -> CatalogHelpers
@@ -196,7 +196,7 @@ public class KafkaSource extends BaseEventConnector {
     ConfiguredAirbyteStream configuredAirbyteStream = (ConfiguredAirbyteStream)catalog.getStreams().get(0);
     ((ObjectNode)config).put("stream_name", configuredAirbyteStream.getStream().getName());
 
-    final KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(),config, "");
+    final KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(),config, null);
     final KafkaConsumer<String, JsonNode> consumer = kafkaSourceConfig.getConsumer(Command.READ);
     final List<ConsumerRecord<String, JsonNode>> recordsList = new ArrayList<>();
 
