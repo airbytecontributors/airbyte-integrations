@@ -24,7 +24,7 @@ repositories {
 }
 
 dependencies {
-    implementation group: 'com.inception', name: 'bicycle-event-processor', version: '0.2.28418'
+    implementation group: 'com.inception', name: 'bicycle-event-processor', version: '0.2.32578'
     implementation project(':airbyte-config:models')
     implementation project(':airbyte-protocol:models')
     implementation project(':airbyte-integrations:bases:base-java')
