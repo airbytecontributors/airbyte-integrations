@@ -15,8 +15,8 @@ dependencies {
     implementation project(':airbyte-integrations:bases:base-java')
     implementation files(project(':airbyte-integrations:bases:base-java').airbyteDocker.outputs)
     implementation group: 'com.inception', name: 'event-model', version: "0.1.0-snapshot.202205191419.c95071d"
-    implementation group: 'com.inception', name: 'bicycle-event-processor', version: '0.2.32578'
-    implementation group: 'com.inception', name: 'bicycle-event-publisher', version: '0.2.32578'
+    implementation group: 'com.inception', name: 'bicycle-event-processor', version: '0.2.32630'
+    implementation group: 'com.inception', name: 'bicycle-event-publisher', version: '0.2.32630'
     implementation project(':airbyte-integrations:bases:base-bicycle-integration')
 
     implementation 'co.elastic.clients:elasticsearch-java:7.15.0'
