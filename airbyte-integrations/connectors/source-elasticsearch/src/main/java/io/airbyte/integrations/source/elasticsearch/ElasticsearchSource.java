@@ -25,6 +25,7 @@ import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
@@ -265,6 +266,14 @@ public class ElasticsearchSource extends BaseEventConnector {
             throw new RuntimeException("Unable to establish a connection: " + check.getMessage());
         }
         return readEntity(config, catalog, state, connection);
+    }
+
+    @Override
+    public AutoCloseableIterator<AirbyteMessage> dataSync(JsonNode sourceConfig,
+                                                          ConfiguredAirbyteCatalog configuredAirbyteCatalog,
+                                                          JsonNode readState,
+                                                          SyncDataRequest syncDataRequest) {
+        return null;
     }
 
     private JsonNode updateTimeRange(JsonNode timeRange, final String lastEnd) {

@@ -6,6 +6,8 @@ import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.integrations.base.Command;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
+import io.airbyte.integrations.bicycle.base.integration.destinations.writers.api.Writer;
+import io.airbyte.integrations.bicycle.base.integration.destinations.writers.impl.WriterFactory;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 
 import java.time.Duration;
@@ -16,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
@@ -43,8 +46,24 @@ public class BicycleConsumer implements Runnable {
     private EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier;
     private final KafkaSource kafkaSource;
     private final EventSourceInfo eventSourceInfo;
+    private final boolean isDestinationSyncConnector;
+    private final SyncDataRequest syncDataRequest;
 
     public BicycleConsumer(String name, Map<String, Long> topicPartitionRecordsRead, BicycleConfig bicycleConfig, JsonNode connectorConfig, ConfiguredAirbyteCatalog configuredCatalog, EventSourceInfo eventSourceInfo, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier, KafkaSource instance) {
+        this(name, topicPartitionRecordsRead, bicycleConfig, connectorConfig, configuredCatalog, eventSourceInfo,
+                eventConnectorJobStatusNotifier, instance, false, null);
+    }
+
+    public BicycleConsumer(String name,
+                           Map<String, Long> topicPartitionRecordsRead,
+                           BicycleConfig bicycleConfig,
+                           JsonNode connectorConfig,
+                           ConfiguredAirbyteCatalog configuredCatalog,
+                           EventSourceInfo eventSourceInfo,
+                           EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
+                           KafkaSource instance,
+                           boolean isDestinationSyncConnector,
+                           SyncDataRequest syncDataRequest) {
         this.name = name;
         this.config = connectorConfig;
         this.catalog = configuredCatalog;
@@ -54,6 +73,8 @@ public class BicycleConsumer implements Runnable {
         this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;
         this.kafkaSource = instance;
         this.eventSourceInfo = eventSourceInfo;
+        this.isDestinationSyncConnector = isDestinationSyncConnector;
+        this.syncDataRequest = syncDataRequest;
         logger.info("Initialized consumer thread with name {}", name);
     }
 
@@ -63,8 +84,13 @@ public class BicycleConsumer implements Runnable {
         int failed = 0;
         while (failed <= retry) {
             try {
-                read(bicycleConfig, config, catalog, null);
-//                read completed means we are manually stopping connector
+                if (isDestinationSyncConnector) {
+                    Writer writer = WriterFactory.getWriter(syncDataRequest.getSyncDestination());
+                    dataSync(bicycleConfig, config, catalog, null, syncDataRequest, writer);
+                } else {
+                    // read completed means we are manually stopping connector
+                    read(bicycleConfig, config, catalog, null);
+                }
                 return;
             } catch (Exception exception) {
                 int retryLeft = retry - failed;
@@ -178,6 +204,92 @@ public class BicycleConsumer implements Runnable {
         }
     }
 
+    public void dataSync(BicycleConfig bicycleConfig,
+                         final JsonNode config,
+                         final ConfiguredAirbyteCatalog configuredAirbyteCatalog,
+                         final JsonNode state,
+                         final SyncDataRequest syncDataRequest,
+                         final Writer writer) {
+
+        if (syncDataRequest == null) {
+            throw new RuntimeException("Sync data request cannot be null");
+        } validateRequest(syncDataRequest);
+
+        final boolean check = check(config);
+
+        logger.info("======Starting read operation for consumer " + name + " config: " + config + " catalog:"+ configuredAirbyteCatalog + "=======");
+        if (!check) {
+            throw new RuntimeException("Unable establish a connection");
+        }
+
+        final KafkaConsumer<String, JsonNode> consumer = kafkaSourceConfig.getConsumer(Command.READ);
+
+        boolean resetOffsetToLatest = config.has("reset_to_latest") ?
+                Boolean.parseBoolean(config.get("reset_to_latest").asText()) : Boolean.FALSE;
+
+        if (resetOffsetToLatest) {
+            String topic = config.get(STREAM_NAME).asText();
+            resetOffsetsToLatest(consumer, topic);
+        }
+
+        int samplingRate = config.has("sampling_rate") ? config.get("sampling_rate").asInt(): 100;
+
+        int sampledRecords = 0;
+        try {
+            while (!this.kafkaSource.getStopConnectorBoolean().get()) {
+                final List<ConsumerRecord<String, JsonNode>> recordsList = new ArrayList<>();
+                final ConsumerRecords<String, JsonNode> consumerRecords =
+                        consumer.poll(Duration.of(5000, ChronoUnit.MILLIS));
+                int counter = 0;
+                logger.debug("No of records actually read by consumer {} are {}", name, consumerRecords.count());
+                sampledRecords = getNumberOfRecordsToBeReturnedBasedOnSamplingRate(consumerRecords.count(), samplingRate);
+
+                for (ConsumerRecord record : consumerRecords) {
+                    logger.debug("Consumer Record: key - {}, value - {}, partition - {}, offset - {}",
+                            record.key(), record.value(), record.partition(), record.offset());
+
+                    if (counter > sampledRecords) {
+                        break;
+                    }
+                    StringBuilder stringBuilder = new StringBuilder();
+                    stringBuilder.append(record.topic());
+                    stringBuilder.append("_");
+                    stringBuilder.append(record.partition());
+                    String key = stringBuilder.toString();
+                    if (topicPartitionRecordsRead.containsKey(key)) {
+                        Long value = topicPartitionRecordsRead.get(key);
+                        value = value + 1;
+                        topicPartitionRecordsRead.put(key, value);
+                    } else {
+                        topicPartitionRecordsRead.put(key, 1L);
+                    }
+                    recordsList.add(record);
+                    counter++;
+                }
+
+                logger.info("No of records read from consumer after sampling {} are {} ", name,
+                        counter);
+
+                if (recordsList.size() == 0) {
+                    continue;
+                }
+
+                List<RawEvent> rawEvents = this.kafkaSource.convertRecordsToRawEvents(recordsList);
+                AuthInfo authInfo = bicycleConfig.getAuthInfo();
+                this.kafkaSource.processAndSync(authInfo, eventSourceInfo, writer, rawEvents);
+
+                try {
+                    consumer.commitAsync();
+                } catch (Exception e) {
+                    logger.error("Unable to commit to kafka " + name, e);
+                }
+            }
+        } finally {
+            consumer.close();
+            kafkaSourceConfig.resetConsumer();
+        }
+    }
+
     public boolean check(final JsonNode config) {
         KafkaConsumer<String, JsonNode> consumer = null;
         try {
@@ -224,4 +336,9 @@ public class BicycleConsumer implements Runnable {
                 ? additionalProperties.get("bicycleConnectorId").toString() : null;
     }
 
+    private void validateRequest(SyncDataRequest syncDataRequest) {
+        if (syncDataRequest.getSyncDataCountLimit() == 0) {
+            throw new RuntimeException("Limit cannot be null");
+        }
+    }
 }

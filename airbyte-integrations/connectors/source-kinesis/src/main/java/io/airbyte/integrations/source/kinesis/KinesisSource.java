@@ -29,6 +29,7 @@ import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.*;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import org.slf4j.Logger;
@@ -412,6 +413,14 @@ public class KinesisSource extends BaseEventConnector {
 //            }
 //
 //        });
+    }
+
+    @Override
+    public AutoCloseableIterator<AirbyteMessage> dataSync(JsonNode sourceConfig,
+                                                          ConfiguredAirbyteCatalog configuredAirbyteCatalog,
+                                                          JsonNode readState,
+                                                          SyncDataRequest syncDataRequest) {
+        return null;
     }
 
     public static void main(final String[] args) throws Exception {
