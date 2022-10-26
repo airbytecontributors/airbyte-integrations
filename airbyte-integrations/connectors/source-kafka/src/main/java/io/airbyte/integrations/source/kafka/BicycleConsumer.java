@@ -6,8 +6,6 @@ import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.integrations.base.Command;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
-import io.airbyte.integrations.bicycle.base.integration.destinations.writers.api.Writer;
-import io.airbyte.integrations.bicycle.base.integration.destinations.writers.impl.WriterFactory;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 
 import java.time.Duration;
@@ -18,6 +16,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import io.bicycle.integration.common.writer.Writer;
+import io.bicycle.integration.common.writer.WriterFactory;
 import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;

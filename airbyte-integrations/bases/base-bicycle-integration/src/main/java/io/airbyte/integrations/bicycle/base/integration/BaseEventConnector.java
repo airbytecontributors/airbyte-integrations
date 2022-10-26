@@ -15,7 +15,6 @@ import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.BaseConnector;
 import io.airbyte.integrations.base.Source;
-import io.airbyte.integrations.bicycle.base.integration.destinations.writers.api.Writer;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.event.processor.ConfigHelper;
@@ -23,8 +22,9 @@ import io.bicycle.event.processor.api.BicycleEventProcessor;
 import io.bicycle.event.processor.impl.BicycleEventProcessorImpl;
 import io.bicycle.event.publisher.api.BicycleEventPublisher;
 import io.bicycle.event.publisher.impl.BicycleEventPublisherImpl;
+import io.bicycle.integration.common.writer.Writer;
+import io.bicycle.integration.connector.ProcessRawEventsResult;
 import io.bicycle.integration.connector.SyncDataRequest;
-import io.bicycle.server.event.mapping.ProcessRawEventsResult;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.config.EventMappingConfigurations;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
@@ -159,7 +159,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             ProcessRawEventsResult processedEvents = this.processRawEvents(authInfo, eventSourceInfo, rawEvents);
             try {
                 writer.writeEventData(
-                        isLast, eventSourceInfo.getEventSourceId(), processedEvents.getProcessedRawEventList());
+                        isLast, eventSourceInfo.getEventSourceId(), processedEvents.getProcessedEventSourceDataList());
             } catch (Exception e) {
                 logger.error("Exception while writing processed events to destination");
             }
