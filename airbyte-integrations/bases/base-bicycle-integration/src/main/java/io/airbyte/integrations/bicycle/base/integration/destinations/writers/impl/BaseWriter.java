@@ -11,9 +11,12 @@ import io.bicycle.server.event.mapping.ProcessedRawEvent;
  */
 abstract class BaseWriter implements Writer {
 
-    protected Data buildEventData(ProcessedRawEvent processedRawEvent) {
+    protected Data buildEventData(boolean isLast, String sourceId, ProcessedRawEvent processedRawEvent) {
         return Data.newBuilder()
+                .setRequestId(this.getUniqueIdentifier())
+                .setSourceId(sourceId)
                 .setDataSourceType(Data.DataSourceType.EVENT)
+                .setIsLast(isLast)
                 .setEventSourceData(
                         EventSourceData.newBuilder()
                                 .setRawEvent(processedRawEvent.getRawEvent())
@@ -22,13 +25,18 @@ abstract class BaseWriter implements Writer {
                 ).build();
     }
 
-    protected Data buildEntityData(String record) {
+    protected Data buildEntityData(boolean isLast, String sourceId, String record) {
         return Data.newBuilder()
+                .setRequestId(this.getUniqueIdentifier())
+                .setSourceId(sourceId)
                 .setDataSourceType(Data.DataSourceType.ENTITY)
+                .setIsLast(isLast)
                 .setEntitySourceData(
                         EntitySourceData.newBuilder()
                                 .setRecord(record)
                                 .build()
                 ).build();
     }
+
+    protected abstract String getUniqueIdentifier();
 }

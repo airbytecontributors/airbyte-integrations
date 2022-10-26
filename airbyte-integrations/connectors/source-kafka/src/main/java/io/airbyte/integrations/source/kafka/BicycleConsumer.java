@@ -235,6 +235,7 @@ public class BicycleConsumer implements Runnable {
         int samplingRate = config.has("sampling_rate") ? config.get("sampling_rate").asInt(): 100;
 
         int sampledRecords = 0;
+        long totalEventsSynced = 0;
         try {
             while (!this.kafkaSource.getStopConnectorBoolean().get()) {
                 final List<ConsumerRecord<String, JsonNode>> recordsList = new ArrayList<>();
@@ -273,15 +274,21 @@ public class BicycleConsumer implements Runnable {
                 if (recordsList.size() == 0) {
                     continue;
                 }
+                boolean isLast = totalEventsSynced + recordsList.size() >= syncDataRequest.getSyncDataCountLimit();
 
                 List<RawEvent> rawEvents = this.kafkaSource.convertRecordsToRawEvents(recordsList);
                 AuthInfo authInfo = bicycleConfig.getAuthInfo();
-                this.kafkaSource.processAndSync(authInfo, eventSourceInfo, writer, rawEvents);
+                this.kafkaSource.processAndSync(authInfo, eventSourceInfo, isLast, writer, rawEvents);
 
                 try {
                     consumer.commitAsync();
                 } catch (Exception e) {
                     logger.error("Unable to commit to kafka " + name, e);
+                }
+                totalEventsSynced += recordsList.size();
+                if (isLast) {
+                    logger.info("Completed data sync. Total events synced: {}", totalEventsSynced);
+                    break;
                 }
             }
         } finally {

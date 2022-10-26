@@ -16,42 +16,58 @@ import java.util.Properties;
  */
 public class KafkaWriter extends BaseWriter {
 
-    private final DestinationKafka destinationKafka;
+    private final String uniqueIdentifier;
+    private final String topic;
     private final KafkaProducer<String, byte[]> kafkaProducer;
 
     public KafkaWriter(DestinationKafka destinationKafka) {
-        this.destinationKafka = destinationKafka;
+        this.uniqueIdentifier = destinationKafka.getPartitionKey();
+        this.topic = destinationKafka.getTopicName();
         this.kafkaProducer = buildKafkaProducer(destinationKafka);
     }
 
     /**
      * Send data to a specified destination.
      */
-    public boolean writeEventData(List<ProcessedRawEvent> processedRawEvents) {
+    @Override
+    public boolean writeEventData(boolean isLast, String sourceId, List<ProcessedRawEvent> processedRawEvents) {
         if (processedRawEvents == null || processedRawEvents.size() == 0) {
             return false;
         }
-        for (ProcessedRawEvent processedRawEvent: processedRawEvents) {
-            writeToKafka(
-                    this.destinationKafka.getTopicName(), this.destinationKafka.getPartitionKey(), processedRawEvent);
+        int numberOfEvents = processedRawEvents.size();
+        for (int eventNum = 0; eventNum < numberOfEvents; eventNum += 1) {
+            if (isLast && eventNum == numberOfEvents - 1) {
+                writeToKafka(true, sourceId, processedRawEvents.get(eventNum));
+            }
+            writeToKafka(false, sourceId, processedRawEvents.get(eventNum));
         }
         return true;
     }
 
-    private void writeToKafka(String kafkaTopic, String partitionKey, ProcessedRawEvent processedRawEvent) {
-        writeToKafka(kafkaTopic, partitionKey, this.buildEventData(processedRawEvent).toByteArray());
+    @Override
+    public boolean writeEntityData(boolean isLast, String sourceId, List<String> records) {
+        return false;
     }
 
-    private void writeToKafka(String kafkaTopic, String partitionKey, byte[] value) {
-        writeToKafka(getProducerRecord(kafkaTopic, partitionKey, value));
+    @Override
+    public String getUniqueIdentifier() {
+        return this.uniqueIdentifier;
+    }
+
+    private void writeToKafka(boolean isLast, String sourceId, ProcessedRawEvent processedRawEvent) {
+        writeToKafka(this.buildEventData(isLast, sourceId, processedRawEvent).toByteArray());
+    }
+
+    private void writeToKafka(byte[] value) {
+        writeToKafka(getProducerRecord(value));
     }
 
     private void writeToKafka(ProducerRecord<String, byte[]> record) {
         this.kafkaProducer.send(record);
     }
 
-    private ProducerRecord<String, byte[]> getProducerRecord(String kafkaTopic, String partitionKey, byte[] value) {
-        return new ProducerRecord<>(kafkaTopic, partitionKey, value);
+    private ProducerRecord<String, byte[]> getProducerRecord(byte[] value) {
+        return new ProducerRecord<>(this.topic, this.uniqueIdentifier, value);
     }
 
     private KafkaProducer<String, byte[]> buildKafkaProducer(DestinationKafka destinationKafka) {
