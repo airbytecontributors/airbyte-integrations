@@ -86,7 +86,7 @@ public class BicycleConsumer implements Runnable {
             try {
                 if (isDestinationSyncConnector) {
                     Writer writer = WriterFactory.getWriter(syncDataRequest.getSyncDestination());
-                    dataSync(bicycleConfig, config, catalog, null, syncDataRequest, writer);
+                    syncData(bicycleConfig, config, catalog, null, syncDataRequest, writer);
                 } else {
                     // read completed means we are manually stopping connector
                     read(bicycleConfig, config, catalog, null);
@@ -204,7 +204,7 @@ public class BicycleConsumer implements Runnable {
         }
     }
 
-    public void dataSync(BicycleConfig bicycleConfig,
+    public void syncData(BicycleConfig bicycleConfig,
                          final JsonNode config,
                          final ConfiguredAirbyteCatalog configuredAirbyteCatalog,
                          final JsonNode state,

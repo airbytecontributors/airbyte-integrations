@@ -118,7 +118,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     public abstract AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws InterruptedException, ExecutionException;
 
-    public abstract AutoCloseableIterator<AirbyteMessage> dataSync(JsonNode sourceConfig,
+    public abstract AutoCloseableIterator<AirbyteMessage> syncData(JsonNode sourceConfig,
                                                                    ConfiguredAirbyteCatalog configuredAirbyteCatalog,
                                                                    JsonNode readState,
                                                                    SyncDataRequest syncDataRequest);

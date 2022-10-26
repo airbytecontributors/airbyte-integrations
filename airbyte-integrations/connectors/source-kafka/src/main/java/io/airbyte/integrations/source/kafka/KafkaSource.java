@@ -247,7 +247,7 @@ public class KafkaSource extends BaseEventConnector {
   }
 
   @Override
-  public AutoCloseableIterator<AirbyteMessage> dataSync(JsonNode sourceConfig,
+  public AutoCloseableIterator<AirbyteMessage> syncData(JsonNode sourceConfig,
                                                         ConfiguredAirbyteCatalog configuredAirbyteCatalog,
                                                         JsonNode readState,
                                                         SyncDataRequest syncDataRequest) {
