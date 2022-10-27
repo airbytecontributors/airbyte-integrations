@@ -104,7 +104,8 @@ public class BicycleConsumer implements Runnable {
                 }
             }
         }
-        if (eventConnectorJobStatusNotifier.getNumberOfThreadsRunning().decrementAndGet()<=0) {
+        if (eventConnectorJobStatusNotifier != null
+                && eventConnectorJobStatusNotifier.getNumberOfThreadsRunning().decrementAndGet() <= 0) {
             eventConnectorJobStatusNotifier.getSchedulesExecutorService().shutdown();
             eventConnectorJobStatusNotifier.removeConnectorInstanceFromMap(eventSourceInfo.getEventSourceId());
             AuthInfo authInfo = bicycleConfig.getAuthInfo();

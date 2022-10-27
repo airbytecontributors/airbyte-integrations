@@ -256,8 +256,6 @@ public class KafkaSource extends BaseEventConnector {
     int threadPoolSize = numberOfConsumers; // since there are no metrics, no additional thread for metric
     ScheduledExecutorService ses = Executors.newScheduledThreadPool(threadPoolSize);
 
-    stopConnectorBoolean.set(false);
-
     Map<String, Object> additionalProperties = configuredAirbyteCatalog.getAdditionalProperties();
     String eventSourceType = getEventSourceType(additionalProperties);
     String connectorId = getConnectorId(additionalProperties);
@@ -274,10 +272,7 @@ public class KafkaSource extends BaseEventConnector {
 
     eventSourceInfo = new EventSourceInfo(connectorId, eventSourceType);
 
-    AuthInfo authInfo = bicycleConfig.getAuthInfo();
     try {
-      eventConnectorJobStatusNotifier.setNumberOfThreadsRunning(new AtomicInteger(numberOfConsumers));
-      eventConnectorJobStatusNotifier.setScheduledExecutorService(ses);
       for (int i = 0; i < numberOfConsumers; i++) {
         Map<String, Long> totalRecordsRead = new HashMap<>();
         String consumerThreadId = UUID.randomUUID().toString();
@@ -297,9 +292,7 @@ public class KafkaSource extends BaseEventConnector {
                 );
         ses.schedule(bicycleConsumer, 1, TimeUnit.SECONDS);
       }
-      eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, getTotalRecordsConsumed(),authInfo);
     } catch (Exception exception) {
-      this.stopEventConnector("Shutting down the kafka Event Connector due to exception",JobExecutionStatus.failure);
       LOGGER.error("Shutting down the Kafka Event Connector for connector {}", bicycleConfig.getConnectorId() ,exception);
     }
     return null;
