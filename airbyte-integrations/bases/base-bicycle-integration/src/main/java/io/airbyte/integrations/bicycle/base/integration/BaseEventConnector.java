@@ -15,13 +15,17 @@ import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.BaseConnector;
 import io.airbyte.integrations.base.Source;
-import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
+import io.bicycle.event.processor.ConfigHelper;
 import io.bicycle.event.processor.api.BicycleEventProcessor;
 import io.bicycle.event.processor.impl.BicycleEventProcessorImpl;
 import io.bicycle.event.publisher.api.BicycleEventPublisher;
 import io.bicycle.event.publisher.impl.BicycleEventPublisherImpl;
+import io.bicycle.integration.common.writer.Writer;
+import io.bicycle.integration.connector.ProcessRawEventsResult;
+import io.bicycle.integration.connector.SyncDataRequest;
+import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.config.EventMappingConfigurations;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
@@ -39,6 +43,8 @@ import org.slf4j.LoggerFactory;
  */
 public abstract class BaseEventConnector extends BaseConnector implements Source {
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getName());
+    private final ConfigHelper configHelper = new ConfigHelper();
+    private ConfigStoreClient configStoreClient;
     private BicycleEventProcessor bicycleEventProcessor;
     protected BicycleEventPublisher bicycleEventPublisher;
     private BicycleConfig bicycleConfig;
@@ -65,6 +71,14 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         EventMappingConfigurations eventMappingConfigurations = new EventMappingConfigurations(bicycleConfig.getServerURL(),bicycleConfig.getMetricStoreURL(), bicycleConfig.getServerURL(),
                 bicycleConfig.getEventURL(), bicycleConfig.getServerURL(), bicycleConfig.getEventURL());
         this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, systemAuthenticator, true);
+    }
+
+    protected void setBicycleConfig(BicycleConfig bicycleConfig) {
+        this.bicycleConfig = bicycleConfig;
+    }
+
+    protected void setConfigStoreClient(BicycleConfig bicycleConfig) {
+        this.configStoreClient = getConfigClient(bicycleConfig);
     }
 
     static ConfigStoreClient getConfigClient(BicycleConfig bicycleConfig) {
@@ -104,6 +118,11 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     public abstract AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws InterruptedException, ExecutionException;
 
+    public abstract AutoCloseableIterator<AirbyteMessage> syncData(JsonNode sourceConfig,
+                                                                   ConfiguredAirbyteCatalog configuredAirbyteCatalog,
+                                                                   JsonNode readState,
+                                                                   SyncDataRequest syncDataRequest);
+
     public EventProcessorResult convertRawEventsToBicycleEvents(AuthInfo authInfo,
                                                                EventSourceInfo eventSourceInfo,
                                                                List<RawEvent> rawEvents) {
@@ -129,6 +148,37 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         }
 
         return true;
+    }
+
+    public void processAndSync(AuthInfo authInfo,
+                               EventSourceInfo eventSourceInfo,
+                               boolean isLast,
+                               Writer writer,
+                               List<RawEvent> rawEvents) {
+        try {
+            ProcessRawEventsResult processedEvents = this.processRawEvents(authInfo, eventSourceInfo, rawEvents);
+            try {
+                writer.writeEventData(
+                        isLast, eventSourceInfo.getEventSourceId(), processedEvents.getProcessedEventSourceDataList());
+            } catch (Exception e) {
+                logger.error("Exception while writing processed events to destination");
+            }
+        } catch (Exception e) {
+            logger.error("Exception while processing raw events");
+        }
+    }
+
+    private ProcessRawEventsResult processRawEvents(AuthInfo authInfo,
+                                                   EventSourceInfo eventSourceInfo,
+                                                   List<RawEvent> rawEvents) {
+        List<UserServiceMappingRule> userServiceMappingRules =
+                this.configHelper.getUserServiceMappingRules(
+                        authInfo,
+                        eventSourceInfo.getEventSourceId(),
+                        configStoreClient
+                );
+        return bicycleEventProcessor.processAndGenerateBicycleEvents(
+                authInfo, eventSourceInfo, rawEvents, userServiceMappingRules);
     }
 
     public String getTenantId() {

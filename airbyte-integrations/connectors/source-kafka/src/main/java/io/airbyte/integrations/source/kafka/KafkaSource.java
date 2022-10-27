@@ -33,6 +33,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -108,8 +109,8 @@ public class KafkaSource extends BaseEventConnector {
 
   @Override
   public AutoCloseableIterator<AirbyteMessage> read(final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state) {
-    int numberOfConsumers = config.has("bicycle_consumer_threads") ? config.get("bicycle_consumer_threads").asInt(): CONSUMER_THREADS_DEFAULT_VALUE;
-    int threadPoolSize = numberOfConsumers + 3;
+    int numberOfConsumers = getNumberOfConsumers(config);
+    int threadPoolSize = getThreadPoolSize(numberOfConsumers);
     stopConnectorBoolean.set(false);
     ScheduledExecutorService ses = Executors.newScheduledThreadPool(threadPoolSize);
 
@@ -118,21 +119,15 @@ public class KafkaSource extends BaseEventConnector {
     ConfiguredAirbyteStream configuredAirbyteStream = catalog.getStreams().get(0);
     ((ObjectNode) config).put(STREAM_NAME,configuredAirbyteStream.getStream().getName());
 
-    String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
-    String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
-    String uniqueIdentifier = UUID.randomUUID().toString();
-    String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
-    String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
-    String eventSourceType = additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : CommonUtils.UNKNOWN_EVENT_CONNECTOR;
-    String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";;
-    String isOnPrem = additionalProperties.get("isOnPrem").toString();
+    String eventSourceType = getEventSourceType(additionalProperties);
+    String connectorId = getConnectorId(additionalProperties);
+
     if (!config.has("group_id"))
     {
       ((ObjectNode) config).put("group_id","bicycle_"+connectorId);
     }
-    boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
 
-    BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL,token, connectorId, uniqueIdentifier, tenantId, systemAuthenticator, isOnPremDeployment);
+    BicycleConfig bicycleConfig = getBicycleConfig(additionalProperties, systemAuthenticator);
     setBicycleEventProcessor(bicycleConfig);
 
     eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
@@ -251,6 +246,58 @@ public class KafkaSource extends BaseEventConnector {
     });
   }
 
+  @Override
+  public AutoCloseableIterator<AirbyteMessage> syncData(JsonNode sourceConfig,
+                                                        ConfiguredAirbyteCatalog configuredAirbyteCatalog,
+                                                        JsonNode readState,
+                                                        SyncDataRequest syncDataRequest) {
+
+    int numberOfConsumers = getNumberOfConsumers(sourceConfig);
+    int threadPoolSize = numberOfConsumers; // since there are no metrics, no additional thread for metric
+    ScheduledExecutorService ses = Executors.newScheduledThreadPool(threadPoolSize);
+
+    Map<String, Object> additionalProperties = configuredAirbyteCatalog.getAdditionalProperties();
+    String eventSourceType = getEventSourceType(additionalProperties);
+    String connectorId = getConnectorId(additionalProperties);
+    BicycleConfig bicycleConfig = getBicycleConfig(additionalProperties, systemAuthenticator);
+    setBicycleConfig(bicycleConfig);
+    setConfigStoreClient(bicycleConfig);
+
+    ConfiguredAirbyteStream configuredAirbyteStream = configuredAirbyteCatalog.getStreams().get(0);
+    sourceConfig = ((ObjectNode) sourceConfig).put(STREAM_NAME,configuredAirbyteStream.getStream().getName());
+    if (!sourceConfig.has("group_id"))
+    {
+      sourceConfig = ((ObjectNode) sourceConfig).put("group_id","bicycle_"+connectorId);
+    }
+
+    eventSourceInfo = new EventSourceInfo(connectorId, eventSourceType);
+
+    try {
+      for (int i = 0; i < numberOfConsumers; i++) {
+        Map<String, Long> totalRecordsRead = new HashMap<>();
+        String consumerThreadId = UUID.randomUUID().toString();
+        consumerToTopicPartitionRecordsRead.put(consumerThreadId, totalRecordsRead);
+        BicycleConsumer bicycleConsumer =
+                new BicycleConsumer(
+                        consumerThreadId,
+                        totalRecordsRead,
+                        bicycleConfig,
+                        sourceConfig,
+                        configuredAirbyteCatalog,
+                        eventSourceInfo,
+                        eventConnectorJobStatusNotifier,
+                        this,
+                        true,
+                        syncDataRequest
+                );
+        ses.schedule(bicycleConsumer, 1, TimeUnit.SECONDS);
+      }
+    } catch (Exception exception) {
+      LOGGER.error("Shutting down the Kafka Event Connector for connector {}", bicycleConfig.getConnectorId() ,exception);
+    }
+    return null;
+  }
+
   public Map<String, Map<String, Long>> getTopicPartitionRecordsRead() {
     return consumerToTopicPartitionRecordsRead;
   }
@@ -262,4 +309,36 @@ public class KafkaSource extends BaseEventConnector {
     LOGGER.info("Completed source: {}", KafkaSource.class);
   }
 
+  private BicycleConfig getBicycleConfig(Map<String, Object> additionalProperties,
+                                         SystemAuthenticator systemAuthenticator) {
+    String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
+    String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
+    String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
+    String connectorId = getConnectorId(additionalProperties);
+    String uniqueIdentifier = UUID.randomUUID().toString();
+    String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";
+    String isOnPrem = additionalProperties.get("isOnPrem").toString();
+    boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
+    return new BicycleConfig(serverURL, metricStoreURL, token, connectorId, uniqueIdentifier, tenantId,
+            systemAuthenticator, isOnPremDeployment);
+  }
+
+  private int getNumberOfConsumers(JsonNode sourceConfig) {
+    return sourceConfig.has("bicycle_consumer_threads") ?
+            sourceConfig.get("bicycle_consumer_threads").asInt() : CONSUMER_THREADS_DEFAULT_VALUE;
+  }
+
+  private int getThreadPoolSize(int numberOfConsumers) {
+    return numberOfConsumers + 3;
+  }
+
+  private String getEventSourceType(Map<String, Object> additionalProperties) {
+    return additionalProperties.containsKey("bicycleEventSourceType") ?
+            additionalProperties.get("bicycleEventSourceType").toString() : CommonUtils.UNKNOWN_EVENT_CONNECTOR;
+  }
+
+  private String getConnectorId(Map<String, Object> additionalProperties) {
+    return additionalProperties.containsKey("bicycleConnectorId") ?
+            additionalProperties.get("bicycleConnectorId").toString() : "";
+  }
 }
