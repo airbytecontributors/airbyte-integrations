@@ -14,9 +14,9 @@ dependencies {
     implementation project(':airbyte-protocol:models')
     implementation project(':airbyte-integrations:bases:base-java')
     implementation group: 'com.inception', name: 'event-model', version: "0.1.0-snapshot.202205191419.c95071d"
-    implementation group: 'com.inception', name: 'integration-model', version: '0.2.33258'
-    implementation group: 'com.inception', name: 'integration-common-api', version: '0.2.33258'
-    implementation group: 'com.inception', name: 'integration-common-impl', version: '0.2.33258'
+    implementation group: 'com.inception', name: 'integration-model', version: '0.2.33399'
+    implementation group: 'com.inception', name: 'integration-common-api', version: '0.2.33399'
+    implementation group: 'com.inception', name: 'integration-common-impl', version: '0.2.33399'
     implementation group: 'com.inception', name: 'bicycle-event-processor', version: '0.2.33259'
     implementation group: 'com.inception', name: 'bicycle-event-publisher', version: '0.2.33259'
 
