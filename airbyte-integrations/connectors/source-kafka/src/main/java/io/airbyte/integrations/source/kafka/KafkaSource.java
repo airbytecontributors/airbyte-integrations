@@ -260,8 +260,7 @@ public class KafkaSource extends BaseEventConnector {
     String eventSourceType = getEventSourceType(additionalProperties);
     String connectorId = getConnectorId(additionalProperties);
     BicycleConfig bicycleConfig = getBicycleConfig(additionalProperties, systemAuthenticator);
-    setBicycleConfig(bicycleConfig);
-    setConfigStoreClient(bicycleConfig);
+    setupForSyncData(bicycleConfig);
 
     ConfiguredAirbyteStream configuredAirbyteStream = configuredAirbyteCatalog.getStreams().get(0);
     sourceConfig = ((ObjectNode) sourceConfig).put(STREAM_NAME,configuredAirbyteStream.getStream().getName());

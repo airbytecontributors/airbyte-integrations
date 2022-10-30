@@ -73,12 +73,10 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, systemAuthenticator, true);
     }
 
-    protected void setBicycleConfig(BicycleConfig bicycleConfig) {
+    protected void setupForSyncData(BicycleConfig bicycleConfig) {
         this.bicycleConfig = bicycleConfig;
-    }
-
-    protected void setConfigStoreClient(BicycleConfig bicycleConfig) {
-        this.configStoreClient = getConfigClient(bicycleConfig);
+        this.configStoreClient = getConfigClient(this.bicycleConfig);
+        this.bicycleEventProcessor = new BicycleEventProcessorImpl(configStoreClient);
     }
 
     static ConfigStoreClient getConfigClient(BicycleConfig bicycleConfig) {
