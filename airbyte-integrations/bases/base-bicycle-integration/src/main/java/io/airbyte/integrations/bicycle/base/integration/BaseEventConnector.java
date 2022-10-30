@@ -161,10 +161,10 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                 writer.writeEventData(
                         eventSourceInfo.getEventSourceId(), readTimestamp, processedEvents.getProcessedEventSourceDataList());
             } catch (Exception e) {
-                logger.error("Exception while writing processed events to destination");
+                logger.error("Exception while writing processed events to destination", e);
             }
         } catch (Exception e) {
-            logger.error("Exception while processing raw events");
+            logger.error("Exception while processing raw events", e);
         }
     }
 
