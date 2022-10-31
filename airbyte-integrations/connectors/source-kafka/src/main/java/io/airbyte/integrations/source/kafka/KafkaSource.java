@@ -33,6 +33,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.common.utils.CommonUtil;
 import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
@@ -252,6 +253,7 @@ public class KafkaSource extends BaseEventConnector {
                                                         JsonNode readState,
                                                         SyncDataRequest syncDataRequest) {
 
+    String traceInfo = CommonUtil.getTraceInfo(syncDataRequest.getTraceInfo());
     int numberOfConsumers = getNumberOfConsumers(sourceConfig);
     int threadPoolSize = numberOfConsumers; // since there are no metrics, no additional thread for metric
     ScheduledExecutorService ses = Executors.newScheduledThreadPool(threadPoolSize);
@@ -292,7 +294,8 @@ public class KafkaSource extends BaseEventConnector {
         ses.schedule(bicycleConsumer, 1, TimeUnit.SECONDS);
       }
     } catch (Exception exception) {
-      LOGGER.error("Shutting down the Kafka Event Connector for connector {}", bicycleConfig.getConnectorId() ,exception);
+      LOGGER.error(traceInfo + " Shutting down the Kafka Event Connector for connector {}",
+              bicycleConfig.getConnectorId() , exception);
     }
     return null;
   }

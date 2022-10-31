@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import io.bicycle.integration.common.utils.CommonUtil;
 import io.bicycle.integration.common.writer.Writer;
 import io.bicycle.integration.common.writer.WriterFactory;
 import io.bicycle.integration.connector.SyncDataRequest;
@@ -217,8 +218,10 @@ public class BicycleConsumer implements Runnable {
         } validateRequest(syncDataRequest);
 
         final boolean check = check(config);
+        String traceInfo = CommonUtil.getTraceInfo(syncDataRequest.getTraceInfo());
 
-        logger.info("======Starting read operation for consumer " + name + " config: " + config + " catalog:"+ configuredAirbyteCatalog + "=======");
+        logger.info(traceInfo + " ======Starting read operation for consumer " + name + " config: " + config + " " +
+                "catalog:"+ configuredAirbyteCatalog + "=======");
         if (!check) {
             throw new RuntimeException("Unable establish a connection");
         }
@@ -243,11 +246,12 @@ public class BicycleConsumer implements Runnable {
                 final ConsumerRecords<String, JsonNode> consumerRecords =
                         consumer.poll(Duration.of(5000, ChronoUnit.MILLIS));
                 int counter = 0;
-                logger.debug("No of records actually read by consumer {} are {}", name, consumerRecords.count());
+                logger.debug(traceInfo + "No of records actually read by consumer {} are {}", name,
+                        consumerRecords.count());
                 sampledRecords = getNumberOfRecordsToBeReturnedBasedOnSamplingRate(consumerRecords.count(), samplingRate);
 
                 for (ConsumerRecord record : consumerRecords) {
-                    logger.debug("Consumer Record: key - {}, value - {}, partition - {}, offset - {}",
+                    logger.debug(traceInfo + " Consumer Record: key - {}, value - {}, partition - {}, offset - {}",
                             record.key(), record.value(), record.partition(), record.offset());
 
                     if (counter > sampledRecords) {
@@ -269,8 +273,7 @@ public class BicycleConsumer implements Runnable {
                     counter++;
                 }
 
-                logger.info("No of records read from consumer after sampling {} are {} ", name,
-                        counter);
+                logger.debug(traceInfo + "No of records read from consumer after sampling {} are {} ", name, counter);
 
                 if (recordsList.size() == 0) {
                     continue;
@@ -287,8 +290,10 @@ public class BicycleConsumer implements Runnable {
                     logger.error("Unable to commit to kafka " + name, e);
                 }
                 totalEventsSynced += recordsList.size();
+                logger.info(traceInfo + " No of records processed and synced from consumer {} are {} ", name,
+                        totalEventsSynced);
                 if (isLast) {
-                    logger.info("Completed data sync. Total events synced: {}", totalEventsSynced);
+                    logger.info(traceInfo + " Completed data sync. Total events synced: {}", totalEventsSynced);
                     break;
                 }
             }
