@@ -104,7 +104,7 @@
             "title": "INCREMENTAL SYNC",
             "additionalProperties": false,
             "description": "Gets data only from the last saved state",
-            "required": ["method"],
+            "required": ["method", "cursorField"],
             "properties":  {
               "method": {
                 "type": "string",
