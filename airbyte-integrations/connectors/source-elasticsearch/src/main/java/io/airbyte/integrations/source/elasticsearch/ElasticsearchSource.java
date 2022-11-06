@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.inception.common.client.impl.GenericApiClient;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import io.bicycle.entity.mapping.api.ConnectionServiceClient;
 
 import io.airbyte.protocol.models.AirbyteCatalog;
 import io.airbyte.protocol.models.AirbyteConnectionStatus;
@@ -29,6 +31,7 @@ import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import static io.airbyte.integrations.source.elasticsearch.ElasticsearchConstants.*;
@@ -39,6 +42,8 @@ public class ElasticsearchSource extends BaseEventConnector {
     private final ObjectMapper mapper = new ObjectMapper();
     int totalRecordsConsumed = 0;
     private AtomicBoolean stopConnectorBoolean = new AtomicBoolean(false);
+    private ConnectionServiceClient connectionServiceClient;
+    private JsonNode localState=null;
 
     public ElasticsearchSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
         super(systemAuthenticator, eventConnectorJobStatusNotifier);
@@ -163,6 +168,67 @@ public class ElasticsearchSource extends BaseEventConnector {
                     connection.close();
                     LOGGER.info("Closed server connection.");
                 });
+    }
+
+
+    private void readEvent1(final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state, final ElasticsearchConnection connection) throws IOException {
+        stopConnectorBoolean.set(false);
+        Map<String, Object> additionalProperties = catalog.getAdditionalProperties();
+        String eventSourceType= additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : CommonUtils.UNKNOWN_EVENT_CONNECTOR;
+        BicycleConfig bicycleConfig = getBicycleConfig(additionalProperties, systemAuthenticator);
+        setBicycleEventProcessor(bicycleConfig);
+        eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
+
+        ConfiguredAirbyteStream configuredAirbyteStream = catalog.getStreams().get(0);
+        int sampledRecords = 0;
+        final String index = configuredAirbyteStream.getStream().getName();
+        final String cursorField = configuredAirbyteStream.getCursorField().get(0);
+
+
+        LOGGER.info("======Starting read operation for elasticsearch index" + index + "=======");
+
+        AuthInfo authInfo = bicycleConfig.getAuthInfo();
+        try {
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", bicycleConfig.getConnectorId(), 0, authInfo);
+            while(!this.getStopConnectorBoolean().get()) {
+                String cursor = getStreamCursor(index); // always gets the local state only
+                LOGGER.info("Getting data for stream: {}, cursor_field:{}, cursor:{}", index, cursorField, cursor);
+                List<JsonNode> recordsList = connection.getRecordsUsingCursor(index, cursorField, cursor);
+                LOGGER.info("No of records read {}", recordsList.size());
+                if (recordsList.size() == 0) {
+                    TimeUnit.SECONDS.sleep(5);
+                    continue;
+                }
+                EventProcessorResult eventProcessorResult = null;
+                try {
+                    List<RawEvent> rawEvents = this.convertRecordsToRawEvents(recordsList);
+                    eventProcessorResult = convertRawEventsToBicycleEvents(authInfo,eventSourceInfo,rawEvents);
+                    sampledRecords += recordsList.size();
+                } catch (Exception exception) {
+                    LOGGER.error("Unable to convert raw records to bicycle events", exception);
+                }
+
+                try {
+                    publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
+                    LOGGER.info("New events found:{}. Total events published:{}", recordsList.size(), sampledRecords);
+                    String newCursor = recordsList.get(recordsList.size()-1).get(cursorField).asText();
+                    saveState(bicycleConfig, index, cursorField, newCursor);
+                } catch (Exception exception) {
+                    LOGGER.error("Unable to publish bicycle events", exception);
+                }
+                totalRecordsConsumed += recordsList.size();
+            }
+            LOGGER.info("Shutting down the Elasticsearch Event Connector manually for connector {}", bicycleConfig.getConnectorId());
+        }
+        catch(Exception exception) {
+            LOGGER.error("Exception while trying to fetch records from Elasticsearch", exception);
+            this.stopEventConnector("Shutting down the ElasticSearch Event Connector due to Exception",JobExecutionStatus.failure);
+        }
+        finally {
+            LOGGER.info("Closing server connection.");
+            connection.close();
+            LOGGER.info("Closed server connection.");
+        }
     }
 
     private void readEvent(final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state, final ElasticsearchConnection connection) throws IOException {
@@ -291,4 +357,58 @@ public class ElasticsearchSource extends BaseEventConnector {
             return mapper.convertValue(tr, JsonNode.class);
         }
     }
+
+    private BicycleConfig getBicycleConfig(Map<String, Object> additionalProperties,
+                                           SystemAuthenticator systemAuthenticator) {
+        String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
+        String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
+        String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
+        String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
+        String uniqueIdentifier = UUID.randomUUID().toString();
+        String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";
+        String isOnPrem = additionalProperties.get("isOnPrem").toString();
+        boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
+        return new BicycleConfig(serverURL, metricStoreURL, token, connectorId, uniqueIdentifier, tenantId,
+                systemAuthenticator, isOnPremDeployment);
+    }
+
+
+    private String getStreamCursor(final String stream) {
+        if(stream==null) return null;
+        if(!localState.path(stream).path("cursor").isMissingNode()) {
+            return localState.get(stream).get("cursor").asText();
+        }
+        return null;
+    }
+
+    private void saveState(final BicycleConfig bicycleConfig, final String stream, final String cursorField, final String cursor) {
+        JsonNode newState = ((ObjectNode)localState).set(stream,  mapper.createObjectNode().put("cursor", cursor).put("cursorField", cursorField));
+        try {
+            // TODO:  streamID??
+            String UUIDstreamId = toUUID(stream);
+            connectionServiceClient.upsertReadStateConfig(bicycleConfig.getAuthInfo(), UUIDstreamId, newState.asText());
+            this.localState = newState;
+        }
+        catch(Exception e) {
+            throw new RuntimeException("Unable to publish to bicycle: " + e);
+        }
+    }
+
+
+    // https://gitlab.apptuit.ai/inception/inception/server/integrations/connector-executor/-/blob/master/connector-executor-app/src/main/java/com/inception/connector/executor/utils/CommonUtils.java
+    public static String toUUID(String configId) {
+        if (StringUtils.isBlank(configId)) {
+            return null;
+        } else {
+            String[] split = StringUtils.split(configId, ":");
+            if (split.length == 1) {
+                return split[0];
+            } else if (split.length == 2) {
+                return split[1];
+            }
+            return null;
+        }
+    }
+
+
 }

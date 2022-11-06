@@ -46,6 +46,21 @@ if (!env.containsKey('VERSION')) {
 ext {
     version = System.getenv("VERSION") ?: env.VERSION
     image_tag = System.getenv("VERSION") ?: 'dev'
+    authVersion = "0.3.31949"
+    apiClientVersion = "0.2.32651"
+    schemaVersion = "0.2.32755"
+    configVersion = "0.2.29879"
+    serverUtilsVersion = "0.2.10727"
+    metaPipelineVersion = "0.2.33522"
+    schedulerVersion = "0.2.19646"
+    connectorVersion = "0.2.32165"
+    bicyleEventProcessorVersion = "0.2.33527"
+    jinsightVersion = "1.0.9"
+    entityVersion = "0.2.25243"
+    gatewayVersion = "0.2.7214"
+    connectorExecutorVersion = "0.2.33408"
+    metaPipelineVersion = "0.2.33399"
+    routerVersion = "0.2.31597"
 }
 
 def createLicenseWith = { File license, String startComment, String endComment, String lineComment, boolean isPython ->
@@ -222,7 +237,7 @@ allprojects {
     group = "io.${rootProject.name}${sub.isEmpty() ? '' : ".$sub"}"
     project.archivesBaseName = "${project.group}-${project.name}"
 
-    version = rootProject.ext.version
+    version = rootProject.version
 }
 
 // Java projects common configurations

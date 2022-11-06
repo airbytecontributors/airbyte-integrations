@@ -28,7 +28,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -173,6 +172,51 @@ public class ElasticsearchConnection {
         GetMappingsResponse getMappingResponse = client.indices().getMapping(request, RequestOptions.DEFAULT);
         return getMappingResponse.mappings();
     }
+
+    public List<JsonNode> getRecordsUsingCursor(final String index, final String cursorField, final String cursor) throws IOException {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(MAX_HITS);
+        final Scroll scroll = new Scroll(TimeValue.timeValueMinutes(1L));
+        if(cursor==null) {
+            searchSourceBuilder.query(QueryBuilders.matchAllQuery());
+        }
+        else {
+            // need to fix this and write a better query: see https://datacater.io/blog/2021-09-15/how-to-use-cdc-with-elasticsearch.html
+            // use sort and search after
+            RangeQueryBuilder rangeQueryBuilder = QueryBuilders.rangeQuery(cursorField).from(cursor);
+            searchSourceBuilder.query(rangeQueryBuilder);
+        }
+        searchSourceBuilder.sort(cursorField, SortOrder.ASC);
+        SearchRequest searchRequest = new SearchRequest(index).scroll(scroll);;
+        searchRequest.source(searchSourceBuilder);
+
+        SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
+        String scrollId = searchResponse.getScrollId();
+        SearchHit[] searchHits = searchResponse.getHits().getHits();
+        log.debug("Running scroll query with scrollId {}", scrollId);
+        List<JsonNode> data = new ArrayList<>();
+
+        while (searchHits != null && searchHits.length > 0) {
+            SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId).scroll(scroll);
+            searchResponse = client.scroll(scrollRequest, RequestOptions.DEFAULT);
+            scrollId = searchResponse.getScrollId();
+            if(data.size()>200000000){
+                data.clear();
+            }
+            for (SearchHit hit : searchHits) {
+                data.add(mapper.convertValue(hit, JsonNode.class).get("sourceAsMap"));
+            }
+            searchHits = searchResponse.getHits().getHits();
+        }
+
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+        clearScrollRequest.addScrollId(scrollId);
+        ClearScrollResponse clearScrollResponse = client.clearScroll(clearScrollRequest, RequestOptions.DEFAULT);
+        boolean succeeded = clearScrollResponse.isSucceeded();
+        log.debug("Scroll response succeeded? {}", succeeded);
+        log.info("{} RECORDS returned", data.size());
+        return data;
+    }
+
 
     /**
      * Returns a list of all records, without the metadata in JsonNode format
