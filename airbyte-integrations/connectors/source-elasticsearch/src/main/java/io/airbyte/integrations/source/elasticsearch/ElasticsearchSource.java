@@ -158,7 +158,7 @@ public class ElasticsearchSource extends BaseEventConnector {
 
         AirbyteStream stream = catalog.getStreams().get(0).getStream();
         LOGGER.debug("Stream {}, timeRange {}", stream, timeRange);
-        AutoCloseableIterator<JsonNode> data = ElasticsearchUtils.getDataIterator(connection, stream, timeRange);
+        AutoCloseableIterator<JsonNode> data = ElasticsearchUtils.getDataIteratorFullRefresh(connection, stream, timeRange);
         AutoCloseableIterator<AirbyteMessage> messageIterator = ElasticsearchUtils.getMessageIterator(data, stream.getName());
         iteratorList.add(messageIterator);
 
