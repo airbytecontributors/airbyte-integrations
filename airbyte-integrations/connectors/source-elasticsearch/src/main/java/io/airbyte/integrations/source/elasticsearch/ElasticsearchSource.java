@@ -184,6 +184,23 @@ public class ElasticsearchSource extends BaseEventConnector {
         final String index = configuredAirbyteStream.getStream().getName();
         final String cursorField = configuredAirbyteStream.getCursorField().get(0);
 
+        // TODO: Need to define this somewhere safely
+//        String entityMetaURL = "https://api.dev.bicycle.io/";
+        this.connectionServiceClient = new ConnectionServiceClient(new GenericApiClient(), "https://api.dev.bicycle.io/");
+
+        try {
+            String streamId = "???";
+            // TODO: StreamId
+            // TODO: Not sure if json string is returned by connectionServiceClient or contains additional properties
+            localState = mapper.readTree(connectionServiceClient.getReadStateConfigById(bicycleConfig.getAuthInfo(), streamId));
+        }
+        catch (Exception e) {
+            LOGGER.error("Unable to set state from entity browser", e);
+        }
+        finally {
+            LOGGER.info("Local State Before Read: {}", localState);
+        }
+
 
         LOGGER.info("======Starting read operation for elasticsearch index" + index + "=======");
 
@@ -384,16 +401,14 @@ public class ElasticsearchSource extends BaseEventConnector {
     private void saveState(final BicycleConfig bicycleConfig, final String stream, final String cursorField, final String cursor) {
         JsonNode newState = ((ObjectNode)localState).set(stream,  mapper.createObjectNode().put("cursor", cursor).put("cursorField", cursorField));
         try {
-            // TODO:  streamID??
-            String UUIDstreamId = toUUID(stream);
-            connectionServiceClient.upsertReadStateConfig(bicycleConfig.getAuthInfo(), UUIDstreamId, newState.asText());
+            // TODO:  streamID and UUID??
+            connectionServiceClient.upsertReadStateConfig(bicycleConfig.getAuthInfo(), toUUID(stream), newState.asText());
             this.localState = newState;
         }
         catch(Exception e) {
-            throw new RuntimeException("Unable to publish to bicycle: " + e);
+            throw new RuntimeException("Unable to publish to bicycle: ", e);
         }
     }
-
 
     // https://gitlab.apptuit.ai/inception/inception/server/integrations/connector-executor/-/blob/master/connector-executor-app/src/main/java/com/inception/connector/executor/utils/CommonUtils.java
     public static String toUUID(String configId) {
