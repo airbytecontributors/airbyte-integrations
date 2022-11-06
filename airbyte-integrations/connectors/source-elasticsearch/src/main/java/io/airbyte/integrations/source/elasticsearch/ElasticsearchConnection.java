@@ -180,6 +180,7 @@ public class ElasticsearchConnection {
             searchSourceBuilder.query(QueryBuilders.matchAllQuery());
         }
         else {
+            // TODO: Fix ES get query
             // need to fix this and write a better query: see https://datacater.io/blog/2021-09-15/how-to-use-cdc-with-elasticsearch.html
             // use sort and search after
             RangeQueryBuilder rangeQueryBuilder = QueryBuilders.rangeQuery(cursorField).from(cursor);
