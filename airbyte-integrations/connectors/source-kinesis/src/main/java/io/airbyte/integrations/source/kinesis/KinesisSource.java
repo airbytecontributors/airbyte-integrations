@@ -1,14 +1,6 @@
 package io.airbyte.integrations.source.kinesis;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.regions.Regions;
 import com.amazonaws.services.kinesis.AmazonKinesis;
-import com.amazonaws.services.kinesis.AmazonKinesisClientBuilder;
-import com.amazonaws.services.kinesis.clientlibrary.types.UserRecord;
-import com.amazonaws.services.kinesis.model.*;
-import com.amazonaws.services.kinesis.model.GetRecordsRequest;
-import com.amazonaws.services.kinesis.model.GetShardIteratorRequest;
 import com.amazonaws.services.kinesis.model.Shard;
 import com.amazonaws.services.kinesis.model.StreamDescription;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -130,7 +122,7 @@ public class KinesisSource extends BaseEventConnector {
         boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
 
         BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL,token, connectorId, uniqueIdentifier, tenantId,  systemAuthenticator, isOnPremDeployment);
-        setBicycleEventProcessor(bicycleConfig);
+        setBicycleEventProcessorAndPublisher(bicycleConfig);
         eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
         KinesisClientConfig kinesisClientConfig = new KinesisClientConfig(config,this);
         this.kinesisClientConfig= kinesisClientConfig;
