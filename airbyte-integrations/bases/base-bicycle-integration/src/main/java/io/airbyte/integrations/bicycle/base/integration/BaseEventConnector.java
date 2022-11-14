@@ -149,6 +149,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     }
 
     public void processAndSync(AuthInfo authInfo,
+                               String traceInfo,
                                EventSourceInfo eventSourceInfo,
                                long readTimestamp,
                                Writer writer,
@@ -159,10 +160,10 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                 writer.writeEventData(
                         eventSourceInfo.getEventSourceId(), readTimestamp, processedEvents.getProcessedEventSourceDataList());
             } catch (Exception e) {
-                logger.error("Exception while writing processed events to destination", e);
+                logger.error(traceInfo + " Exception while writing processed events to destination", e);
             }
         } catch (Exception e) {
-            logger.error("Exception while processing raw events", e);
+            logger.error(traceInfo + " Exception while processing raw events", e);
         }
     }
 

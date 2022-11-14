@@ -282,7 +282,8 @@ public class BicycleConsumer implements Runnable {
 
                 List<RawEvent> rawEvents = this.kafkaSource.convertRecordsToRawEvents(recordsList);
                 AuthInfo authInfo = bicycleConfig.getAuthInfo();
-                this.kafkaSource.processAndSync(authInfo, eventSourceInfo, System.currentTimeMillis(), writer, rawEvents);
+                this.kafkaSource.processAndSync(authInfo, traceInfo, eventSourceInfo, System.currentTimeMillis(), writer,
+                        rawEvents);
 
                 try {
                     consumer.commitAsync();
