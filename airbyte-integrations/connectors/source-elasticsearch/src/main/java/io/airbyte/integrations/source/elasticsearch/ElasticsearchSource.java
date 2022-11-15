@@ -133,7 +133,7 @@ public class ElasticsearchSource extends BaseEventConnector {
         }
         else {
             // default: EVENT
-            readEvent(config, catalog, state, connection);
+            readEvent1(config, catalog, state, connection);
         }
 
         return null;
@@ -155,7 +155,6 @@ public class ElasticsearchSource extends BaseEventConnector {
     private AutoCloseableIterator<AirbyteMessage> readEntity(final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state, final ElasticsearchConnection connection) {
         final List<AutoCloseableIterator<AirbyteMessage>> iteratorList = new ArrayList<>();
         final JsonNode timeRange = config.has(TIME_RANGE)? config.get(TIME_RANGE): null;
-
         AirbyteStream stream = catalog.getStreams().get(0).getStream();
         LOGGER.debug("Stream {}, timeRange {}", stream, timeRange);
         AutoCloseableIterator<JsonNode> data = ElasticsearchUtils.getDataIteratorFullRefresh(connection, stream, timeRange);
@@ -182,23 +181,27 @@ public class ElasticsearchSource extends BaseEventConnector {
         ConfiguredAirbyteStream configuredAirbyteStream = catalog.getStreams().get(0);
         int sampledRecords = 0;
         final String index = configuredAirbyteStream.getStream().getName();
-        final String cursorField = configuredAirbyteStream.getCursorField().get(0);
+        // cursorField passed in through connection config
 
-        // TODO: Need to define this somewhere safely
-//        String entityMetaURL = "https://api.dev.bicycle.io/";
-        this.connectionServiceClient = new ConnectionServiceClient(new GenericApiClient(), "https://api.dev.bicycle.io/");
+        final String cursorField;
+        if(config.get(SYNCMODE).get("method").textValue().equals("custom")) {
+            cursorField = config.get(SYNCMODE).get(CURSORFIELD).textValue();
+        }
+        else {
+            LOGGER.error("Currently Elasticsearch connector only supports event sources");
+            return;
+        }
+
+        this.connectionServiceClient = new ConnectionServiceClient(GenericApiClient.Builder.newBuilder().build(), "https://api.dev.bicycle.io/");
 
         try {
-            String streamId = "???";
-            // TODO: StreamId
-            // TODO: Not sure if json string is returned by connectionServiceClient or contains additional properties
-            localState = mapper.readTree(connectionServiceClient.getReadStateConfigById(bicycleConfig.getAuthInfo(), streamId));
+            localState = mapper.readTree(connectionServiceClient.getReadStateConfigById(bicycleConfig.getAuthInfo(), bicycleConfig.getConnectorId()));
         }
         catch (Exception e) {
             LOGGER.error("Unable to set state from entity browser", e);
         }
         finally {
-            LOGGER.info("Local State Before Read: {}", localState);
+            LOGGER.info("Local state before read: {}", localState);
         }
 
 
@@ -401,8 +404,7 @@ public class ElasticsearchSource extends BaseEventConnector {
     private void saveState(final BicycleConfig bicycleConfig, final String stream, final String cursorField, final String cursor) {
         JsonNode newState = ((ObjectNode)localState).set(stream,  mapper.createObjectNode().put("cursor", cursor).put("cursorField", cursorField));
         try {
-            // TODO:  streamID and UUID??
-            connectionServiceClient.upsertReadStateConfig(bicycleConfig.getAuthInfo(), toUUID(stream), newState.asText());
+            connectionServiceClient.upsertReadStateConfig(bicycleConfig.getAuthInfo(), toUUID(bicycleConfig.getConnectorId()), newState.asText());
             this.localState = newState;
         }
         catch(Exception e) {

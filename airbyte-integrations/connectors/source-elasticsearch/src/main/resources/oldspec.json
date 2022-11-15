@@ -89,9 +89,9 @@
         "description": "Timestamp range for querying",
         "oneOf": [
           {
-            "title": "FULL REFRESH",
+            "title": "All",
             "additionalProperties": false,
-            "description": "Get all data",
+            "description": "Get all data upto now",
             "required": ["method"],
             "properties": {
               "method": {
@@ -101,20 +101,26 @@
             }
           },
           {
-            "title": "INCREMENTAL SYNC",
+            "title": "Custom",
             "additionalProperties": false,
-            "description": "Gets data only from the last saved state",
-            "required": ["method", "cursorField"],
+            "description": "Create a custom time range query",
+            "required": ["method"],
             "properties":  {
               "method": {
                 "type": "string",
                 "const": "custom"
               },
-              "cursorField": {
-                "title": "Cursor Field",
+              "timeField": {
+                "title": "Time Field",
                 "type": "string",
                 "description": "Field on which to query",
                 "default": "@timestamp"
+              },
+              "from": {
+                "title": "From",
+                "type": "string",
+                "format": "date-time",
+                "description": "Begin time in ISO 8601 format of YYYY-MM-DDThh:mm:ssZ in UTC time"
               }
             }
           }

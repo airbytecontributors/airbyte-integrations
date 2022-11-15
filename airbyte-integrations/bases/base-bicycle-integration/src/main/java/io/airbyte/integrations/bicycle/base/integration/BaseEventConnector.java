@@ -138,7 +138,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         if (eventProcessorResult == null) {
             return true;
         }
-        EventPublisherResult publisherResult = bicycleEventPublisher.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
+        EventPublisherResult publisherResult =  bicycleEventPublisher.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
 
         if (publisherResult == null) {
             logger.warn("There was some issue in publishing events");
