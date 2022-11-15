@@ -29,10 +29,13 @@ import io.bicycle.integration.connector.ProcessedEventSourceData;
 import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.config.EventMappingConfigurations;
+import io.bicycle.server.event.mapping.models.converter.BicycleEventsResult;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.models.publisher.EventPublisherResult;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
+
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -196,7 +199,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                     processRawEventsResult.getProcessedEventSourceDataList()) {
                 bicycleEventList.addEvents(processedEventSourceData.getBicycleEvent());
             }
-            this.bicycleEventPublisher.savePreviewEvents(authInfo, eventSourceInfo, bicycleEventList.build());
+            BicycleEventsResult bicycleEventsResult = new BicycleEventsResult(null, bicycleEventList.build(), null);
+            this.bicycleEventPublisher.publishEvents(authInfo, eventSourceInfo, bicycleEventsResult);
         } catch (Exception e) {
             logger.warn(traceInfo + " Exception while writing preview events", e);
         }
