@@ -220,8 +220,8 @@ public class BicycleConsumer implements Runnable {
         final boolean check = check(config);
         String traceInfo = CommonUtil.getTraceInfo(syncDataRequest.getTraceInfo());
 
-        logger.info(traceInfo + " ======Starting read operation for consumer " + name + " config: " + config + " " +
-                "catalog:"+ configuredAirbyteCatalog + "=======");
+        logger.info(traceInfo + " Starting read operation for consumer " + name + " config: " + config + " " +
+                "catalog: "+ configuredAirbyteCatalog + " Sync data request: " + syncDataRequest);
         if (!check) {
             throw new RuntimeException("Unable establish a connection");
         }
@@ -246,7 +246,7 @@ public class BicycleConsumer implements Runnable {
                 final ConsumerRecords<String, JsonNode> consumerRecords =
                         consumer.poll(Duration.of(5000, ChronoUnit.MILLIS));
                 int counter = 0;
-                logger.debug(traceInfo + "No of records actually read by consumer {} are {}", name,
+                logger.info(traceInfo + " No of records actually read by consumer {} are {}", name,
                         consumerRecords.count());
                 sampledRecords = getNumberOfRecordsToBeReturnedBasedOnSamplingRate(consumerRecords.count(), samplingRate);
 
@@ -273,7 +273,7 @@ public class BicycleConsumer implements Runnable {
                     counter++;
                 }
 
-                logger.debug(traceInfo + "No of records read from consumer after sampling {} are {} ", name, counter);
+                logger.info(traceInfo + " No of records sampled for consumer {} are {} ", name, counter);
 
                 if (recordsList.size() == 0) {
                     continue;
@@ -297,15 +297,20 @@ public class BicycleConsumer implements Runnable {
                 } catch (Exception e) {
                     logger.error("Unable to commit to kafka " + name, e);
                 }
+
                 totalEventsSynced += recordsList.size();
                 logger.info(traceInfo + " No of records processed and synced from consumer {} are {} ", name,
                         totalEventsSynced);
+
                 if (isLast) {
                     logger.info(traceInfo + " Completed data sync. Total events synced: {}", totalEventsSynced);
                     break;
                 }
             }
+        } catch (Exception e) {
+            logger.error("{}, Exception in bicycle consumer {}", traceInfo, name, e);
         } finally {
+            logger.warn("{}, Closing the consumer {}", traceInfo, name);
             consumer.close();
             kafkaSourceConfig.resetConsumer();
         }
