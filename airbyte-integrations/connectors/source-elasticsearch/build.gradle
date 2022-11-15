@@ -29,6 +29,8 @@ dependencies {
     implementation("com.inception:entity-mapping-api:${metaPipelineVersion}")
 
 
+    implementation group: 'com.inception', name: 'bicycle-event-processor', version: '0.2.33903'
+    implementation group: 'com.inception', name: 'bicycle-event-publisher', version: '0.2.33903'
     implementation project(':airbyte-integrations:bases:base-bicycle-integration')
 
     implementation 'co.elastic.clients:elasticsearch-java:7.15.0'

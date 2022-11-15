@@ -3,14 +3,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
-import io.airbyte.integrations.bicycle.base.integration.BicycleAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.integrations.source.kafka.BicycleConsumer;
 import io.airbyte.integrations.source.kafka.KafkaSource;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
-import io.bicycle.server.event.mapping.models.converter.BicycleEventsResult;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
@@ -24,8 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-
-import static io.bicycle.server.event.mapping.constants.OTELConstants.TENANT_ID;
 
 public class KafkaSourceTest {
 
@@ -58,7 +54,7 @@ public class KafkaSourceTest {
 
         String consumerThreadId = UUID.randomUUID().toString();
         kafkaSource=new KafkaSource(Mockito.mock(SystemAuthenticator.class), Mockito.mock(EventConnectorJobStatusNotifier.class));
-        kafkaSource.setBicycleEventProcessor(bicycleConfig);
+        kafkaSource.setBicycleEventProcessorAndPublisher(bicycleConfig);
         bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog, eventSourceInfo, Mockito.mock(EventConnectorJobStatusNotifier.class), Mockito.mock(KafkaSource.class));
 
     }
