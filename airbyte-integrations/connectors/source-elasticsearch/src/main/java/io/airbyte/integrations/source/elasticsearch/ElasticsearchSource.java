@@ -179,7 +179,7 @@ public class ElasticsearchSource extends BaseEventConnector {
         boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
 
         BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL, token, connectorId,uniqueIdentifier, tenantId,systemAuthenticator, isOnPremDeployment);
-        setBicycleEventProcessor(bicycleConfig);
+        setBicycleEventProcessorAndPublisher(bicycleConfig);
         eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
         ConfiguredAirbyteStream configuredAirbyteStream = catalog.getStreams().get(0);
         int sampledRecords = 0;

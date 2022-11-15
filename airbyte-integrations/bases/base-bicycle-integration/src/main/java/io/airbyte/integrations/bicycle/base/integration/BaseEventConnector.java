@@ -1,5 +1,6 @@
 package io.airbyte.integrations.bicycle.base.integration;
 
+import bicycle.io.events.proto.BicycleEventList;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.inception.common.client.ServiceLocator;
 import com.inception.common.client.impl.GenericApiClient;
@@ -24,13 +25,16 @@ import io.bicycle.event.publisher.api.BicycleEventPublisher;
 import io.bicycle.event.publisher.impl.BicycleEventPublisherImpl;
 import io.bicycle.integration.common.writer.Writer;
 import io.bicycle.integration.connector.ProcessRawEventsResult;
+import io.bicycle.integration.connector.ProcessedEventSourceData;
 import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.config.EventMappingConfigurations;
+import io.bicycle.server.event.mapping.models.converter.BicycleEventsResult;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.models.publisher.EventPublisherResult;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
+
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -64,19 +68,13 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     abstract protected int getTotalRecordsConsumed();
 
-    public void setBicycleEventProcessor(BicycleConfig bicycleConfig) {
+    public void setBicycleEventProcessorAndPublisher(BicycleConfig bicycleConfig) {
         this.bicycleConfig = bicycleConfig;
         ConfigStoreClient configStoreClient = getConfigClient(bicycleConfig);
         this.bicycleEventProcessor = new BicycleEventProcessorImpl(configStoreClient);
         EventMappingConfigurations eventMappingConfigurations = new EventMappingConfigurations(bicycleConfig.getServerURL(),bicycleConfig.getMetricStoreURL(), bicycleConfig.getServerURL(),
                 bicycleConfig.getEventURL(), bicycleConfig.getServerURL(), bicycleConfig.getEventURL());
         this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, systemAuthenticator, true);
-    }
-
-    protected void setupForSyncData(BicycleConfig bicycleConfig) {
-        this.bicycleConfig = bicycleConfig;
-        this.configStoreClient = getConfigClient(this.bicycleConfig);
-        this.bicycleEventProcessor = new BicycleEventProcessorImpl(configStoreClient);
     }
 
     static ConfigStoreClient getConfigClient(BicycleConfig bicycleConfig) {
@@ -160,6 +158,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             try {
                 writer.writeEventData(
                         configuredConnectorStreamId, readTimestamp, processedEvents.getProcessedEventSourceDataList());
+                savePreviewEvents(authInfo, traceInfo, eventSourceInfo, processedEvents);
             } catch (Exception e) {
                 logger.error(traceInfo + " Exception while writing processed events to destination", e);
             }
@@ -187,5 +186,22 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     public EventSourceInfo getEventSourceInfo() {
         return eventSourceInfo;
+    }
+
+    private void savePreviewEvents(AuthInfo authInfo,
+                                   String traceInfo,
+                                   EventSourceInfo eventSourceInfo,
+                                   ProcessRawEventsResult processRawEventsResult) {
+        try {
+            BicycleEventList.Builder bicycleEventList = BicycleEventList.newBuilder();
+            for (ProcessedEventSourceData processedEventSourceData:
+                    processRawEventsResult.getProcessedEventSourceDataList()) {
+                bicycleEventList.addEvents(processedEventSourceData.getBicycleEvent());
+            }
+            BicycleEventsResult bicycleEventsResult = new BicycleEventsResult(null, bicycleEventList.build(), null);
+            this.bicycleEventPublisher.publishEvents(authInfo, eventSourceInfo, bicycleEventsResult);
+        } catch (Exception e) {
+            logger.warn(traceInfo + " Exception while writing preview events", e);
+        }
     }
 }
