@@ -202,7 +202,13 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             }
             BicycleEventsResult bicycleEventsResult = this.bicycleEventProcessor.processEventsForPreview(
                     authInfo, eventSourceInfo, rawEvents, new ArrayList<>());
-            this.bicycleEventPublisher.publishEvents(authInfo, eventSourceInfo, bicycleEventsResult);
+            logger.debug(traceInfo + " Preview bicycle events for event source "
+                    + eventSourceInfo + bicycleEventsResult.getUnmatchedBicycleEvents());
+            if (this.bicycleEventPublisher.publishEvents(authInfo, eventSourceInfo, bicycleEventsResult)) {
+                logger.info(traceInfo + " Successfully published preview events for event source " + eventSourceInfo);
+            } else {
+                logger.warn(traceInfo + " Failed to publish preview events for event source " + eventSourceInfo);
+            }
         } catch (Exception e) {
             logger.warn(traceInfo + " Exception while writing preview events", e);
         }
