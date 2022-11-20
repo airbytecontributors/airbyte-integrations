@@ -103,16 +103,16 @@ public class ElasticsearchSource extends BaseEventConnector {
             LOGGER.info("Following fields can be used for timestamp queries: {}. @timestamp is recommended by default.", timestampCandidates);
             JsonNode formattedJSONSchema = formatJSONSchema(JSONSchema);
             AirbyteStream stream = new AirbyteStream();
-            stream.setSupportedSyncModes(List.of(SyncMode.FULL_REFRESH, SyncMode.INCREMENTAL));
+            stream.setSupportedSyncModes(List.of(SyncMode.FULL_REFRESH));
             stream.setName(index);
             stream.setJsonSchema(formattedJSONSchema);
-            if(timestampCandidates.contains("@timestamp")) {
-                stream.setSourceDefinedCursor(true);
-                stream.setDefaultCursorField(List.of("@timestamp"));
-            }
-            else {
-                stream.setSourceDefinedCursor(false);
-            }
+//            if(timestampCandidates.contains("@timestamp")) {
+//                stream.setSourceDefinedCursor(true);
+//                stream.setDefaultCursorField(List.of("@timestamp"));
+//            }
+//            else {
+//                stream.setSourceDefinedCursor(false);
+//            }
             streams.add(stream);
         }
         try {
@@ -172,10 +172,11 @@ public class ElasticsearchSource extends BaseEventConnector {
 
     private void readEvent1(final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state, final ElasticsearchConnection connection) throws IOException {
         stopConnectorBoolean.set(false);
+        LOGGER.info("Conf Catalog: {}", catalog);
         Map<String, Object> additionalProperties = catalog.getAdditionalProperties();
-        String eventSourceType= additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : CommonUtils.UNKNOWN_EVENT_CONNECTOR;
+        String eventSourceType= additionalProperties.containsKey("bicycleEventSourceType") ? additionalProperties.get("bicycleEventSourceType").toString() : "source-elasticsearch";
         BicycleConfig bicycleConfig = getBicycleConfig(additionalProperties, systemAuthenticator);
-        setBicycleEventProcessor(bicycleConfig);
+        setBicycleEventProcessorAndPublisher(bicycleConfig);
         eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
 
         ConfiguredAirbyteStream configuredAirbyteStream = catalog.getStreams().get(0);
@@ -192,7 +193,7 @@ public class ElasticsearchSource extends BaseEventConnector {
             return;
         }
 
-        this.connectionServiceClient = new ConnectionServiceClient(GenericApiClient.Builder.newBuilder().build(), "https://api.dev.bicycle.io/");
+        this.connectionServiceClient = new ConnectionServiceClient(new GenericApiClient(), "https://api.dev.bicycle.io/");
 
         try {
             localState = mapper.readTree(connectionServiceClient.getReadStateConfigById(bicycleConfig.getAuthInfo(), bicycleConfig.getConnectorId()));
@@ -380,13 +381,13 @@ public class ElasticsearchSource extends BaseEventConnector {
 
     private BicycleConfig getBicycleConfig(Map<String, Object> additionalProperties,
                                            SystemAuthenticator systemAuthenticator) {
-        String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
-        String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
-        String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
-        String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
+        String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "https://api.dev.bicycle.io/";
+        String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "https://api.dev.bicycle.io/";
+        String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "9f0c5a70-fe46-4a56-81ce-93e5a386a878";
+        String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "9f0c5a70-fe46-4a56-81ce-93e5a386a878";
         String uniqueIdentifier = UUID.randomUUID().toString();
-        String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";
-        String isOnPrem = additionalProperties.get("isOnPrem").toString();
+        String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "emt-e9e4ef6c-63c4-4930-b331-2df3af1e788e";
+        String isOnPrem = additionalProperties.containsKey("isOnPrem") ? additionalProperties.get("isOnPrem").toString(): "true";
         boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
         return new BicycleConfig(serverURL, metricStoreURL, token, connectorId, uniqueIdentifier, tenantId,
                 systemAuthenticator, isOnPremDeployment);

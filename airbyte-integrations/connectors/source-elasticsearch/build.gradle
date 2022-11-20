@@ -20,9 +20,6 @@ dependencies {
     implementation group: 'com.inception', name: 'integration-common-impl', version: '0.2.33522'
     implementation group: 'com.inception', name: 'bicycle-event-processor', version: '0.2.33527'
     implementation group: 'com.inception', name: 'bicycle-event-publisher', version: '0.2.33527'
-    implementation("com.inception:auth-api:${authVersion}")
-    implementation("com.inception:auth-impl:${authVersion}")
-    implementation("com.inception:authz-impl:${authVersion}")
     implementation("com.inception:config-client:${configVersion}")
     implementation("com.inception:server-utils-app:${serverUtilsVersion}")
     implementation("com.inception:entity-mapping-client:${metaPipelineVersion}")
