@@ -174,15 +174,13 @@ public class ElasticsearchConnection {
     }
 
     public List<JsonNode> getRecordsUsingCursor(final String index, final String cursorField, final String cursor) throws IOException {
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(MAX_HITS);
-        final Scroll scroll = new Scroll(TimeValue.timeValueMinutes(1L));
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.size(MAX_HITS);
+        final Scroll scroll = new Scroll(TimeValue.timeValueMinutes(60L));
         if(cursor==null) {
             searchSourceBuilder.query(QueryBuilders.matchAllQuery());
         }
         else {
-            // TODO: Fix ES get query
-            // need to fix this and write a better query: see https://datacater.io/blog/2021-09-15/how-to-use-cdc-with-elasticsearch.html
-            // use sort and search after
             RangeQueryBuilder rangeQueryBuilder = QueryBuilders.rangeQuery(cursorField).from(cursor);
             searchSourceBuilder.query(rangeQueryBuilder);
         }
