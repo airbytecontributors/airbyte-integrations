@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.inception.common.client.impl.GenericApiClient;
 import com.inception.server.auth.api.SystemAuthenticator;
-import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
@@ -16,7 +15,6 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import io.bicycle.entity.mapping.api.ConnectionServiceClient;
-
 import io.airbyte.protocol.models.AirbyteCatalog;
 import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteMessage;
@@ -169,12 +167,11 @@ public class ElasticsearchSource extends BaseEventConnector {
         int sampledRecords = 0;
         final String index = configuredAirbyteStream.getStream().getName();
         final String cursorField;
-
         if(config.get(SYNCMODE).get("method").textValue().equals("custom")) {
             cursorField = config.get(SYNCMODE).get(CURSORFIELD).textValue();
         }
         else {
-            LOGGER.error("Currently elasticsearch connector only supports event sources");
+            LOGGER.error("Currently Elasticsearch connector only supports event sources");
             return;
         }
 
@@ -193,29 +190,27 @@ public class ElasticsearchSource extends BaseEventConnector {
         LOGGER.info("======Starting read operation for elasticsearch index" + index + "=======");
 
         try {
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", bicycleConfig.getConnectorId(), 0, authInfo);
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", bicycleConfig.getConnectorId(), 0, bicycleConfig.getAuthInfo());
             while(!this.getStopConnectorBoolean().get()) {
                 String cursor = getStreamCursor(index); // always gets the local state only
                 LOGGER.info("Getting data for stream: {}, cursor_field:{}, cursor:{}", index, cursorField, cursor);
                 List<JsonNode> recordsList = connection.getRecordsUsingCursor(index, cursorField, cursor);
                 LOGGER.info("No of records read {}", recordsList.size());
                 if (recordsList.size() == 0 || (cursor!=null && recordsList.size()==1)) {
-                    // recordsList size 1 with a valid cursor means the record having that cursor value is being returned
-                    // wait for 5 seconds before querying
                     TimeUnit.SECONDS.sleep(5);
                     continue;
                 }
                 EventProcessorResult eventProcessorResult = null;
                 try {
                     List<RawEvent> rawEvents = this.convertRecordsToRawEvents(recordsList);
-                    eventProcessorResult = convertRawEventsToBicycleEvents(authInfo,eventSourceInfo,rawEvents);
+                    eventProcessorResult = convertRawEventsToBicycleEvents(bicycleConfig.getAuthInfo(),eventSourceInfo,rawEvents);
                     sampledRecords += recordsList.size();
                 } catch (Exception exception) {
                     LOGGER.error("Unable to convert raw records to bicycle events", exception);
                 }
 
                 try {
-                    publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
+                    publishEvents(bicycleConfig.getAuthInfo(), eventSourceInfo, eventProcessorResult);
                     LOGGER.info("New events found:{}. Total events published:{}", recordsList.size(), sampledRecords);
                     String newCursor = recordsList.get(recordsList.size()-1).get(cursorField).asText();
                     saveState(bicycleConfig, index, cursorField, newCursor);
