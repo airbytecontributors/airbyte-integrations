@@ -21,6 +21,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import io.bicycle.entity.mapping.api.ConnectionServiceClient;
+import static org.mockito.Mockito.*;
 
 import io.airbyte.protocol.models.AirbyteCatalog;
 import io.airbyte.protocol.models.AirbyteConnectionStatus;
@@ -32,6 +33,7 @@ import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import org.apache.commons.lang3.StringUtils;
+import org.mockito.Mockito;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import static io.airbyte.integrations.source.elasticsearch.ElasticsearchConstants.*;
@@ -205,12 +207,15 @@ public class ElasticsearchSource extends BaseEventConnector {
             LOGGER.info("Local state before read: {}", localState);
         }
 
+//        AuthInfo authInfo = bicycleConfig.getAuthInfo();
+        AuthInfo authInfo = Mockito.mock(AuthInfo.class);
+        when(authInfo.getTenantId()).thenReturn("emt-e9e4ef6c-63c4-4930-b331-2df3af1e788e");
+        when(authInfo.getToken()).thenReturn("eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJUaXJ0aCIsIk9SR19JRCI6IjY0IiwiaXNzIjoic3VtaXRAYmljeWNsZS5pbyIsImlhdCI6MTY1MzQ4MTA3MCwiVEVOQU5UIjoiZW10LWU5ZTRlZjZjLTYzYzQtNDkzMC1iMzMxLTJkZjNhZjFlNzg4ZSIsImp0aSI6IjZmZDcwMmJlLWRiM2QtNGZiMy1hMGMifQ.q0Akz_BKECfT6mzu7ujVhhIAfSECuGYHmdltdKUYlNo");
 
         LOGGER.info("======Starting read operation for elasticsearch index" + index + "=======");
 
-        AuthInfo authInfo = bicycleConfig.getAuthInfo();
         try {
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", bicycleConfig.getConnectorId(), 0, authInfo);
+//            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", bicycleConfig.getConnectorId(), 0, authInfo);
             while(!this.getStopConnectorBoolean().get()) {
                 String cursor = getStreamCursor(index); // always gets the local state only
                 LOGGER.info("Getting data for stream: {}, cursor_field:{}, cursor:{}", index, cursorField, cursor);
@@ -403,7 +408,7 @@ public class ElasticsearchSource extends BaseEventConnector {
     }
 
     private void saveState(final BicycleConfig bicycleConfig, final String stream, final String cursorField, final String cursor) {
-        JsonNode newState = ((ObjectNode)localState).set(stream,  mapper.createObjectNode().put("cursor", cursor).put("cursorField", cursorField));
+        JsonNode newState = (mapper.createObjectNode()).set(stream,  mapper.createObjectNode().put("cursor", cursor).put("cursorField", cursorField));
         try {
             connectionServiceClient.upsertReadStateConfig(bicycleConfig.getAuthInfo(), toUUID(bicycleConfig.getConnectorId()), newState.asText());
             this.localState = newState;

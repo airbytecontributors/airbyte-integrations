@@ -1,0 +1,173 @@
+{
+  "type": "CATALOG",
+  "catalog": {
+    "streams": [
+      {
+        "name": "kibana_sample_data_ecommerce",
+        "json_schema": {
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "manufacturer": {
+              "type": "string"
+            },
+            "products": {
+              "properties": {
+                "tax_amount": {
+                  "type": "number"
+                },
+                "taxful_price": {
+                  "type": "number"
+                },
+                "quantity": {
+                  "type": "integer"
+                },
+                "taxless_price": {
+                  "type": "number"
+                },
+                "discount_amount": {
+                  "type": "number"
+                },
+                "base_unit_price": {
+                  "type": "number"
+                },
+                "discount_percentage": {
+                  "type": "number"
+                },
+                "product_name": {
+                  "type": "string"
+                },
+                "manufacturer": {
+                  "type": "string"
+                },
+                "min_price": {
+                  "type": "number"
+                },
+                "created_on": {
+                  "type": "string"
+                },
+                "price": {
+                  "type": "number"
+                },
+                "unit_discount_amount": {
+                  "type": "number"
+                },
+                "product_id": {
+                  "type": "integer"
+                },
+                "base_price": {
+                  "type": "number"
+                },
+                "_id": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "sku": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "customer_last_name": {
+              "type": "string"
+            },
+            "day_of_week_i": {
+              "type": "integer"
+            },
+            "total_quantity": {
+              "type": "integer"
+            },
+            "currency": {
+              "type": "string"
+            },
+            "taxless_total_price": {
+              "type": "number"
+            },
+            "total_unique_products": {
+              "type": "integer"
+            },
+            "event": {
+              "properties": {
+                "dataset": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "sku": {
+              "type": "string"
+            },
+            "email": {
+              "type": "string"
+            },
+            "day_of_week": {
+              "type": "string"
+            },
+            "geoip": {
+              "properties": {
+                "continent_name": {
+                  "type": "string"
+                },
+                "city_name": {
+                  "type": "string"
+                },
+                "country_iso_code": {
+                  "type": "string"
+                },
+                "location": {
+                  "type": "object"
+                },
+                "region_name": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "customer_first_name": {
+              "type": "string"
+            },
+            "customer_phone": {
+              "type": "string"
+            },
+            "customer_birth_date": {
+              "type": "string"
+            },
+            "customer_full_name": {
+              "type": "string"
+            },
+            "order_date": {
+              "type": "string"
+            },
+            "category": {
+              "type": "string"
+            },
+            "customer_id": {
+              "type": "string"
+            },
+            "order_id": {
+              "type": "string"
+            },
+            "user": {
+              "type": "string"
+            },
+            "customer_gender": {
+              "type": "string"
+            },
+            "taxful_total_price": {
+              "type": "number"
+            }
+          },
+          "type": "object"
+        },
+        "supported_sync_modes": [
+          "full_refresh"
+        ],
+        "default_cursor_field": [],
+        "source_defined_primary_key": []
+      }
+    ]
+  }
+}
