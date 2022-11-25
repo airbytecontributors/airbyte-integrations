@@ -1,6 +1,6 @@
 {
   "kibana_sample_data_logs": {
-    "cursor": "timestamp",
-    "cursorField": "2023-01-05T21:45:26.749Z"
+    "cursor": "2023-01-05T21:45:26.749Z",
+    "cursorField": "timefield"
   }
 }

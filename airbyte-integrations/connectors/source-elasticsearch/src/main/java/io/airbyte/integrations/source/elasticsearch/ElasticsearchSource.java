@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import static io.airbyte.integrations.source.elasticsearch.ElasticsearchConstants.*;
 import static io.airbyte.integrations.source.elasticsearch.typemapper.ElasticsearchTypeMapper.*;
+import static jodd.util.ThreadUtil.sleep;
 
 public class ElasticsearchSource extends BaseEventConnector {
     private static final Logger LOGGER = LoggerFactory.getLogger(ElasticsearchSource.class);
@@ -169,28 +170,19 @@ public class ElasticsearchSource extends BaseEventConnector {
         final String cursorField;
         if(config.get(SYNCMODE).get("method").textValue().equals("custom")) {
             cursorField = config.get(SYNCMODE).get(CURSORFIELD).textValue();
-        }
-        else {
-            LOGGER.error("Currently Elasticsearch connector only supports event sources");
+        } else {
+            LOGGER.error("Elasticsearch Event Connector only supports INCREMENTAL SYNC mode for event sources");
             return;
         }
 
-        this.connectionServiceClient = new ConnectionServiceClient(new GenericApiClient(), "https://api.dev.bicycle.io/");
+        this.connectionServiceClient = new ConnectionServiceClient(new GenericApiClient(), bicycleConfig.getServerURL());
 
-        try {
-            localState = mapper.readTree(connectionServiceClient.getReadStateConfigById(bicycleConfig.getAuthInfo(), bicycleConfig.getConnectorId()));
-        }
-        catch (Exception e) {
-            LOGGER.error("Unable to set state from entity browser", e);
-        }
-        finally {
-            LOGGER.info("Local state before read: {}", localState);
-        }
-
+        getStateWithRetries(bicycleConfig);
+        LOGGER.info("Local state before read: {}", localState);
         LOGGER.info("======Starting read operation for elasticsearch index" + index + "=======");
 
         try {
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", bicycleConfig.getConnectorId(), 0, bicycleConfig.getAuthInfo());
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Elasticsearch Event Connector started successfully", bicycleConfig.getConnectorId(), 0, bicycleConfig.getAuthInfo());
             while(!this.getStopConnectorBoolean().get()) {
                 String cursor = getStreamCursor(index); // always gets the local state only
                 LOGGER.info("Getting data for stream: {}, cursor_field:{}, cursor:{}", index, cursorField, cursor);
@@ -220,12 +212,10 @@ public class ElasticsearchSource extends BaseEventConnector {
                 totalRecordsConsumed += recordsList.size();
             }
             LOGGER.info("Shutting down the Elasticsearch Event Connector manually for connector {}", bicycleConfig.getConnectorId());
-        }
-        catch(Exception exception) {
+        } catch(Exception exception) {
             LOGGER.error("Exception while trying to fetch records from Elasticsearch", exception);
             this.stopEventConnector("Shutting down the ElasticSearch Event Connector due to Exception",JobExecutionStatus.failure);
-        }
-        finally {
+        } finally {
             LOGGER.info("Closing server connection.");
             connection.close();
             LOGGER.info("Closed server connection.");
@@ -311,6 +301,24 @@ public class ElasticsearchSource extends BaseEventConnector {
                 return split[1];
             }
             return null;
+        }
+    }
+
+
+    private void getStateWithRetries(BicycleConfig bicycleConfig) {
+        int currentTry = 0;
+        while (true) {
+            try {
+                localState = mapper.readTree(connectionServiceClient.getReadStateConfigById(bicycleConfig.getAuthInfo(), bicycleConfig.getConnectorId()));
+                break;
+            } catch(Exception e) {
+                currentTry++;
+                LOGGER.error("Failed attempt: {}, Unable to get state for Elasticsearch Event Connector with ID:{}. Retrying...", currentTry, bicycleConfig.getConnectorId(), e);
+                if(currentTry>=3) {
+                    LOGGER.error("Maximum retries reached.");
+                    break;
+                }
+            }
         }
     }
 
