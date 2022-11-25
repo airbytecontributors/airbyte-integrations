@@ -313,11 +313,11 @@ public class ElasticsearchSource extends BaseEventConnector {
                 break;
             } catch(Exception e) {
                 currentTry++;
-                LOGGER.error("Failed attempt: {}, Unable to get state for Elasticsearch Event Connector with ID:{}. Retrying...", currentTry, bicycleConfig.getConnectorId(), e);
                 if(currentTry>=3) {
                     LOGGER.error("Maximum retries reached.");
                     break;
                 }
+                LOGGER.error("Failed attempt: {}, Unable to get state for Elasticsearch Event Connector with ID:{}. Retrying...", currentTry, bicycleConfig.getConnectorId(), e);
             }
         }
     }

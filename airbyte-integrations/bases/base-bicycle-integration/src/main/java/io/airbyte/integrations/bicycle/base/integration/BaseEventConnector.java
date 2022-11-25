@@ -23,6 +23,7 @@ import io.bicycle.event.processor.api.BicycleEventProcessor;
 import io.bicycle.event.processor.impl.BicycleEventProcessorImpl;
 import io.bicycle.event.publisher.api.BicycleEventPublisher;
 import io.bicycle.event.publisher.impl.BicycleEventPublisherImpl;
+import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.integration.common.writer.Writer;
 import io.bicycle.integration.connector.ProcessRawEventsResult;
 import io.bicycle.integration.connector.ProcessedEventSourceData;
@@ -35,6 +36,7 @@ import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.models.publisher.EventPublisherResult;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -193,13 +195,20 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                                    EventSourceInfo eventSourceInfo,
                                    ProcessRawEventsResult processRawEventsResult) {
         try {
-            BicycleEventList.Builder bicycleEventList = BicycleEventList.newBuilder();
+            List<RawEvent> rawEvents = new ArrayList<>();
             for (ProcessedEventSourceData processedEventSourceData:
                     processRawEventsResult.getProcessedEventSourceDataList()) {
-                bicycleEventList.addEvents(processedEventSourceData.getBicycleEvent());
+                rawEvents.add(new JsonRawEvent(processedEventSourceData.getRawEvent()));
             }
-            BicycleEventsResult bicycleEventsResult = new BicycleEventsResult(null, bicycleEventList.build(), null);
-            this.bicycleEventPublisher.publishEvents(authInfo, eventSourceInfo, bicycleEventsResult);
+            BicycleEventsResult bicycleEventsResult = this.bicycleEventProcessor.processEventsForPreview(
+                    authInfo, eventSourceInfo, rawEvents, new ArrayList<>());
+            logger.debug(traceInfo + " Preview bicycle events for event source "
+                    + eventSourceInfo + bicycleEventsResult.getUnmatchedBicycleEvents());
+            if (this.bicycleEventPublisher.publishEvents(authInfo, eventSourceInfo, bicycleEventsResult)) {
+                logger.info(traceInfo + " Successfully published preview events for event source " + eventSourceInfo);
+            } else {
+                logger.warn(traceInfo + " Failed to publish preview events for event source " + eventSourceInfo);
+            }
         } catch (Exception e) {
             logger.warn(traceInfo + " Exception while writing preview events", e);
         }
