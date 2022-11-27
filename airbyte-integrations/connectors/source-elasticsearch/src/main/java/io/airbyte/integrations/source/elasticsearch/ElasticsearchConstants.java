@@ -13,6 +13,9 @@ public class ElasticsearchConstants {
     public static final String CONNECTOR_TYPE = "connectorType";
     public static final String ENTITY = "entity";
     public static final String EVENT = "event";
+    public static final String SYNCMODE = "syncMode";
+    public static final String CURSORFIELD = "cursorField";
+
 
     public static final String ES_DEFAULT_TIME_FIELD = "@timestamp";
 }

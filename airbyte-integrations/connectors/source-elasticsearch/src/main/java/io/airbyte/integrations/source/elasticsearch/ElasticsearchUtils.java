@@ -11,20 +11,32 @@ import java.time.Instant;
 import java.util.List;
 
 public class ElasticsearchUtils {
-    public static AutoCloseableIterator<JsonNode> getDataIterator(final ElasticsearchConnection connection,
+    public static AutoCloseableIterator<JsonNode> getDataIteratorFullRefresh(final ElasticsearchConnection connection,
                                                             final AirbyteStream stream, final JsonNode timeRange) {
         return AutoCloseableIterators.lazyIterator(() -> {
             try {
-//                long start1 = System.currentTimeMillis();
                 List<JsonNode> data = connection.getRecords(stream.getName(), timeRange);
-//                long end1 = System.currentTimeMillis();
-//                LoggerFactory.getLogger(ElasticsearchSource.class).info("GET_RECORDS TIME ELAPSED in millis: {}", end1-start1);
                 return AutoCloseableIterators.fromIterator(data.iterator());
             } catch (final Exception e) {
                 throw new RuntimeException(e);
             }
         });
     }
+
+    public static AutoCloseableIterator<JsonNode> getDataIteratorUsingCursor(final ElasticsearchConnection connection, final AirbyteStream stream, final String cursorField, final String cursor) {
+        return AutoCloseableIterators.lazyIterator(() -> {
+            try {
+                // TODO: save state after getting data
+                List<JsonNode> data = connection.getRecordsUsingCursor(stream.getName(), cursorField, cursor);
+                return AutoCloseableIterators.fromIterator(data.iterator());
+            } catch (final Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+
+
     public static AutoCloseableIterator<AirbyteMessage> getMessageIterator(final AutoCloseableIterator<JsonNode> recordIterator,
                                                                      final String streamName) {
         return AutoCloseableIterators.transform(recordIterator, r -> new AirbyteMessage()

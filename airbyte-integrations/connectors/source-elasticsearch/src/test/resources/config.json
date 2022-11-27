@@ -1,0 +1,14 @@
+{
+  "endpoint": "https://my-deployment-39596e.es.us-central1.gcp.cloud.es.io",
+  "authenticationMethod":
+  {
+    "method": "basic",
+    "username": "elastic",
+    "password": "Jw79YXgabhE1e8nzto3Q0K30"
+  },
+  "connectorType": "event",
+  "syncMode": {
+    "method": "custom",
+    "cursorField": "timestamp"
+  }
+}

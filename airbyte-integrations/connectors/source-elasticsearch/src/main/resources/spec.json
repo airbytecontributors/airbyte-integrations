@@ -83,15 +83,15 @@
         "type": "string",
         "default": "event"
       },
-      "timeRange": {
-        "title": "Time Range",
+      "syncMode": {
+        "title": "Sync Mode",
         "type": "object",
-        "description": "Timestamp range for querying",
+        "description": "SyncMode: Full refresh or incremental",
         "oneOf": [
           {
-            "title": "All",
+            "title": "FULL REFRESH",
             "additionalProperties": false,
-            "description": "Get all data upto now",
+            "description": "Get all data",
             "required": ["method"],
             "properties": {
               "method": {
@@ -101,26 +101,20 @@
             }
           },
           {
-            "title": "Custom",
+            "title": "INCREMENTAL SYNC",
             "additionalProperties": false,
-            "description": "Create a custom time range query",
-            "required": ["method"],
+            "description": "Gets data only from the last saved state",
+            "required": ["method", "cursorField"],
             "properties":  {
               "method": {
                 "type": "string",
                 "const": "custom"
               },
-              "timeField": {
-                "title": "Time Field",
+              "cursorField": {
+                "title": "Cursor Field",
                 "type": "string",
                 "description": "Field on which to query",
                 "default": "@timestamp"
-              },
-              "from": {
-                "title": "From",
-                "type": "string",
-                "format": "date-time",
-                "description": "Begin time in ISO 8601 format of YYYY-MM-DDThh:mm:ssZ in UTC time"
               }
             }
           }
