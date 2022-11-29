@@ -25,6 +25,7 @@ public class MetricAsEventsGenerator implements Runnable {
     protected static final String METRIC_NAME_SEPARATOR = "_";
     protected static final String EVENTS_PROCESSED_METRIC = "events_processed";
     protected static final String TOTAL_EVENTS_PROCESSED_METRIC = "total_events_processed";
+    protected static final String TOTAL_BYTES_PROCESSED_METRIC = "total_bytes_processed";
     protected final Logger logger = LoggerFactory.getLogger(MetricAsEventsGenerator.class.getName());
     protected final Map<String, String> globalTags = new HashMap<>();
     protected BicycleConfig bicycleConfig;

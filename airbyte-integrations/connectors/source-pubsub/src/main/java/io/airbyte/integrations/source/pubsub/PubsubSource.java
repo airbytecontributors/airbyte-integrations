@@ -1,0 +1,299 @@
+package io.airbyte.integrations.source.pubsub;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.cloud.pubsub.v1.SubscriptionAdminClient;
+import com.google.cloud.pubsub.v1.TopicAdminClient;
+import com.google.cloud.pubsub.v1.TopicAdminSettings;
+import com.google.cloud.pubsub.v1.stub.SubscriberStub;
+import com.google.common.collect.AbstractIterator;
+import com.google.common.collect.Lists;
+import com.google.pubsub.v1.*;
+import com.inception.server.auth.api.SystemAuthenticator;
+import com.inception.server.auth.model.AuthInfo;
+import com.inception.server.scheduler.api.JobExecutionStatus;
+import io.airbyte.commons.util.AutoCloseableIterator;
+import io.airbyte.commons.util.AutoCloseableIterators;
+import io.airbyte.integrations.bicycle.base.integration.*;
+import io.airbyte.protocol.models.*;
+import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.connector.SyncDataRequest;
+import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
+import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.charset.Charset;
+import java.time.Instant;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+
+public class PubsubSource extends BaseEventConnector {
+    private AtomicLong totalBytesProcessed = new AtomicLong(0);
+    private AtomicBoolean stopConnectorBoolean = new AtomicBoolean(false);
+    private final String PARTITION_TIMESTAMP = "recordTimestamp";
+    private static final int CONSUMER_THREADS_DEFAULT_VALUE = 1;
+    public static final String STREAM_NAME = "stream_name";
+    private static final Logger LOGGER = LoggerFactory.getLogger(PubsubSource.class);
+    private Map<String, Long> consumerToSubscriptionRecordsRead = new HashMap<>();
+
+    public PubsubSourceConfig getPubsubSourceConfig() {
+        return pubsubSourceConfig;
+    }
+
+    protected PubsubSourceConfig pubsubSourceConfig;
+    public PubsubSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
+        super(systemAuthenticator, eventConnectorJobStatusNotifier);
+    }
+
+    protected AtomicBoolean getStopConnectorBoolean() {
+        return stopConnectorBoolean;
+    }
+
+
+    @Override
+    protected int getTotalRecordsConsumed() {
+        int totalRecordsConsumed = 0;
+        Map<String,Long> consumerToSubscriptionRecordsRead = getConsumerToSubscriptionRecordsRead();
+        for (Map.Entry<String, Long> consumerThreadEntry :
+                consumerToSubscriptionRecordsRead.entrySet()) {
+            totalRecordsConsumed += consumerThreadEntry.getValue();
+        }
+        return totalRecordsConsumed;
+    }
+
+    public void stopEventConnector() {
+        stopConnectorBoolean.set(true);
+        super.stopEventConnector("Pubsub Event Connector Stopped manually", JobExecutionStatus.success);
+    }
+
+    @Override
+    public void stopEventConnector(String message, JobExecutionStatus jobExecutionStatus) {
+        stopConnectorBoolean.set(true);
+        super.stopEventConnector(message, jobExecutionStatus);
+    }
+
+    @Override
+    public List<RawEvent> convertRecordsToRawEvents(List<?> records) {
+        Iterator<ReceivedMessage> recordsIterator = (Iterator<ReceivedMessage>) records.iterator();
+        List<RawEvent> rawEvents = new ArrayList<>();
+        boolean printed = false;
+        ObjectMapper objectMapper = CommonUtils.getObjectMapper();
+        while (recordsIterator.hasNext()) {
+            ReceivedMessage record = recordsIterator.next();
+            JsonNode jsonNode = null;
+            try {
+                PubsubMessage pubsubMessage = record.getMessage();
+                jsonNode = objectMapper.readTree(pubsubMessage.getData().toString(Charset.defaultCharset()));
+                if (jsonNode.isTextual()) {
+                    jsonNode = objectMapper.readTree(jsonNode.textValue());
+                }
+                Map<String, String> customAttributesMap = pubsubMessage.getAttributesMap();
+                ObjectNode objectNode = (ObjectNode) jsonNode;
+                for (Map.Entry<String, String> customAttributeEntry : customAttributesMap.entrySet()) {
+                    objectNode.put(customAttributeEntry.getKey(), customAttributeEntry.getValue());
+                }
+                objectNode.put(PARTITION_TIMESTAMP, pubsubMessage.getPublishTime().getNanos());
+            } catch (Exception e) {
+                if (!printed) {
+                    LOGGER.error("Error while adding record metadata {}", e);
+                    printed = true;
+                }
+            }
+
+            JsonRawEvent jsonRawEvent = new JsonRawEvent(jsonNode);
+            rawEvents.add(jsonRawEvent);
+        }
+        return rawEvents;
+    }
+
+    protected AtomicLong getTotalBytesProcessed() {
+        return totalBytesProcessed;
+    }
+
+    @Override
+    public AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws InterruptedException, ExecutionException {
+        final AirbyteConnectionStatus check = check(config);
+        if (check.getStatus().equals(AirbyteConnectionStatus.Status.FAILED)) {
+            throw new RuntimeException("Unable establish a connection: " + check.getMessage());
+        }
+        PubsubSourceConfig pubsubSourceConfig = new PubsubSourceConfig(UUID.randomUUID().toString(), config, null);
+        final SubscriptionAdminClient consumer = pubsubSourceConfig.getConsumer();
+        List<ReceivedMessage> recordsList;
+        PullRequest pullRequest = pubsubSourceConfig.getPullRequest();
+        PullResponse pullResponse =
+                consumer.pull(pullRequest);
+        consumer.close();
+        recordsList = pullResponse.getReceivedMessagesList();
+        final Iterator<ReceivedMessage> iterator = recordsList.iterator();
+
+        return AutoCloseableIterators.fromIterator(new AbstractIterator<>() {
+            @Override
+            protected AirbyteMessage computeNext() {
+                if (iterator.hasNext()) {
+                    final ReceivedMessage record = iterator.next();
+                    JsonNode previewMessage = null;
+                    try {
+                        previewMessage = CommonUtils.getObjectMapper().readTree(record.getMessage().getData().toStringUtf8());
+                    } catch (JsonProcessingException e) {
+                    }
+                    return new AirbyteMessage()
+                            .withType(AirbyteMessage.Type.RECORD)
+                            .withRecord(new AirbyteRecordMessage()
+                                    .withStream(pubsubSourceConfig.getProjectSubscriptionName().getSubscription())
+                                    .withEmittedAt(Instant.now().toEpochMilli())
+                                    .withData(previewMessage));
+                }
+
+                return endOfData();
+            }
+
+        });
+    }
+
+    @Override
+    public AutoCloseableIterator<AirbyteMessage> syncData(JsonNode sourceConfig, ConfiguredAirbyteCatalog configuredAirbyteCatalog, JsonNode readState, SyncDataRequest syncDataRequest) {
+        return null;
+    }
+
+    @Override
+    public AirbyteConnectionStatus check(JsonNode config) {
+        PubsubSourceConfig pubsubSourceConfig = new PubsubSourceConfig(UUID.randomUUID().toString(), config, null);
+        SubscriberStub consumer = null;
+        try {
+            final String subscriptionId = config.has("subscription_id") ? config.get("subscription_id").asText() : "";
+            if (!subscriptionId.isBlank()) {
+                SubscriptionAdminClient checkConsumer = pubsubSourceConfig.getCheckConsumer();
+                PullResponse pullResponse = checkConsumer.pull(pubsubSourceConfig.getCheckPullRequest());
+                LOGGER.info("Successfully pulled messages {}", pullResponse);
+            }
+            return new AirbyteConnectionStatus().withStatus(AirbyteConnectionStatus.Status.SUCCEEDED);
+        } catch (final Exception e) {
+            LOGGER.error("Exception attempting to connect to the Pubsub Subscription: ", e);
+            return new AirbyteConnectionStatus()
+                    .withStatus(AirbyteConnectionStatus.Status.FAILED)
+                    .withMessage("Could not connect to the Kafka brokers with provided configuration. \n" + e.getMessage());
+        } finally {
+            if (consumer != null) {
+                consumer.close();
+            }
+        }
+    }
+
+    @Override
+    public AirbyteCatalog discover(JsonNode config) throws Exception {
+//        you don't get permission to read other subscription with GCP token so directly passing subscription
+        PubsubSourceConfig pubsubSourceConfig = new PubsubSourceConfig("DiscoverCommand", config, "");
+        final Set<String> subscriptions = new HashSet<>();
+        ProjectName projectName = pubsubSourceConfig.getProjectName();
+        TopicAdminClient.ListTopicsPagedResponse listTopicsPagedResponse = null;
+        try {
+            TopicAdminClient topicAdminClient = TopicAdminClient.create(TopicAdminSettings.newBuilder().setCredentialsProvider(pubsubSourceConfig.getGCPCredentials()).build());
+            listTopicsPagedResponse = topicAdminClient.listTopics(projectName);
+            for (Topic topic : listTopicsPagedResponse.iterateAll()) {
+                String[] topicNameSeparated = topic.getName().split("/");
+                subscriptions.add(topicNameSeparated[topicNameSeparated.length-1]);
+            }
+        } catch (Exception e) {
+            try {
+                listTopicsPagedResponse = TopicAdminClient.create().listTopics(projectName);
+                for (Topic topic : listTopicsPagedResponse.iterateAll()) {
+                    String[] topicNameSeparated = topic.getName().split("/");
+                    subscriptions.add(topicNameSeparated[topicNameSeparated.length-1]);
+                }
+            } catch (Exception e1) {
+                subscriptions.add(pubsubSourceConfig.getProjectSubscriptionName().getSubscription());
+            }
+        }
+        final List<AirbyteStream> streams = subscriptions.stream().map(stream -> CatalogHelpers
+                        .createAirbyteStream(stream, Field.of("value", JsonSchemaType.STRING))
+                        .withSupportedSyncModes(Lists.newArrayList(SyncMode.FULL_REFRESH, SyncMode.INCREMENTAL)))
+                .collect(Collectors.toList());
+        return new AirbyteCatalog().withStreams(streams);
+    }
+
+    private int getNumberOfConsumers(JsonNode sourceConfig) {
+        return sourceConfig.has("bicycle_consumer_threads") ?
+                sourceConfig.get("bicycle_consumer_threads").asInt() : CONSUMER_THREADS_DEFAULT_VALUE;
+    }
+
+    private int getThreadPoolSize(int numberOfConsumers) {
+        return numberOfConsumers + 3;
+    }
+
+    private String getEventSourceType(Map<String, Object> additionalProperties) {
+        return additionalProperties.containsKey("bicycleEventSourceType") ?
+                additionalProperties.get("bicycleEventSourceType").toString() : CommonUtils.UNKNOWN_EVENT_CONNECTOR;
+    }
+
+    private String getConnectorId(Map<String, Object> additionalProperties) {
+        return additionalProperties.containsKey("bicycleConnectorId") ?
+                additionalProperties.get("bicycleConnectorId").toString() : "";
+    }
+
+    private BicycleConfig getBicycleConfig(Map<String, Object> additionalProperties,
+                                           SystemAuthenticator systemAuthenticator) {
+        String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
+        String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
+        String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
+        String connectorId = getConnectorId(additionalProperties);
+        String uniqueIdentifier = UUID.randomUUID().toString();
+        String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";
+        String isOnPrem = additionalProperties.get("isOnPrem").toString();
+        boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
+        return new BicycleConfig(serverURL, metricStoreURL, token, connectorId, uniqueIdentifier, tenantId,
+                systemAuthenticator, isOnPremDeployment);
+    }
+
+    @Override
+    public AutoCloseableIterator<AirbyteMessage> read(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws Exception {
+
+        int numberOfConsumers = getNumberOfConsumers(config);
+        int threadPoolSize = getThreadPoolSize(numberOfConsumers);
+        stopConnectorBoolean.set(false);
+        ScheduledExecutorService ses = Executors.newScheduledThreadPool(threadPoolSize);
+
+        Map<String, Object> additionalProperties = catalog.getAdditionalProperties();
+
+        String eventSourceType = getEventSourceType(additionalProperties);
+        String connectorId = getConnectorId(additionalProperties);
+
+        BicycleConfig bicycleConfig = getBicycleConfig(additionalProperties, systemAuthenticator);
+        setBicycleEventProcessorAndPublisher(bicycleConfig);
+
+        eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
+        pubsubSourceConfig = new PubsubSourceConfig("PubsubSource", config, bicycleConfig.getConnectorId());
+        MetricAsEventsGenerator metricAsEventsGenerator = new PubsubMetricAsEventsGenerator(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher,this);
+        try {
+            ses.scheduleAtFixedRate(metricAsEventsGenerator, 60, 60, TimeUnit.SECONDS);
+            eventConnectorJobStatusNotifier.setNumberOfThreadsRunning(new AtomicInteger(numberOfConsumers));
+            eventConnectorJobStatusNotifier.setScheduledExecutorService(ses);
+            for (int i = 0; i < numberOfConsumers; i++) {
+                String consumerThreadId = UUID.randomUUID().toString();
+                BicycleConsumer bicycleConsumer = new BicycleConsumer(consumerThreadId, bicycleConfig, config, catalog,eventSourceInfo, eventConnectorJobStatusNotifier,this);
+                ses.schedule(bicycleConsumer, 1, TimeUnit.SECONDS);
+            }
+            AuthInfo authInfo = bicycleConfig.getAuthInfo();
+            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Pubsub Event Connector started Successfully", connectorId, getTotalRecordsConsumed(),authInfo);
+        } catch (Exception exception) {
+            this.stopEventConnector("Shutting down the Pubsub Event Connector due to exception",JobExecutionStatus.failure);
+            LOGGER.error("Shutting down the Pubsub Event Connector for connector {}", bicycleConfig.getConnectorId() ,exception);
+        }
+        return null;
+
+    }
+
+    public Map<String, Long> getConsumerToSubscriptionRecordsRead() {
+        return consumerToSubscriptionRecordsRead;
+    }
+}
