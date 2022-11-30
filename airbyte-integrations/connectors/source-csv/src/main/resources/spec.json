@@ -1,0 +1,92 @@
+{
+  "documentationUrl": "https://docs.airbyte.io/integrations/sources/file",
+
+  "connectionSpecification": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "File Source Spec",
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["datasetName", "format", "url", "provider", "timeHeader", "timeFormat"],
+    "properties": {
+      "datasetName": {
+        "type": "string",
+        "title": "Dataset Name",
+        "description": "The Name of the final table to replicate this file into (should include letters, numbers dash and underscores only)."
+      },
+      "format": {
+        "type": "string",
+        "enum": ["csv"],
+        "default": "csv",
+        "title": "File Format",
+        "description": "The Format of the file which should be replicated (Warning: some formats may be experimental, please refer to the docs)."
+      },
+      "url": {
+        "type": "string",
+        "title": "URL",
+        "description": "The URL path to access the file which should be replicated."
+      },
+      "provider": {
+        "type": "object",
+        "title": "Storage Provider",
+        "description": "The storage Provider or Location of the file(s) which should be replicated.",
+        "default": "Public Web",
+        "oneOf": [
+          {
+            "title": "HTTPS: Public Web",
+            "required": ["storage"],
+            "properties": {
+              "storage": {
+                "type": "string",
+                "const": "HTTPS"
+              }
+            }
+          }
+        ]
+      },
+      "timeHeader": {
+        "type": "string",
+        "title": "DateTime Header",
+        "description": "The header field in the CSV which represents the date time for the event"
+      },
+      "timeFormat": {
+        "type": "string",
+        "title": "DateTime Format",
+        "description": "The format of the date time field. Eg :  yyyy-MM-dd'T'HH:mm:ss.SSS"
+      },
+      "timeZone": {
+        "type": "string",
+        "title": "TimeZone",
+        "description": "Provide TimeZone in java TimeZone ID format incase timeZone not available in DataTime Header. Default UTC. Eg : US/Pacific US/Eastern UTC etc"
+      },
+      "backfill": {
+        "type": "string",
+        "enum": ["true", "false"],
+        "default": "false",
+        "title": "Backfill",
+        "description": "Backfill Data"
+      },
+      "backfillStartDateTime": {
+        "type": "string",
+        "title": "Backfill Start Date Time",
+        "description": "Backfill data from data time. Use the same DateTime Format"
+      },
+      "backfillEndDateTime": {
+        "type": "string",
+        "title": "Backfill End Date Time",
+        "description": "Backfill data to data time (Optional). Use the same DateTime Format"
+      },
+      "replay": {
+        "type": "string",
+        "enum": ["true", "false"],
+        "default": "true",
+        "title": "Replay",
+        "description": "Replay Data"
+      },
+      "periodicity": {
+        "type": "string",
+        "title": "Periodicity",
+        "description": "Periodicity of simulating the load. (In secs)"
+      }
+    }
+  }
+}

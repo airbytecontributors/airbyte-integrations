@@ -1,7 +1,10 @@
 package io.airbyte.integrations.bicycle.base.integration;
 
 import bicycle.io.events.proto.BicycleEventList;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.inception.common.client.ServiceLocator;
 import com.inception.common.client.impl.GenericApiClient;
 import com.inception.server.auth.api.SystemAuthenticator;
@@ -18,6 +21,7 @@ import io.airbyte.integrations.BaseConnector;
 import io.airbyte.integrations.base.Source;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
+import io.bicycle.entity.mapping.api.ConnectionServiceClient;
 import io.bicycle.event.processor.ConfigHelper;
 import io.bicycle.event.processor.api.BicycleEventProcessor;
 import io.bicycle.event.processor.impl.BicycleEventProcessorImpl;
@@ -38,6 +42,8 @@ import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 import org.slf4j.Logger;
@@ -59,6 +65,14 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected static final String TENANT_ID = "tenantId";
     protected String ENV_TENANT_ID_KEY = "TENANT_ID";
     protected EventSourceInfo eventSourceInfo;
+
+    private ObjectMapper objectMapper = new ObjectMapper();
+    protected JsonNode config;
+    protected ConfiguredAirbyteCatalog catalog;
+    protected Map<String, Object> additionalProperties;
+    protected JsonNode state;
+
+    protected ConnectionServiceClient connectionServiceClient;
     public BaseEventConnector(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
         this.systemAuthenticator = systemAuthenticator;
         this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;
@@ -213,4 +227,104 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             logger.warn(traceInfo + " Exception while writing preview events", e);
         }
     }
+
+    public AutoCloseableIterator<AirbyteMessage> read(JsonNode config, ConfiguredAirbyteCatalog catalog,
+                                                      JsonNode state)  throws Exception {
+        this.config = config;
+        this.catalog = catalog;
+        this.additionalProperties = catalog.getAdditionalProperties();
+        this.state = state;
+        BicycleConfig bicycleConfig = getBicycleConfig();
+        setBicycleEventProcessorAndPublisher(bicycleConfig);
+        getConnectionServiceClient();
+        return doRead(config, catalog, state);
+    }
+
+    public AutoCloseableIterator<AirbyteMessage> doRead(JsonNode config, ConfiguredAirbyteCatalog catalog,
+                                                      JsonNode state) throws Exception {
+        return null;
+    }
+
+    protected String getEventSourceType() {
+        return additionalProperties.containsKey("bicycleEventSourceType") ?
+                additionalProperties.get("bicycleEventSourceType").toString() : CommonUtils.UNKNOWN_EVENT_CONNECTOR;
+    }
+
+    protected String getConnectorId() {
+        return additionalProperties.containsKey("bicycleConnectorId") ?
+                additionalProperties.get("bicycleConnectorId").toString() : "";
+    }
+    private BicycleConfig getBicycleConfig() {
+        String serverURL = getBicycleServerURL();
+        String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
+        String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
+        String connectorId = getConnectorId();
+        String uniqueIdentifier = UUID.randomUUID().toString();
+        String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";
+        String isOnPrem = additionalProperties.get("isOnPrem").toString();
+        boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
+        return new BicycleConfig(serverURL, metricStoreURL, token, connectorId, uniqueIdentifier, tenantId,
+                systemAuthenticator, isOnPremDeployment);
+    }
+
+    protected String getStateAsString(String key) {
+        return state != null && state.get(key) != null ? state.get(key).asText() : null;
+    }
+
+    protected boolean getStateAsBoolean(String key) {
+        return state != null && state.get(key) != null ? state.get(key).asBoolean() : false;
+    }
+
+    protected long getStateAsLong(String key) {
+        return state != null && state.get(key) != null ? state.get(key).asLong() : -1;
+    }
+
+    protected void saveState(String key, String value) throws JsonProcessingException {
+        if (state == null) {
+            state = objectMapper.createObjectNode();
+        }
+        ((ObjectNode)state).put(key, value);
+        String payload = objectMapper.writeValueAsString(state);
+        connectionServiceClient.upsertReadStateConfig(getAuthInfo(), getConnectorId(), payload);
+    }
+
+    protected void saveState(String key, long value) throws JsonProcessingException {
+        if (state == null) {
+            state = objectMapper.createObjectNode();
+        }
+        ((ObjectNode)state).put(key, value);
+        String payload = objectMapper.writeValueAsString(state);
+        connectionServiceClient.upsertReadStateConfig(getAuthInfo(), getConnectorId(), payload);
+    }
+
+    protected void saveState(String key, boolean value) throws JsonProcessingException {
+        if (state == null) {
+            state = objectMapper.createObjectNode();
+        }
+        ((ObjectNode)state).put(key, value);
+        String payload = objectMapper.writeValueAsString(state);
+        connectionServiceClient.upsertReadStateConfig(getAuthInfo(), getConnectorId(), payload);
+    }
+
+    protected AuthInfo getAuthInfo() {
+        return bicycleConfig.getAuthInfo();
+    }
+
+    protected ConnectionServiceClient getConnectionServiceClient() {
+        if (connectionServiceClient == null) {
+            String serverUrl = getBicycleServerURL();
+            if (serverUrl == null || serverUrl.isEmpty()) {
+                throw new IllegalStateException("Bicycle server url is null");
+            }
+            connectionServiceClient = new ConnectionServiceClient(new GenericApiClient(), serverUrl);
+        }
+        return connectionServiceClient;
+    }
+
+    private String getBicycleServerURL() {
+        String serverURL = additionalProperties.containsKey("bicycleServerURL") ?
+                additionalProperties.get("bicycleServerURL").toString() : "";
+        return serverURL;
+    }
+
 }
