@@ -29,7 +29,6 @@ public class PubsubMetricAsEventsGenerator extends MetricAsEventsGenerator {
     private static final String LAG_METRIC = "consumer_lag";
     private static final String TOTAL_LAG_METRIC = "total_consumer_lag";
     private static final String TOPIC = "topic";
-    private static final String TOPIC_PARTITION = "topicPartition";
     private static final String CONSUMER_THREAD = "consumerThread";
 
     private static final String MIILIS_BEHIND_LATEST_METRIC = "MillisBehindLatest";
@@ -105,6 +104,7 @@ public class PubsubMetricAsEventsGenerator extends MetricAsEventsGenerator {
 
             Map<Metric, Double> consumerMetrics = getClientLagMetric();
             ProjectSubscriptionName projectSubscriptionName = pubsubSourceConfig.getProjectSubscriptionName();
+            Long totalLag = 0L;
             for (Map.Entry<Metric, Double> entry : consumerMetrics.entrySet()) {
                 Map<String, String> labels = new HashMap<>();
                 StringBuilder stringBuilder = new StringBuilder();
@@ -116,6 +116,7 @@ public class PubsubMetricAsEventsGenerator extends MetricAsEventsGenerator {
                 String[] splitMetricTypeString = entry.getKey().getType().split("/");
                 String metricName = splitMetricTypeString[splitMetricTypeString.length - 1];
                 stringBuilder.append(metricName);
+                totalLag += entry.getValue().longValue();
                 attributes.put(stringBuilder.toString(), String.valueOf(entry.getValue()));
                 metricsMap.put(getTagEncodedMetricName(LAG_METRIC, labels), entry.getValue().longValue());
             }
@@ -125,7 +126,12 @@ public class PubsubMetricAsEventsGenerator extends MetricAsEventsGenerator {
 
 
             Long totalRecordsConsumed = 0L;
-
+            Map<String, String> labelForTotalLagMetrics = new HashMap<>();
+            String metricName = TOTAL_LAG_METRIC + METRIC_NAME_SEPARATOR + projectSubscriptionName.getSubscription();
+            attributes.put(metricName, String.valueOf(totalLag));
+            labelForTotalLagMetrics.put(TOPIC, projectSubscriptionName.getSubscription());
+            metricsMap.put(getTagEncodedMetricName(TOTAL_LAG_METRIC, labelForTotalLagMetrics), totalLag);
+            getTagEncodedMetricName(TOTAL_LAG_METRIC, labelForTotalLagMetrics);
 
             for (Map.Entry<String, Long> entry : consumerThreadToTopicPartitionMessagesRead.entrySet()) {
                 Map<String, String> labels = new HashMap<>();

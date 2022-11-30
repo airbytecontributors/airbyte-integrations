@@ -3,7 +3,6 @@ package io.airbyte.integrations.source.pubsub;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.cloud.pubsub.v1.SubscriptionAdminClient;
 import com.google.cloud.pubsub.v1.TopicAdminClient;
@@ -44,6 +43,7 @@ public class PubsubSource extends BaseEventConnector {
     private final String PARTITION_TIMESTAMP = "recordTimestamp";
     private static final int CONSUMER_THREADS_DEFAULT_VALUE = 1;
     public static final String STREAM_NAME = "stream_name";
+    public static final String TEST_SOURCE_CONFIG = "test_source_config";
     private static final Logger LOGGER = LoggerFactory.getLogger(PubsubSource.class);
     private Map<String, Long> consumerToSubscriptionRecordsRead = new HashMap<>();
 
@@ -127,6 +127,9 @@ public class PubsubSource extends BaseEventConnector {
         if (check.getStatus().equals(AirbyteConnectionStatus.Status.FAILED)) {
             throw new RuntimeException("Unable establish a connection: " + check.getMessage());
         }
+        ConfiguredAirbyteStream configuredAirbyteStream = catalog.getStreams().get(0);
+        ((ObjectNode) config).put(STREAM_NAME,configuredAirbyteStream.getStream().getName());
+
         PubsubSourceConfig pubsubSourceConfig = new PubsubSourceConfig(UUID.randomUUID().toString(), config, null);
         final SubscriptionAdminClient consumer = pubsubSourceConfig.getConsumer();
         List<ReceivedMessage> recordsList;
@@ -168,13 +171,13 @@ public class PubsubSource extends BaseEventConnector {
 
     @Override
     public AirbyteConnectionStatus check(JsonNode config) {
-        PubsubSourceConfig pubsubSourceConfig = new PubsubSourceConfig(UUID.randomUUID().toString(), config, null);
+        PubsubSourceConfig pubsubSourceConfig = new PubsubSourceConfig(TEST_SOURCE_CONFIG, config, null);
         SubscriberStub consumer = null;
         try {
             final String subscriptionId = config.has("subscription_id") ? config.get("subscription_id").asText() : "";
             if (!subscriptionId.isBlank()) {
                 SubscriptionAdminClient checkConsumer = pubsubSourceConfig.getCheckConsumer();
-                PullResponse pullResponse = checkConsumer.pull(pubsubSourceConfig.getCheckPullRequest());
+                PullResponse pullResponse = checkConsumer.pull(pubsubSourceConfig.getCheckPullRequest(subscriptionId));
                 LOGGER.info("Successfully pulled messages {}", pullResponse);
             }
             return new AirbyteConnectionStatus().withStatus(AirbyteConnectionStatus.Status.SUCCEEDED);
@@ -192,8 +195,7 @@ public class PubsubSource extends BaseEventConnector {
 
     @Override
     public AirbyteCatalog discover(JsonNode config) throws Exception {
-//        you don't get permission to read other subscription with GCP token so directly passing subscription
-        PubsubSourceConfig pubsubSourceConfig = new PubsubSourceConfig("DiscoverCommand", config, "");
+        PubsubSourceConfig pubsubSourceConfig = new PubsubSourceConfig(TEST_SOURCE_CONFIG, config, "");
         final Set<String> subscriptions = new HashSet<>();
         ProjectName projectName = pubsubSourceConfig.getProjectName();
         TopicAdminClient.ListTopicsPagedResponse listTopicsPagedResponse = null;
@@ -205,15 +207,7 @@ public class PubsubSource extends BaseEventConnector {
                 subscriptions.add(topicNameSeparated[topicNameSeparated.length-1]);
             }
         } catch (Exception e) {
-            try {
-                listTopicsPagedResponse = TopicAdminClient.create().listTopics(projectName);
-                for (Topic topic : listTopicsPagedResponse.iterateAll()) {
-                    String[] topicNameSeparated = topic.getName().split("/");
-                    subscriptions.add(topicNameSeparated[topicNameSeparated.length-1]);
-                }
-            } catch (Exception e1) {
-                subscriptions.add(pubsubSourceConfig.getProjectSubscriptionName().getSubscription());
-            }
+
         }
         final List<AirbyteStream> streams = subscriptions.stream().map(stream -> CatalogHelpers
                         .createAirbyteStream(stream, Field.of("value", JsonSchemaType.STRING))
@@ -265,6 +259,9 @@ public class PubsubSource extends BaseEventConnector {
 
         Map<String, Object> additionalProperties = catalog.getAdditionalProperties();
 
+        ConfiguredAirbyteStream configuredAirbyteStream = catalog.getStreams().get(0);
+        ((ObjectNode) config).put(STREAM_NAME,configuredAirbyteStream.getStream().getName());
+
         String eventSourceType = getEventSourceType(additionalProperties);
         String connectorId = getConnectorId(additionalProperties);
 
@@ -280,7 +277,7 @@ public class PubsubSource extends BaseEventConnector {
             eventConnectorJobStatusNotifier.setScheduledExecutorService(ses);
             for (int i = 0; i < numberOfConsumers; i++) {
                 String consumerThreadId = UUID.randomUUID().toString();
-                BicycleConsumer bicycleConsumer = new BicycleConsumer(consumerThreadId, bicycleConfig, config, catalog,eventSourceInfo, eventConnectorJobStatusNotifier,this);
+                BicycleConsumer bicycleConsumer = new BicycleConsumer(consumerThreadId, bicycleConfig, config, catalog, eventSourceInfo, eventConnectorJobStatusNotifier,this);
                 ses.schedule(bicycleConsumer, 1, TimeUnit.SECONDS);
             }
             AuthInfo authInfo = bicycleConfig.getAuthInfo();

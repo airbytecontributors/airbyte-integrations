@@ -19,6 +19,7 @@ import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -117,11 +118,11 @@ public class BicycleConsumer implements Runnable {
         int sampledRecords = 0;
         try {
             while (!this.pubsubSource.getStopConnectorBoolean().get()) {
-                final List<ReceivedMessage> recordsList = new ArrayList<>();
+                List<ReceivedMessage> recordsList;
                 PullRequest pullRequest = pubsubSourceConfig.getPullRequest();
                 PullResponse pullResponse =
                         consumer.pull(pullRequest);
-
+                Instant pullResponseTime = Instant.now();
                 int counter = 0;
                 logger.debug("No of records actually read by consumer {} are {}", name, pullResponse.getReceivedMessagesCount());
                 sampledRecords = getNumberOfRecordsToBeReturnedBasedOnSamplingRate(pullResponse.getReceivedMessagesCount(), samplingRate);
@@ -138,8 +139,8 @@ public class BicycleConsumer implements Runnable {
                     totalSize += record.getMessage().getSerializedSize();
                     messageAcks.add(record.getAckId());
                     counter++;
-                    recordsList.add(record);
                 }
+                recordsList = pullResponse.getReceivedMessagesList();
                 long finalByteTotalSize = totalSize.longValue();
                 this.pubsubSource.getTotalBytesProcessed().getAndUpdate(n->n+ finalByteTotalSize);
                 Long currentConsumerRecords = this.pubsubSource.getConsumerToSubscriptionRecordsRead().get(name);
@@ -166,6 +167,12 @@ public class BicycleConsumer implements Runnable {
 
                 try {
                     this.pubsubSource.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
+                    Instant publishedEventsTime = Instant.now();
+                    Long timeBetweenPullAndPublish = publishedEventsTime.getEpochSecond() - pullResponseTime.getEpochSecond();
+                    if (timeBetweenPullAndPublish > 8) {
+                        consumer.modifyAckDeadline(pubsubSourceConfig.getProjectSubscriptionName().toString(),
+                                messageAcks, timeBetweenPullAndPublish.intValue() + 5);
+                    }
                     consumer.acknowledge(pubsubSourceConfig.getProjectSubscriptionName().toString(), messageAcks);
                 } catch (Exception exception) {
                     logger.error("Unable to publish bicycle events for {} ", name, exception);
@@ -191,10 +198,10 @@ public class BicycleConsumer implements Runnable {
     public boolean check(final JsonNode config) {
         SubscriberStub consumer = null;
         try {
-            final String subscriptionId = config.has("subscription_id") ? config.get("subscription_id").asText() : "";
+            final String subscriptionId = config.has("test_subscription_id") ? config.get("test_subscription_id").asText() : "";
             if (!subscriptionId.isBlank()) {
                 SubscriptionAdminClient checkConsumer = pubsubSourceConfig.getCheckConsumer();
-                PullResponse pullResponse = checkConsumer.pull(pubsubSourceConfig.getCheckPullRequest());
+                PullResponse pullResponse = checkConsumer.pull(pubsubSourceConfig.getCheckPullRequest(subscriptionId));
                 logger.info("Successfully pulled messages {}", pullResponse);
             }
             return true;
