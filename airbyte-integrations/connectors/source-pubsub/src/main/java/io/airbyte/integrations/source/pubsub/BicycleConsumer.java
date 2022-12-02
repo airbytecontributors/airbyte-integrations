@@ -8,6 +8,7 @@ import com.google.pubsub.v1.PullResponse;
 import com.google.pubsub.v1.ReceivedMessage;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
+import io.airbyte.integrations.base.Command;
 import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
@@ -74,6 +75,9 @@ public class BicycleConsumer implements Runnable {
             try {
                 read(bicycleConfig, config, catalog, null);
             } catch (Exception exception) {
+                if (pubsubSourceConfig.getConsumer()!= null) {
+                    pubsubSourceConfig.getConsumer().close();
+                }
                 int retryLeft = retry - failed;
                 logger.error("Unable to run consumer with config " + config + ", retryleft - " + retryLeft,
                         exception);
@@ -104,7 +108,8 @@ public class BicycleConsumer implements Runnable {
     }
 
     public void read(BicycleConfig bicycleConfig, final JsonNode config, final ConfiguredAirbyteCatalog configuredAirbyteCatalog, final JsonNode state) {
-        final boolean check = check(config);
+        String subscriptionId = pubsubSourceConfig.getOrCreateSubscriptionId();
+        final boolean check = check(subscriptionId);
 
         logger.info("======Starting read operation for consumer " + name + " config: " + config + " catalog:"+ configuredAirbyteCatalog + "=======");
         if (!check) {
@@ -116,73 +121,66 @@ public class BicycleConsumer implements Runnable {
         int samplingRate = config.has("sampling_rate") ? config.get("sampling_rate").asInt(): 100;
 
         int sampledRecords = 0;
-        try {
-            while (!this.pubsubSource.getStopConnectorBoolean().get()) {
-                List<ReceivedMessage> recordsList;
-                PullRequest pullRequest = pubsubSourceConfig.getPullRequest();
-                PullResponse pullResponse =
-                        consumer.pull(pullRequest);
-                Instant pullResponseTime = Instant.now();
-                int counter = 0;
-                logger.debug("No of records actually read by consumer {} are {}", name, pullResponse.getReceivedMessagesCount());
-                sampledRecords = getNumberOfRecordsToBeReturnedBasedOnSamplingRate(pullResponse.getReceivedMessagesCount(), samplingRate);
+        while (!this.pubsubSource.getStopConnectorBoolean().get()) {
+            List<ReceivedMessage> recordsList;
+            PullRequest pullRequest = pubsubSourceConfig.getPullRequest(subscriptionId);
+            PullResponse pullResponse =
+                    consumer.pull(pullRequest);
+            Instant pullResponseTime = Instant.now();
+            int counter = 0;
+            logger.debug("No of records actually read by consumer {} are {}", name, pullResponse.getReceivedMessagesCount());
+            sampledRecords = getNumberOfRecordsToBeReturnedBasedOnSamplingRate(pullResponse.getReceivedMessagesCount(), samplingRate);
 
-                List<String> messageAcks = new ArrayList<>();
-                Double totalSize = Double.valueOf(0);
-                for (ReceivedMessage record : pullResponse.getReceivedMessagesList()) {
-                    logger.debug("Consumer Record: key - {}, value - {}",
-                            record.getMessage().getMessageId(), record.getMessage().getData().toStringUtf8());
+            List<String> messageAcks = new ArrayList<>();
+            Double totalSize = Double.valueOf(0);
+            for (ReceivedMessage record : pullResponse.getReceivedMessagesList()) {
+                logger.debug("Consumer Record: key - {}, value - {}",
+                        record.getMessage().getMessageId(), record.getMessage().getData().toStringUtf8());
 
-                    if (counter > sampledRecords) {
-                        break;
-                    }
-                    totalSize += record.getMessage().getSerializedSize();
-                    messageAcks.add(record.getAckId());
-                    counter++;
+                if (counter > sampledRecords) {
+                    break;
                 }
-                recordsList = pullResponse.getReceivedMessagesList();
-                long finalByteTotalSize = totalSize.longValue();
-                this.pubsubSource.getTotalBytesProcessed().getAndUpdate(n->n+ finalByteTotalSize);
-                Long currentConsumerRecords = this.pubsubSource.getConsumerToSubscriptionRecordsRead().get(name);
-                if (currentConsumerRecords == null) {
-                    currentConsumerRecords = Long.valueOf(0);
-                }
-                this.pubsubSource.getConsumerToSubscriptionRecordsRead().put(name, currentConsumerRecords + counter);
+                totalSize += record.getMessage().getSerializedSize();
+                messageAcks.add(record.getAckId());
+                counter++;
+            }
+            recordsList = pullResponse.getReceivedMessagesList();
+            long finalByteTotalSize = totalSize.longValue();
+            this.pubsubSource.getTotalBytesProcessed().getAndUpdate(n->n+ finalByteTotalSize);
+            Long currentConsumerRecords = this.pubsubSource.getConsumerToSubscriptionRecordsRead().get(name);
+            if (currentConsumerRecords == null) {
+                currentConsumerRecords = Long.valueOf(0);
+            }
+            this.pubsubSource.getConsumerToSubscriptionRecordsRead().put(name, currentConsumerRecords + counter);
 
-                logger.info("No of records read from consumer after sampling {} are {} ", name,
-                        counter);
+            logger.info("No of records read from consumer after sampling {} are {} ", name,
+                    counter);
 
-                if (recordsList.size() == 0) {
-                    continue;
-                }
-
-                EventProcessorResult eventProcessorResult = null;
-                AuthInfo authInfo = bicycleConfig.getAuthInfo();
-                try {
-                    List<RawEvent> rawEvents = this.pubsubSource.convertRecordsToRawEvents(recordsList);
-                    eventProcessorResult = this.pubsubSource.convertRawEventsToBicycleEvents(authInfo,eventSourceInfo,rawEvents);
-                } catch (Exception exception) {
-                    logger.error("Unable to convert raw records to bicycle events for {} ",name, exception);
-                }
-
-                try {
-                    this.pubsubSource.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
-                    Instant publishedEventsTime = Instant.now();
-                    Long timeBetweenPullAndPublish = publishedEventsTime.getEpochSecond() - pullResponseTime.getEpochSecond();
-                    if (timeBetweenPullAndPublish > 8) {
-                        consumer.modifyAckDeadline(pubsubSourceConfig.getProjectSubscriptionName().toString(),
-                                messageAcks, timeBetweenPullAndPublish.intValue() + 5);
-                    }
-                    consumer.acknowledge(pubsubSourceConfig.getProjectSubscriptionName().toString(), messageAcks);
-                } catch (Exception exception) {
-                    logger.error("Unable to publish bicycle events for {} ", name, exception);
-                }
+            if (recordsList.size() == 0) {
+                continue;
             }
 
-        } catch (Exception e) {
-            logger.error("Consumer stopped because ", e);
-        } finally {
-            consumer.close();
+            EventProcessorResult eventProcessorResult = null;
+            AuthInfo authInfo = bicycleConfig.getAuthInfo();
+            try {
+                List<RawEvent> rawEvents = this.pubsubSource.convertRecordsToRawEvents(recordsList);
+                eventProcessorResult = this.pubsubSource.convertRawEventsToBicycleEvents(authInfo,eventSourceInfo,rawEvents);
+            } catch (Exception exception) {
+                logger.error("Unable to convert raw records to bicycle events for {} ",name, exception);
+            }
+
+            try {
+                this.pubsubSource.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
+                Instant publishedEventsTime = Instant.now();
+                Long timeBetweenPullAndPublish = publishedEventsTime.getEpochSecond() - pullResponseTime.getEpochSecond();
+//                if (timeBetweenPullAndPublish > 8) {
+//                    consumer.modifyAckDeadline(pubsubSourceConfig.getProjectSubscriptionName(subscriptionId).toString(),
+//                            messageAcks, timeBetweenPullAndPublish.intValue() + 5);
+//                }
+                consumer.acknowledge(pubsubSourceConfig.getProjectSubscriptionName(subscriptionId).toString(), messageAcks);
+            } catch (Exception exception) {
+                logger.error("Unable to publish bicycle events for {} ", name, exception);
+            }
         }
     }
 
@@ -195,22 +193,20 @@ public class BicycleConsumer implements Runnable {
 
     }
 
-    public boolean check(final JsonNode config) {
-        SubscriberStub consumer = null;
+    public boolean check(String subscriptionId) {
+        SubscriptionAdminClient checkConsumer = null;
         try {
-            final String subscriptionId = config.has("test_subscription_id") ? config.get("test_subscription_id").asText() : "";
             if (!subscriptionId.isBlank()) {
-                SubscriptionAdminClient checkConsumer = pubsubSourceConfig.getCheckConsumer();
+                checkConsumer = pubsubSourceConfig.getCheckConsumer();
                 PullResponse pullResponse = checkConsumer.pull(pubsubSourceConfig.getCheckPullRequest(subscriptionId));
-                logger.info("Successfully pulled messages {}", pullResponse);
             }
             return true;
         } catch (final Exception e) {
             logger.error("Exception attempting to connect to the Pubsub Subscription: ", e);
             return false;
         } finally {
-            if (consumer != null) {
-                consumer.close();
+            if (checkConsumer != null) {
+                checkConsumer.close();
             }
         }
     }

@@ -35,6 +35,7 @@ public class PubsubMetricAsEventsGenerator extends MetricAsEventsGenerator {
     private static final String STAT_TYPE = "Sum";
     private static final Logger LOGGER = LoggerFactory.getLogger(PubsubMetricAsEventsGenerator.class);
     private final PubsubSourceConfig pubsubSourceConfig;
+    private final String subscriptionId;
     private MetricServiceClient metricServiceClient;
     private final ProjectSubscriptionName projectSubscriptionName;
     private ProjectName projectName;
@@ -45,42 +46,47 @@ public class PubsubMetricAsEventsGenerator extends MetricAsEventsGenerator {
         pubsubSourceConfig = ((PubsubSource) eventConnector).getPubsubSourceConfig();
         projectName = pubsubSourceConfig.getProjectName();
         FixedCredentialsProvider gcpCredentials = pubsubSourceConfig.getGCPCredentials();
-        projectSubscriptionName = pubsubSourceConfig.getProjectSubscriptionName();
+        subscriptionId = pubsubSourceConfig.getSubscriptionId();
+        projectSubscriptionName = pubsubSourceConfig.getProjectSubscriptionName(subscriptionId);
         try {
             metricServiceClient = MetricServiceClient.create(MetricServiceSettings.newBuilder().setCredentialsProvider(gcpCredentials).build());
         } catch (IOException e) {
             logger.error("Unable to create Metric Service Client for pubsub connector with connector Id {}", bicycleConfig.getConnectorId(), e);
         }
-
     }
 
 
     private Map<Metric, Double> getClientLagMetric() {
         Map<Metric, Double> metricToValue = new HashMap<>();
-        try {
-            TimeInterval interval = TimeInterval.newBuilder()
-                    .setStartTime(fromMillis(currentTimeMillis() - (120 * 1000)))
-                    .setEndTime(fromMillis(currentTimeMillis()))
-                    .build();
-
-            ListTimeSeriesRequest request = ListTimeSeriesRequest.newBuilder().setName(projectName.toString())
-                    .setFilter("metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\"")
-                    .setInterval(interval)
-                    .setView(ListTimeSeriesRequest.TimeSeriesView.FULL)
-                    .build();
-
-            MetricServiceClient.ListTimeSeriesPagedResponse listTimeSeriesPagedResponse = metricServiceClient.listTimeSeries(request);
-            for (TimeSeries timeSeries : listTimeSeriesPagedResponse.iterateAll()) {
-                Map<String, String> labelsMap = timeSeries.getResource().getLabelsMap();
-                if (labelsMap.get("subscription_id").equals(projectSubscriptionName.getSubscription())) {
-                    Point point = timeSeries.getPointsList().get(0);
-                    Double value = getValue(point.getValue());
-                    metricToValue.put(timeSeries.getMetric(), value);
-                }
-            }
+        if (metricServiceClient == null) {
             return metricToValue;
-        } catch (Exception e) {
-            LOGGER.error("Error getting Metric from GCP", e);
+        } else {
+            try {
+                TimeInterval interval = TimeInterval.newBuilder()
+                        .setStartTime(fromMillis(currentTimeMillis() - (120 * 1000)))
+                        .setEndTime(fromMillis(currentTimeMillis()))
+                        .build();
+
+                ListTimeSeriesRequest request = ListTimeSeriesRequest.newBuilder().setName(projectName.toString())
+                        .setFilter("metric.type=\"pubsub.googleapis.com/subscription/num_undelivered_messages\"")
+                        .setInterval(interval)
+                        .setView(ListTimeSeriesRequest.TimeSeriesView.FULL)
+                        .build();
+
+                MetricServiceClient.ListTimeSeriesPagedResponse listTimeSeriesPagedResponse = metricServiceClient.listTimeSeries(request);
+                for (TimeSeries timeSeries : listTimeSeriesPagedResponse.iterateAll()) {
+                    Map<String, String> labelsMap = timeSeries.getResource().getLabelsMap();
+                    if (labelsMap.get("subscription_id").equals(projectSubscriptionName.getSubscription())) {
+                        Point point = timeSeries.getPointsList().get(0);
+                        Double value = getValue(point.getValue());
+                        metricToValue.put(timeSeries.getMetric(), value);
+                    }
+                }
+                return metricToValue;
+            } catch (Exception e) {
+                LOGGER.error("Error getting Metric from GCP", e);
+                metricServiceClient = null;
+            }
         }
         return Collections.EMPTY_MAP;
     }
@@ -103,7 +109,7 @@ public class PubsubMetricAsEventsGenerator extends MetricAsEventsGenerator {
             attributes.put(CONNECTOR_ID, eventSourceInfo.getEventSourceId());
 
             Map<Metric, Double> consumerMetrics = getClientLagMetric();
-            ProjectSubscriptionName projectSubscriptionName = pubsubSourceConfig.getProjectSubscriptionName();
+            ProjectSubscriptionName projectSubscriptionName = pubsubSourceConfig.getProjectSubscriptionName(subscriptionId);
             Long totalLag = 0L;
             for (Map.Entry<Metric, Double> entry : consumerMetrics.entrySet()) {
                 Map<String, String> labels = new HashMap<>();
@@ -111,11 +117,7 @@ public class PubsubMetricAsEventsGenerator extends MetricAsEventsGenerator {
                 stringBuilder.append(LAG_METRIC);
                 stringBuilder.append(METRIC_NAME_SEPARATOR);
                 stringBuilder.append(projectSubscriptionName.getSubscription());
-                stringBuilder.append(METRIC_NAME_SEPARATOR);
                 labels.put(TOPIC, projectSubscriptionName.getSubscription());
-                String[] splitMetricTypeString = entry.getKey().getType().split("/");
-                String metricName = splitMetricTypeString[splitMetricTypeString.length - 1];
-                stringBuilder.append(metricName);
                 totalLag += entry.getValue().longValue();
                 attributes.put(stringBuilder.toString(), String.valueOf(entry.getValue()));
                 metricsMap.put(getTagEncodedMetricName(LAG_METRIC, labels), entry.getValue().longValue());

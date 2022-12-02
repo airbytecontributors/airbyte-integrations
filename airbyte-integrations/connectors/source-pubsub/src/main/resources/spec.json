@@ -40,7 +40,7 @@
       "max_inbound_message_size": {
         "type": "integer",
         "description": "Maximum inbound message size for the consumer ",
-        "title": "Maximum Inbound Message Size",
+        "title": "Maximum Inbound Message Size, in bytes",
         "default": 20971520
       }
     }

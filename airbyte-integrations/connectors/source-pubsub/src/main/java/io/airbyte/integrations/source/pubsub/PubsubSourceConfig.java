@@ -4,12 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.api.gax.rpc.AlreadyExistsException;
-import com.google.api.gax.rpc.PermissionDeniedException;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.pubsub.v1.SubscriptionAdminClient;
 import com.google.cloud.pubsub.v1.SubscriptionAdminSettings;
 import com.google.common.base.Charsets;
 import com.google.pubsub.v1.*;
+import io.airbyte.integrations.base.Command;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,6 +27,8 @@ public class PubsubSourceConfig {
     private PullRequest pullRequest = null;
     private ProjectName projectName = null;
     private String subscriptionId = null;
+    private String topicId = null;
+    private boolean isBicycleSubscription = false;
 
     public PubsubSourceConfig(String consumerThreadName, final JsonNode config, String connectorId) {
         this.consumerThreadName = consumerThreadName;
@@ -34,6 +36,7 @@ public class PubsubSourceConfig {
         this.connectorId = connectorId;
         subscriptionAdminClient = getConsumer();
         subscriptionId = config.has("subscription_id") ? config.get("subscription_id").asText() : "";
+        topicId = config.has("topic_name") ? config.get("topic_name").asText(): "";
     }
 
     public ProjectName getProjectName() {
@@ -64,30 +67,42 @@ public class PubsubSourceConfig {
         return subscriptionAdminClient;
     }
 
-    public String defaultSubscriptionId (String topic) {
+    private String defaultSubscriptionId (String topic) {
         return topic + "-bicycle-sub-" + connectorId;
     }
 
-    public String createSubscription() {
-        if (subscriptionId.isBlank() != false) {
-            SubscriptionAdminClient consumer = getConsumer();
-            String topic = config.has(STREAM_NAME) ? config.get(STREAM_NAME).asText() : "";
-            int acknowledgeDeadline = config.has("acknowledge_deadline") ? config.get("acknowledge_deadline").asInt() : 10;
-            TopicName topicName = TopicName.of(getProjectName().getProject(), topic);
-            ProjectSubscriptionName projectSubscriptionName = ProjectSubscriptionName.of(getProjectName().toString(), defaultSubscriptionId(topic));
-            try {
-                consumer.createSubscription(projectSubscriptionName.toString(), topicName, PushConfig.getDefaultInstance(), acknowledgeDeadline);
-            } catch (AlreadyExistsException e) {
-                subscriptionId = defaultSubscriptionId(topic);
-                ((ObjectNode) config).put("subscription_id", subscriptionId);
-                return subscriptionId;
-            } catch (Exception e) {
-                return subscriptionId;
-            }
-            subscriptionId = defaultSubscriptionId(topic);
-            ((ObjectNode) config).put("subscription_id", subscriptionId);
+
+
+    public String getOrCreateSubscriptionId() {
+        if (subscriptionId.isBlank()) {
+            subscriptionId = createSubscription();
         }
         return subscriptionId;
+    }
+
+    public String getSubscriptionId() {
+        return subscriptionId;
+    }
+
+    private String createSubscription() {
+        SubscriptionAdminClient consumer = getConsumer();
+        String topic = config.has(STREAM_NAME) ? config.get(STREAM_NAME).asText() : "";
+        int acknowledgeDeadline = config.has("acknowledge_deadline") ? config.get("acknowledge_deadline").asInt() : 10;
+        TopicName topicName = TopicName.of(getProjectName().getProject(), topic);
+        String subscriptionId = defaultSubscriptionId(topic);
+        ProjectSubscriptionName projectSubscriptionName = getProjectSubscriptionName(subscriptionId);
+        try {
+            consumer.createSubscription(projectSubscriptionName.toString(), topicName, PushConfig.getDefaultInstance(), acknowledgeDeadline);
+            isBicycleSubscription = true;
+            return subscriptionId;
+        } catch (AlreadyExistsException e) {
+            logger.error("Failed to create the subscription because same name subscription already exists", e);
+            logger.info("Using default subscription");
+            return subscriptionId;
+        } catch (Exception e) {
+            logger.error("unable to create the subscription {}", subscriptionId, e);
+            return "";
+        }
     }
 
     public SubscriptionAdminClient getCheckConsumer() {
@@ -110,11 +125,18 @@ public class PubsubSourceConfig {
         return null;
     }
 
-    public PullRequest getPullRequest() {
+    public void deleteSubscription (String subscriptionId) {
+        try {
+            subscriptionAdminClient.deleteSubscription(ProjectSubscriptionName.of(projectName.getProject(), subscriptionId).toString());
+        } catch (Exception e) {
+            logger.error("Unable to delete Subscription {}", subscriptionId, e);
+        }
+    }
+
+    public PullRequest getPullRequest(String subscriptionId) {
        if (pullRequest == null) {
            final int maxNumberOfMessages  = config.has("max_number_of_messages") ? config.get("max_number_of_messages").asInt() : 500;
-           subscriptionId = createSubscription();
-           ProjectSubscriptionName projectSubscriptionName = ProjectSubscriptionName.of(getProjectName().getProject(), subscriptionId);
+           ProjectSubscriptionName projectSubscriptionName = getProjectSubscriptionName(subscriptionId);
            pullRequest = PullRequest.newBuilder()
                    .setMaxMessages(maxNumberOfMessages)
                    .setSubscription(projectSubscriptionName.toString())
@@ -125,8 +147,8 @@ public class PubsubSourceConfig {
 
     public PullRequest getCheckPullRequest(String testSubscriptionId) {
         if (checkPullrequest == null) {
-            ProjectSubscriptionName projectSubscriptionName = ProjectSubscriptionName.of(getProjectName().getProject(), testSubscriptionId);
-            int maxNumberOfMessages = 10;
+            ProjectSubscriptionName projectSubscriptionName = getProjectSubscriptionName(testSubscriptionId);
+            int maxNumberOfMessages = 100;
             checkPullrequest = PullRequest.newBuilder()
                     .setMaxMessages(maxNumberOfMessages)
                     .setSubscription(projectSubscriptionName.toString())
@@ -135,8 +157,11 @@ public class PubsubSourceConfig {
         return checkPullrequest;
     }
 
-    public ProjectSubscriptionName getProjectSubscriptionName() {
-        subscriptionId = createSubscription();
+    public ProjectSubscriptionName getProjectSubscriptionName(String subscriptionId) {
         return ProjectSubscriptionName.of(getProjectName().getProject(), subscriptionId);
+    }
+
+    public boolean isBicycleSubscription() {
+        return isBicycleSubscription;
     }
 }

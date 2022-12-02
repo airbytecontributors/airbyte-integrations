@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.cloud.pubsub.v1.SubscriptionAdminClient;
+import com.google.cloud.pubsub.v1.SubscriptionAdminSettings;
 import com.google.cloud.pubsub.v1.TopicAdminClient;
 import com.google.cloud.pubsub.v1.TopicAdminSettings;
 import com.google.cloud.pubsub.v1.stub.SubscriberStub;
@@ -130,12 +131,17 @@ public class PubsubSource extends BaseEventConnector {
         ConfiguredAirbyteStream configuredAirbyteStream = catalog.getStreams().get(0);
         ((ObjectNode) config).put(STREAM_NAME,configuredAirbyteStream.getStream().getName());
 
-        PubsubSourceConfig pubsubSourceConfig = new PubsubSourceConfig(UUID.randomUUID().toString(), config, null);
+        String streamName = configuredAirbyteStream.getStream().getName();
+        PubsubSourceConfig pubsubSourceConfig = new PubsubSourceConfig(UUID.randomUUID().toString(), config, "preview");
         final SubscriptionAdminClient consumer = pubsubSourceConfig.getConsumer();
         List<ReceivedMessage> recordsList;
-        PullRequest pullRequest = pubsubSourceConfig.getPullRequest();
+        String subscriptionId = pubsubSourceConfig.getOrCreateSubscriptionId();
+        PullRequest pullRequest = pubsubSourceConfig.getPullRequest(subscriptionId);
         PullResponse pullResponse =
                 consumer.pull(pullRequest);
+        if (pubsubSourceConfig.isBicycleSubscription()) {
+            pubsubSourceConfig.deleteSubscription(subscriptionId);
+        }
         consumer.close();
         recordsList = pullResponse.getReceivedMessagesList();
         final Iterator<ReceivedMessage> iterator = recordsList.iterator();
@@ -153,7 +159,7 @@ public class PubsubSource extends BaseEventConnector {
                     return new AirbyteMessage()
                             .withType(AirbyteMessage.Type.RECORD)
                             .withRecord(new AirbyteRecordMessage()
-                                    .withStream(pubsubSourceConfig.getProjectSubscriptionName().getSubscription())
+                                    .withStream(streamName)
                                     .withEmittedAt(Instant.now().toEpochMilli())
                                     .withData(previewMessage));
                 }
@@ -172,11 +178,11 @@ public class PubsubSource extends BaseEventConnector {
     @Override
     public AirbyteConnectionStatus check(JsonNode config) {
         PubsubSourceConfig pubsubSourceConfig = new PubsubSourceConfig(TEST_SOURCE_CONFIG, config, null);
-        SubscriberStub consumer = null;
+        SubscriptionAdminClient checkConsumer = null;
         try {
             final String subscriptionId = config.has("subscription_id") ? config.get("subscription_id").asText() : "";
             if (!subscriptionId.isBlank()) {
-                SubscriptionAdminClient checkConsumer = pubsubSourceConfig.getCheckConsumer();
+                checkConsumer = pubsubSourceConfig.getCheckConsumer();
                 PullResponse pullResponse = checkConsumer.pull(pubsubSourceConfig.getCheckPullRequest(subscriptionId));
                 LOGGER.info("Successfully pulled messages {}", pullResponse);
             }
@@ -187,8 +193,8 @@ public class PubsubSource extends BaseEventConnector {
                     .withStatus(AirbyteConnectionStatus.Status.FAILED)
                     .withMessage("Could not connect to the Kafka brokers with provided configuration. \n" + e.getMessage());
         } finally {
-            if (consumer != null) {
-                consumer.close();
+            if (checkConsumer != null) {
+                checkConsumer.close();
             }
         }
     }
@@ -199,15 +205,30 @@ public class PubsubSource extends BaseEventConnector {
         final Set<String> subscriptions = new HashSet<>();
         ProjectName projectName = pubsubSourceConfig.getProjectName();
         TopicAdminClient.ListTopicsPagedResponse listTopicsPagedResponse = null;
-        try {
-            TopicAdminClient topicAdminClient = TopicAdminClient.create(TopicAdminSettings.newBuilder().setCredentialsProvider(pubsubSourceConfig.getGCPCredentials()).build());
-            listTopicsPagedResponse = topicAdminClient.listTopics(projectName);
-            for (Topic topic : listTopicsPagedResponse.iterateAll()) {
-                String[] topicNameSeparated = topic.getName().split("/");
-                subscriptions.add(topicNameSeparated[topicNameSeparated.length-1]);
+        String subscriptionId = config.has("subscription_id") ? config.get("subscription_id").asText() : "";
+        if (subscriptionId != "") {
+            try {
+                SubscriptionAdminClient subscriptionAdminClient = SubscriptionAdminClient.create(SubscriptionAdminSettings.newBuilder().setCredentialsProvider(pubsubSourceConfig.getGCPCredentials()).build());
+                Subscription subscription = subscriptionAdminClient.getSubscription(pubsubSourceConfig.getProjectSubscriptionName(subscriptionId).toString());
+                String topic = subscription.getTopic();
+                subscriptionAdminClient.close();
+                String[] strings = topic.split("/");
+                subscriptions.add(strings[strings.length-1]);
+            } catch (Exception e) {
+                LOGGER.error("Unable to get subscription details because", e);
             }
-        } catch (Exception e) {
-
+        } else {
+            try {
+                TopicAdminClient topicAdminClient = TopicAdminClient.create(TopicAdminSettings.newBuilder().setCredentialsProvider(pubsubSourceConfig.getGCPCredentials()).build());
+                listTopicsPagedResponse = topicAdminClient.listTopics(projectName);
+                for (Topic topic : listTopicsPagedResponse.iterateAll()) {
+                    String[] topicNameSeparated = topic.getName().split("/");
+                    subscriptions.add(topicNameSeparated[topicNameSeparated.length - 1]);
+                }
+                topicAdminClient.close();
+            } catch (Exception e) {
+                LOGGER.error("Unable to list topics because", e);
+            }
         }
         final List<AirbyteStream> streams = subscriptions.stream().map(stream -> CatalogHelpers
                         .createAirbyteStream(stream, Field.of("value", JsonSchemaType.STRING))
@@ -270,6 +291,7 @@ public class PubsubSource extends BaseEventConnector {
 
         eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
         pubsubSourceConfig = new PubsubSourceConfig("PubsubSource", config, bicycleConfig.getConnectorId());
+        String subscriptionId = pubsubSourceConfig.getOrCreateSubscriptionId();
         MetricAsEventsGenerator metricAsEventsGenerator = new PubsubMetricAsEventsGenerator(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher,this);
         try {
             ses.scheduleAtFixedRate(metricAsEventsGenerator, 60, 60, TimeUnit.SECONDS);
