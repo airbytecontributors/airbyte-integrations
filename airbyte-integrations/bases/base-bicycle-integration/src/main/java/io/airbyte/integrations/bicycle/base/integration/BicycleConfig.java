@@ -13,6 +13,7 @@ public class BicycleConfig {
 
     private final static String SAAS_AUTH_PRINCIPAL = "system-user";
     private final static String SAAS_AUTH_ROLE = "AGENT";
+    public final static String SAAS_API_ROLE = "API";
 
     private final String serverURL;
     private final String token;
@@ -54,7 +55,19 @@ public class BicycleConfig {
             localVariableAuthInfo = authInfo;
         }
         else {
-            localVariableAuthInfo = this.getAuthInfoForWorker(systemAuthenticator, tenantId);
+            localVariableAuthInfo = this.getAuthInfoForWorker(systemAuthenticator, tenantId, SAAS_AUTH_ROLE);
+        }
+//        LOGGER.info("TenantId: {} token {}", tenantId, localVariableAuthInfo.getToken());
+        return localVariableAuthInfo;
+    }
+
+    public AuthInfo getAuthInfo(String role) {
+        AuthInfo localVariableAuthInfo;
+        if (isOnPremDeployment) {
+            localVariableAuthInfo = authInfo;
+        }
+        else {
+            localVariableAuthInfo = this.getAuthInfoForWorker(systemAuthenticator, tenantId, role);
         }
 //        LOGGER.info("TenantId: {} token {}", tenantId, localVariableAuthInfo.getToken());
         return localVariableAuthInfo;
@@ -79,7 +92,7 @@ public class BicycleConfig {
         return metricStoreURL;
     }
 
-    private AuthInfo getAuthInfoForWorker(SystemAuthenticator systemAuthenticator, String tenantId) {
-        return systemAuthenticator.authenticateAs(SAAS_AUTH_PRINCIPAL, tenantId, SAAS_AUTH_ROLE);
+    private AuthInfo getAuthInfoForWorker(SystemAuthenticator systemAuthenticator, String tenantId, String role) {
+        return systemAuthenticator.authenticateAs(SAAS_AUTH_PRINCIPAL, tenantId, role);
     }
 }

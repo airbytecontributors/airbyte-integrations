@@ -48,7 +48,11 @@ public class CSVConnector extends BaseEventConnector {
     private static final String LAST_RUNTIME_IN_MILLIS = "LAST_RUNTIME_IN_MILLIS";
     private static final String BACKFILL_RUNTIME_IN_MILLIS = "BACKFILL_RUNTIME_IN_MILLIS";
 
-    private static final String PREVIOUS_BUCKET_TIME_IN_MILLIS = "PREVIOUS_BUCKET_TIME_IN_MILLIS";
+    private static final String PREVIOUS_BUCKET_NUMBER = "PREVIOUS_BUCKET_NUMBER";
+    private static final String PREVIOUS_BUCKET_START_TIME_IN_MILLIS = "PREVIOUS_BUCKET_START_TIME_IN_MILLIS";
+
+    private static final String BACKFILL_PREVIOUS_BUCKET_NUMBER = "BACKFILL_PREVIOUS_BUCKET_NUMBER";
+    private static final String BACKFILL_PREVIOUS_BUCKET_START_TIME_IN_MILLIS = "BACKFILL_PREVIOUS_BUCKET_START_TIME_IN_MILLIS";
     private volatile boolean shutdown = false;
     private static final int BATCH_SIZE = 1000;
     private int CONNECT_TIMEOUT_IN_MILLIS = 60000;
@@ -72,8 +76,8 @@ public class CSVConnector extends BaseEventConnector {
     private String backfillStartTimestamp;
     private String backfillEndTimestamp;
 
-    private long previousBucketStartTimeMillis = -1;
     private long periodicityInMillis = 60000;
+    private long backfillSleepTimeInMillis = 2000;
 
     private boolean publishEventsEnabled = true;
 
@@ -188,6 +192,11 @@ public class CSVConnector extends BaseEventConnector {
         if (shutdown) {
             return null;
         }
+        if (state == null) {
+            LOGGER.info("Initialized State is null");
+        } else {
+            LOGGER.info("Initialized State [{}]", state);
+        }
         try {
             LOGGER.info("Starting Read v2");
             this.csvUrl = getCsvUrl(config);
@@ -211,6 +220,10 @@ public class CSVConnector extends BaseEventConnector {
                     = config.get("periodicity") != null ? config.get("periodicity").asInt() * 1000 : periodicityInMillis;
             boolean backfill = config.get("backfill") != null ? config.get("backfill").asBoolean() : false;
             boolean replay = config.get("replay") != null ? config.get("replay").asBoolean() : true;
+
+            this.backfillSleepTimeInMillis
+                    = additionalProperties != null && additionalProperties.get("backfillSleepTimeInMillis") != null
+                        ? Long.parseLong(additionalProperties.get("backfillSleepTimeInMillis").toString()) : 2000;
 
             Map<Long, Map<Long, List<Long>>> bucketVsRecords
                     = readFile(csvUrl, timestampHeaderField, getUTCTimesupplier());
@@ -240,88 +253,141 @@ public class CSVConnector extends BaseEventConnector {
     private void replay(boolean replay, long lastPublishedTimeInMillis,
                         Map<Long, Map<Long, List<Long>>> bucketVsRecords) throws Exception {
         long previousBucketNumber = -1;
+        long previousBucketStartTimeMillis = -1;
+
         long lastRunTimeInMillis = getStateAsLong(LAST_RUNTIME_IN_MILLIS);
+        LOGGER.info("Replay [{}] [{}] [{}] [{}]", getTenantId(), getConnectorId(),
+                lastRunTimeInMillis, lastPublishedTimeInMillis);
         lastRunTimeInMillis = lastRunTimeInMillis == -1  ? lastPublishedTimeInMillis :
                 lastRunTimeInMillis > lastPublishedTimeInMillis ? lastRunTimeInMillis : lastPublishedTimeInMillis;
         while (replay && !shutdown) {
+            long currentTimeInMillis = -1;
             if (lastRunTimeInMillis == -1) {
-                long currentTimeInMillis = System.currentTimeMillis();
-                previousBucketNumber = process(bucketVsRecords, previousBucketNumber, currentTimeInMillis);
-                if (true) {
-                    saveState(LAST_RUNTIME_IN_MILLIS, currentTimeInMillis);
-                }
-                lastRunTimeInMillis = currentTimeInMillis;
+                currentTimeInMillis = System.currentTimeMillis();
             } else {
-                long currentTimeInMillis;
                 if (lastRunTimeInMillis + periodicityInMillis > System.currentTimeMillis()) {
                     currentTimeInMillis = System.currentTimeMillis();
                 } else {
                     currentTimeInMillis = lastRunTimeInMillis + periodicityInMillis;
                 }
-                previousBucketNumber = process(bucketVsRecords, previousBucketNumber, currentTimeInMillis);
-                if (true) {
-                    saveState(LAST_RUNTIME_IN_MILLIS, currentTimeInMillis);
-                }
-                lastRunTimeInMillis = currentTimeInMillis;
             }
+
+            if (previousBucketNumber == -1) {
+                previousBucketNumber = getStateAsLong(PREVIOUS_BUCKET_NUMBER);
+            }
+            if (previousBucketStartTimeMillis == -1) {
+                previousBucketStartTimeMillis = getStateAsLong(PREVIOUS_BUCKET_START_TIME_IN_MILLIS);
+            }
+
+            long startTimeInMillis = getWindowStartTimeInMillis(currentTimeInMillis);
+            long bucketNumber = getBucketNumber(currentTimeInMillis);
+            process(bucketVsRecords, previousBucketNumber, previousBucketStartTimeMillis,
+                        bucketNumber, startTimeInMillis,
+                        currentTimeInMillis, 2000L);
+            if (previousBucketNumber != bucketNumber) {
+                previousBucketNumber = bucketNumber;
+                previousBucketStartTimeMillis = startTimeInMillis;
+                saveState(PREVIOUS_BUCKET_NUMBER, previousBucketNumber);
+                saveState(PREVIOUS_BUCKET_START_TIME_IN_MILLIS, previousBucketStartTimeMillis);
+            }
+            saveState(LAST_RUNTIME_IN_MILLIS, currentTimeInMillis);
+            lastRunTimeInMillis = currentTimeInMillis;
         }
     }
 
     private long backfill(boolean backfill, Map<Long, Map<Long, List<Long>>> bucketVsRecords) throws Exception {
-        if (backfill && !getStateAsBoolean(BACKFILL_COMPLETE)) {
-            LOGGER.info("Enabled backfill [{}] [{}]", getTenantId(), getConnectorId());
-            long backfillTimeInMillis = getStateAsLong(BACKFILL_RUNTIME_IN_MILLIS);
+        boolean stateAsBoolean = getStateAsBoolean(BACKFILL_COMPLETE);
+        if (backfill && !stateAsBoolean) {
+            long previousBackfillRuntimeInMillis = getStateAsLong(BACKFILL_RUNTIME_IN_MILLIS);
             long backfillTimeInMillisStart = getUTCTimesupplier().apply(backfillStartTimestamp);
             long backfillTimeInMillisEnd = backfillEndTimestamp != null ?
                     getUTCTimesupplier().apply(backfillEndTimestamp) : -1;
-            long timeInMillis = backfillTimeInMillis != -1 ? backfillTimeInMillis : backfillTimeInMillisStart;
-            long previousBucket = -1;
+            LOGGER.info("Enabled backfill [{}] [{}] [{}] [{}] [{}]", getTenantId(), getConnectorId(),
+                    previousBackfillRuntimeInMillis, backfillTimeInMillisStart, backfillTimeInMillisEnd);
+
+            long timeInMillis;
+            if (previousBackfillRuntimeInMillis != -1
+                    && previousBackfillRuntimeInMillis >= backfillTimeInMillisStart
+                    && previousBackfillRuntimeInMillis < backfillTimeInMillisEnd) {
+                timeInMillis = previousBackfillRuntimeInMillis;
+            } else {
+                timeInMillis = backfillTimeInMillisStart;
+            }
+            LOGGER.info("Backfill Start [{}] [{}] [{}] [{}] [{}]", getTenantId(), getConnectorId(),
+                    timeInMillis, backfillTimeInMillisStart, backfillTimeInMillisEnd);
+            long previousBucketNumber = -1;
+            long previousBucketStartTimeMillis = -1;
             long lastpublishedTimeInMillis = -1;
             while (!shutdown &&
                     ((backfillTimeInMillisEnd == -1 && timeInMillis < (System.currentTimeMillis() - periodicityInMillis))
                     || (timeInMillis <= backfillTimeInMillisEnd))) {
-                previousBucket = process(bucketVsRecords, previousBucket, timeInMillis);
+
+                if (previousBucketNumber == -1) {
+                    previousBucketNumber = getStateAsLong(BACKFILL_PREVIOUS_BUCKET_NUMBER);
+                }
+                if (previousBucketStartTimeMillis == -1) {
+                    previousBucketStartTimeMillis = getStateAsLong(BACKFILL_PREVIOUS_BUCKET_START_TIME_IN_MILLIS);
+                }
+
+                long startTimeInMillis = getWindowStartTimeInMillis(timeInMillis);
+                long bucketNumber = getBucketNumber(timeInMillis);
+                process(bucketVsRecords, previousBucketNumber, previousBucketStartTimeMillis,
+                            bucketNumber, startTimeInMillis,
+                            timeInMillis, backfillSleepTimeInMillis);
+
+                if (previousBucketNumber != bucketNumber) {
+                    previousBucketNumber = bucketNumber;
+                    previousBucketStartTimeMillis = startTimeInMillis;
+                    saveState(BACKFILL_PREVIOUS_BUCKET_NUMBER, previousBucketNumber);
+                    saveState(BACKFILL_PREVIOUS_BUCKET_START_TIME_IN_MILLIS, previousBucketStartTimeMillis);
+                }
                 lastpublishedTimeInMillis = timeInMillis;
                 timeInMillis = timeInMillis + periodicityInMillis;
-                if (true) {
-                    saveState(BACKFILL_RUNTIME_IN_MILLIS, timeInMillis);
-                }
+                saveState(BACKFILL_RUNTIME_IN_MILLIS, timeInMillis);
             }
-            LOGGER.info("Backfill Complete [{}] [{}]", getTenantId(), getConnectorId());
+            LOGGER.info("Backfill Complete [{}] [{}] [{}]", getTenantId(), getConnectorId(), timeInMillis);
             if (!shutdown)
                 saveState(BACKFILL_COMPLETE, true);
             return lastpublishedTimeInMillis;
         } else {
-            LOGGER.info("Disabled backfill [{}] [{}]", getTenantId(), getConnectorId());
+            LOGGER.info("Disabled backfill [{}] [{}] [{}] [{}]", getTenantId(), getConnectorId(), shutdown,
+                    stateAsBoolean);
             return  -1;
         }
     }
 
-    private long process(Map<Long, Map<Long, List<Long>>> bucketVsRecords, long previousBucketNumber,
-                         long timeInMillis) throws Exception {
+    private boolean process(Map<Long, Map<Long, List<Long>>> bucketVsRecords,
+                         long previousBucketNumber, long previousBucketStartTimeMillis,
+                         long currentBucketNumber, long currentBucketStartTimeMillis,
+                         long currentTimeInMillis, long sleepTimeInMillis) throws Exception {
         String eventSourceType = getEventSourceType();
         String connectorId = getConnectorId();
-        long startTimeInMillis = getWindowStartTimeInMillis(timeInMillis);
-        long bucketNumber = getBucketNumber(timeInMillis);
         LOGGER.info("Processing Records [{}] [{}] [{}] [{}] [{}] [{}]", getTenantId(), getConnectorId(),
-                new Date(startTimeInMillis), new Date(timeInMillis), previousBucketNumber, bucketNumber);
-        if (bucketNumber != previousBucketNumber) {
+                new Date(currentBucketStartTimeMillis), new Date(currentTimeInMillis), previousBucketNumber, currentBucketNumber);
+        if (currentBucketNumber != previousBucketNumber) {
             Map<Long, List<Long>> publishRecords = bucketVsRecords.get(previousBucketNumber);
             if (publishRecords != null) {
-                LOGGER.info("Publishing Events [{}] [{}] [{}] previous bucket[{}] current bucket[{}]", getTenantId(),
-                        getConnectorId(), publishRecords.size(), previousBucketNumber, bucketNumber);
-                publish(getAuthInfo(), connectorId, eventSourceType, timestampHeaderField,
-                    getTimeZoneSupplier(startTimeInMillis, previousBucketNumber),
-                    publishRecords);
+                if (previousBucketStartTimeMillis != -1) {
+                    LOGGER.info("Publishing Events [{}] [{}] [{}] [{}] previous bucket[{}] current bucket[{}]", getTenantId(),
+                            getConnectorId(), new Date(previousBucketStartTimeMillis), publishRecords.size(),
+                            previousBucketNumber, currentBucketNumber);
+                    publish(getAuthInfo(), connectorId, eventSourceType, timestampHeaderField,
+                            getTimeZoneSupplier(previousBucketStartTimeMillis, previousBucketNumber),
+                            publishRecords);
+                } else {
+                    LOGGER.info("Ignoring Publishing  Events [{}] [{}] [{}] previous bucket[{}] current bucket[{}]",
+                            getTenantId(), getConnectorId(), publishRecords.size(), previousBucketNumber, currentBucketNumber);
+                }
+
             }
-            previousBucketNumber = bucketNumber;
+            return true;
         } else {
             try {
-                Thread.sleep(2000);
+                Thread.sleep(sleepTimeInMillis);
             } catch (Exception e){
             }
         }
-        return previousBucketNumber;
+        return false;
     }
 
     @NotNull
@@ -329,8 +395,7 @@ public class CSVConnector extends BaseEventConnector {
         return (timestamp) -> {
             long relativeTimeInMillis
                     = (startTimeInMiilis) //new window startTime
-                    + ((Long)timestamp - csvDataStartTimeInMillis) //Duration since the window start in original csv
-                    - periodicityInMillis;  //accounting for previous bucket
+                    + ((Long)timestamp - csvDataStartTimeInMillis); //Duration since the window start in original csv
             ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(relativeTimeInMillis), ZoneId.of(timeZone));
             //Date date = new Date(relativeTimeInMillis);
             //DateFormat dateFormat = new SimpleDateFormat(timestampformat);
@@ -377,7 +442,7 @@ public class CSVConnector extends BaseEventConnector {
                                                throws Exception {
         LOGGER.info("Started Downloading file [{}]", getTenantId(), getConnectorId());
         file = createFile(csvUrl);
-        Map<Long, Map<Long, List<Long>>> timebucketVsRecords = new HashMap<>();
+        Map<Long, Map<Long, List<Long>>> timebucketVsRecords = new LinkedHashMap<>();
         long start = System.currentTimeMillis();
         Map<Long, List<Long>> timeInMillisEpochVsRecordNumber
                 = calculateCSVDurationAndRecordsOffset(additionalProperties, file, timeSupplier);
@@ -386,7 +451,7 @@ public class CSVConnector extends BaseEventConnector {
             if (csvDataStartTimeInMillis != 0 && timestampInMillis > 0) {
                 long bucketNumber = getBucketNumber(timestampInMillis);
                 timebucketVsRecords.computeIfAbsent(bucketNumber,
-                        (timeInMillis) -> new HashMap<>()).put(timestampInMillis, entry.getValue());
+                        (timeInMillis) -> new LinkedHashMap<>()).put(timestampInMillis, entry.getValue());
             }
         }
         long end = System.currentTimeMillis();
@@ -569,7 +634,8 @@ public class CSVConnector extends BaseEventConnector {
     private CSVRecord getCsvRecord(long offset, String row) {
         String[] columns = row.split(SEPARATOR_CHAR);
         if (columns == null || headers.length != columns.length) {
-            throw new IllegalStateException("Headers and Columns do not match ["+headers+"] ["+columns+"]");
+            throw new IllegalStateException("Headers and Columns do not match ["+Arrays.asList(headers)
+                    +"] ["+Arrays.asList(columns)+"]");
         }
         CSVRecord record = new CSVRecord(headers, columns, offset);
         return record;

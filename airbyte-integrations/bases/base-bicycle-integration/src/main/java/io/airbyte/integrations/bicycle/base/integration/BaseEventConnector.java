@@ -49,6 +49,8 @@ import java.util.concurrent.ExecutionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static io.airbyte.integrations.bicycle.base.integration.BicycleConfig.SAAS_API_ROLE;
+
 /**
  * @author sumitmaheshwari
  * Created on 28/05/2022
@@ -307,7 +309,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     }
 
     protected AuthInfo getAuthInfo() {
-        return bicycleConfig.getAuthInfo();
+        return bicycleConfig.getAuthInfo(SAAS_API_ROLE);
     }
 
     protected ConnectionServiceClient getConnectionServiceClient() {
