@@ -194,6 +194,8 @@ public class CSVConnector extends BaseEventConnector {
         }
         if (state == null) {
             LOGGER.info("Initialized State is null");
+        } else if(state.isEmpty()) {
+            LOGGER.info("Initialized State is Empty");
         } else {
             LOGGER.info("Initialized State [{}]", state);
         }
@@ -368,9 +370,9 @@ public class CSVConnector extends BaseEventConnector {
             Map<Long, List<Long>> publishRecords = bucketVsRecords.get(previousBucketNumber);
             if (publishRecords != null) {
                 if (previousBucketStartTimeMillis != -1) {
-                    LOGGER.info("Publishing Events [{}] [{}] [{}] [{}] previous bucket[{}] current bucket[{}]", getTenantId(),
-                            getConnectorId(), new Date(previousBucketStartTimeMillis), publishRecords.size(),
-                            previousBucketNumber, currentBucketNumber);
+                    LOGGER.info("Publishing Events [{}] [{}] [{}] [{}]  [{}] [{}] previous bucket[{}] current bucket[{}]", getTenantId(),
+                            getConnectorId(), new Date(previousBucketStartTimeMillis), new Date(currentBucketStartTimeMillis),
+                            new Date(currentTimeInMillis), publishRecords.size(), previousBucketNumber, currentBucketNumber);
                     publish(getAuthInfo(), connectorId, eventSourceType, timestampHeaderField,
                             getTimeZoneSupplier(previousBucketStartTimeMillis, previousBucketNumber),
                             publishRecords);
@@ -563,7 +565,7 @@ public class CSVConnector extends BaseEventConnector {
         try {
             String headersLine = accessFile.readLine();
             if (headersLine != null && !headersLine.isEmpty()) {
-                headers = headersLine.trim().split(SEPARATOR_CHAR);
+                headers = sanitize(headersLine.trim().split(SEPARATOR_CHAR));
                 if (headers == null || headers.length == 0) {
                     throw new IllegalStateException("No headers available for csv");
                 }
@@ -632,13 +634,29 @@ public class CSVConnector extends BaseEventConnector {
 
     @NotNull
     private CSVRecord getCsvRecord(long offset, String row) {
-        String[] columns = row.split(SEPARATOR_CHAR);
+        String[] columns = sanitize(row.split(SEPARATOR_CHAR));
         if (columns == null || headers.length != columns.length) {
             LOGGER.error("Headers and Columns do not match ["+Arrays.asList(headers)
                     +"] ["+Arrays.asList(columns)+"]");
         }
         CSVRecord record = new CSVRecord(headers, columns, offset);
         return record;
+    }
+
+    private String[] sanitize(String[] values) {
+        if (values != null) {
+            for (int i=0; i < values.length; i++) {
+                String value = values[i];
+                if (value.startsWith("\"") || value.startsWith("\'")) {
+                    value = value.substring(1);
+                }
+                if (value.endsWith("\"") || value.endsWith("\'")) {
+                    value = value.substring(0, value.length() - 1);
+                }
+                values[i] = value;
+            }
+        }
+        return values;
     }
 
     private String[] readRecord(File file, long offset) throws IOException {

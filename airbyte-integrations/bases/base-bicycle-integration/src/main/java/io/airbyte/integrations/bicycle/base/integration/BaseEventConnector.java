@@ -68,7 +68,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected String ENV_TENANT_ID_KEY = "TENANT_ID";
     protected EventSourceInfo eventSourceInfo;
 
-    private ObjectMapper objectMapper = new ObjectMapper();
+    protected ObjectMapper objectMapper = new ObjectMapper();
     protected JsonNode config;
     protected ConfiguredAirbyteCatalog catalog;
     protected Map<String, Object> additionalProperties;
@@ -284,6 +284,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected void saveState(String key, String value) throws JsonProcessingException {
         if (state == null) {
             state = objectMapper.createObjectNode();
+        } else if (state.isEmpty()) {
+            state = objectMapper.createObjectNode();
         }
         ((ObjectNode)state).put(key, value);
         String payload = objectMapper.writeValueAsString(state);
@@ -293,6 +295,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected void saveState(String key, long value) throws JsonProcessingException {
         if (state == null) {
             state = objectMapper.createObjectNode();
+        } else if (state.isEmpty()) {
+            state = objectMapper.createObjectNode();
         }
         ((ObjectNode)state).put(key, value);
         String payload = objectMapper.writeValueAsString(state);
@@ -301,6 +305,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     protected void saveState(String key, boolean value) throws JsonProcessingException {
         if (state == null) {
+            state = objectMapper.createObjectNode();
+        } else if (state.isEmpty()) {
             state = objectMapper.createObjectNode();
         }
         ((ObjectNode)state).put(key, value);
