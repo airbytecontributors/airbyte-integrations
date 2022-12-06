@@ -1,0 +1,48 @@
+{
+  "documentationUrl": "https://cloud.google.com/pubsub/docs/overview",
+  "supported_source_sync_modes": ["append"],
+  "isCloneEnabled": true,
+  "connectionSpecification": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Pubsub Source Spec",
+    "type": "object",
+    "required": ["project_id", "credentials_json"],
+    "additionalProperties": false,
+    "properties": {
+      "project_id": {
+        "type": "string",
+        "description": "The GCP project ID for the project containing the target Pubsub Subscription.",
+        "title": "Project ID"
+      },
+      "subscription_id": {
+        "type": "string",
+        "description": "The Pubsub Subscription ID that should be used to poll for messages.",
+        "title": "Pubsub Subscription ID"
+      },
+      "credentials_json": {
+        "type": "string",
+        "description": "The contents of the JSON service account key. Check out the <a href=\"https://docs.airbyte.com/integrations/destinations/bigquery#service-account-key\">docs</a> if you need help generating this key.",
+        "title": "Service Account Key JSON",
+        "airbyte_secret": true
+      },
+      "bicycle_consumer_threads": {
+        "title": "Bicycle Consumer Threads",
+        "description": "The number of Kafka Consumer Threads to create.",
+        "type": "integer",
+        "default": 1
+      },
+      "max_number_of_messages": {
+        "type": "integer",
+        "description": "Max number of messages consumer will pull per request",
+        "title": "Max Number Of Messages",
+        "default": 500
+      },
+      "max_inbound_message_size": {
+        "type": "integer",
+        "description": "Maximum inbound message size for the consumer ",
+        "title": "Maximum Inbound Message Size, in bytes",
+        "default": 20971520
+      }
+    }
+  }
+}
