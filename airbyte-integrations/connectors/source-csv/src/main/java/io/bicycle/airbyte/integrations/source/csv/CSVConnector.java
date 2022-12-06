@@ -362,8 +362,8 @@ public class CSVConnector extends BaseEventConnector {
                          long currentTimeInMillis, long sleepTimeInMillis) throws Exception {
         String eventSourceType = getEventSourceType();
         String connectorId = getConnectorId();
-        LOGGER.info("Processing Records [{}] [{}] [{}] [{}] [{}] [{}]", getTenantId(), getConnectorId(),
-                new Date(currentBucketStartTimeMillis), new Date(currentTimeInMillis), previousBucketNumber, currentBucketNumber);
+        /*LOGGER.info("Processing Records [{}] [{}] [{}] [{}] [{}] [{}]", getTenantId(), getConnectorId(),
+                new Date(currentBucketStartTimeMillis), new Date(currentTimeInMillis), previousBucketNumber, currentBucketNumber);*/
         if (currentBucketNumber != previousBucketNumber) {
             Map<Long, List<Long>> publishRecords = bucketVsRecords.get(previousBucketNumber);
             if (publishRecords != null) {
@@ -400,9 +400,9 @@ public class CSVConnector extends BaseEventConnector {
             //Date date = new Date(relativeTimeInMillis);
             //DateFormat dateFormat = new SimpleDateFormat(timestampformat);
             //return dateFormat.format(date);
-            LOGGER.info("Event Publish Time [{}] [{}] [{}] [{}] [{}]", getTenantId(), getConnectorId(),
+            /*LOGGER.info("Event Publish Time [{}] [{}] [{}] [{}] [{}]", getTenantId(), getConnectorId(),
                     zdt, ZonedDateTime.ofInstant(Instant.ofEpochMilli((long)timestamp), ZoneId.of(timeZone)),
-                    finalPreviousBucketNumber);
+                    finalPreviousBucketNumber);*/
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern(timestampformat);
             return zdt.format(formatter);
         };
@@ -634,7 +634,7 @@ public class CSVConnector extends BaseEventConnector {
     private CSVRecord getCsvRecord(long offset, String row) {
         String[] columns = row.split(SEPARATOR_CHAR);
         if (columns == null || headers.length != columns.length) {
-            throw new IllegalStateException("Headers and Columns do not match ["+Arrays.asList(headers)
+            LOGGER.error("Headers and Columns do not match ["+Arrays.asList(headers)
                     +"] ["+Arrays.asList(columns)+"]");
         }
         CSVRecord record = new CSVRecord(headers, columns, offset);
