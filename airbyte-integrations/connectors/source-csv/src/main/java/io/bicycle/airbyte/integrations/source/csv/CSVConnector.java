@@ -189,18 +189,19 @@ public class CSVConnector extends BaseEventConnector {
 
     public AutoCloseableIterator<AirbyteMessage> doRead(JsonNode config, ConfiguredAirbyteCatalog catalog,
                                                       JsonNode state) throws Exception{
+        int runCount = 1;
         if (shutdown) {
             return null;
         }
         if (state == null) {
-            LOGGER.info("Initialized State is null");
+            LOGGER.info("Initialized State is null [{}] [{}]", getTenantId(), getConnectorId());
         } else if(state.isEmpty()) {
-            LOGGER.info("Initialized State is Empty");
+            LOGGER.info("Initialized State is Empty [{}] [{}]", getTenantId(), getConnectorId());
         } else {
-            LOGGER.info("Initialized State [{}]", state);
+            LOGGER.info("Initialized State [{}]  [{}] [{}]", state, getTenantId(), getConnectorId());
         }
         try {
-            LOGGER.info("Starting Read v2");
+            LOGGER.info("Starting Read v3 [{}]  [{}]  [{}]", getTenantId(), getConnectorId(), runCount);
             this.csvUrl = getCsvUrl(config);
             if (csvUrl == null) {
                 throw new IllegalStateException("No csv url");
@@ -225,7 +226,7 @@ public class CSVConnector extends BaseEventConnector {
 
             this.backfillSleepTimeInMillis
                     = additionalProperties != null && additionalProperties.get("backfillSleepTimeInMillis") != null
-                        ? Long.parseLong(additionalProperties.get("backfillSleepTimeInMillis").toString()) : 2000;
+                    ? Long.parseLong(additionalProperties.get("backfillSleepTimeInMillis").toString()) : 2000;
 
             Map<Long, Map<Long, List<Long>>> bucketVsRecords
                     = readFile(csvUrl, timestampHeaderField, getUTCTimesupplier());
@@ -242,12 +243,19 @@ public class CSVConnector extends BaseEventConnector {
                         "Default to csvDataDurationInMillis to periodicityInMillis", getTenantId(), csvUrl);
             }
 
-            long lastPublishedTimeInMillis = backfill(backfill, bucketVsRecords);
-            replay(replay, lastPublishedTimeInMillis, bucketVsRecords);
+            do {
+                try {
+                    long lastPublishedTimeInMillis = backfill(backfill, bucketVsRecords);
+                    replay(replay, lastPublishedTimeInMillis, bucketVsRecords);
+                } catch(Throwable e) {
+                    LOGGER.error("Exception while running ["+getTenantId()+"] : ["+getConnectorId()+"]" , e);
+                }
+            } while (!shutdown);
+
         } catch(Throwable e) {
             LOGGER.error("Exception in the job ["+getTenantId()+"] : ["+getConnectorId()+"]" , e);
         } finally {
-            LOGGER.info("Completed Read v2 ");
+            LOGGER.info("Completed Read v3 [{}] [{}] [{}]", getTenantId(), getConnectorId(), runCount);
         }
         return  null;
     }
@@ -600,10 +608,10 @@ public class CSVConnector extends BaseEventConnector {
                         timestampVsRecordsOffset.computeIfAbsent(timestampInMillisInEpoch,
                                 (recordOffset) -> new ArrayList<>()).add(offset);
                     } else {
-                        LOGGER.error("Missing timestamp fields for the record [{}] [{}]", getTenantId(), record.toMap());
+                        LOGGER.error("Missing timestamp fields for the record [{}] [{}] [{}]", getTenantId(), getConnectorId(), record.toMap());
                     }
                     if (recordNumber % 10000 == 0)
-                        LOGGER.info("Processing the records [{}]", recordNumber);
+                        LOGGER.info("Processing the records [{}] [{}] [{}]", getTenantId(), getConnectorId(), recordNumber);
                 } else {
                     break;
                 }
