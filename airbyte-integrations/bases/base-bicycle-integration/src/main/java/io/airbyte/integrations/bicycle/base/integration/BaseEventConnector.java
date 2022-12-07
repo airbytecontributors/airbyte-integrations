@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -282,36 +283,72 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     }
 
     protected void saveState(String key, String value) throws JsonProcessingException {
-        if (state == null) {
-            state = objectMapper.createObjectNode();
-        } else if (state.isEmpty()) {
-            state = objectMapper.createObjectNode();
-        }
+        JsonNode state = getState();
+        JsonNode oldValue = state.get(key);
         ((ObjectNode)state).put(key, value);
         String payload = objectMapper.writeValueAsString(state);
-        connectionServiceClient.upsertReadStateConfig(getAuthInfo(), getConnectorId(), payload);
+        if (!upsertState(payload)) {
+            if (oldValue != null) {
+                ((ObjectNode) state).put(key, oldValue.asText());
+            } else {
+                ((ObjectNode) state).remove(key);
+            }
+        }
     }
 
     protected void saveState(String key, long value) throws JsonProcessingException {
-        if (state == null) {
-            state = objectMapper.createObjectNode();
-        } else if (state.isEmpty()) {
-            state = objectMapper.createObjectNode();
-        }
+        JsonNode state = getState();
+        JsonNode oldValue = state.get(key);
         ((ObjectNode)state).put(key, value);
         String payload = objectMapper.writeValueAsString(state);
-        connectionServiceClient.upsertReadStateConfig(getAuthInfo(), getConnectorId(), payload);
+        if (!upsertState(payload)) {
+            if (oldValue != null) {
+                ((ObjectNode) state).put(key, oldValue.asLong());
+            } else {
+                ((ObjectNode) state).remove(key);
+            }
+        }
     }
 
     protected void saveState(String key, boolean value) throws JsonProcessingException {
+        JsonNode state = getState();
+        JsonNode oldValue = state.get(key);
+        ((ObjectNode)state).put(key, value);
+        String payload = objectMapper.writeValueAsString(state);
+        if (!upsertState(payload)) {
+            if (oldValue != null) {
+                ((ObjectNode) state).put(key, oldValue.asBoolean());
+            } else {
+                ((ObjectNode) state).remove(key);
+            }
+        }
+    }
+
+    private JsonNode getState() {
         if (state == null) {
             state = objectMapper.createObjectNode();
         } else if (state.isEmpty()) {
             state = objectMapper.createObjectNode();
         }
-        ((ObjectNode)state).put(key, value);
-        String payload = objectMapper.writeValueAsString(state);
-        connectionServiceClient.upsertReadStateConfig(getAuthInfo(), getConnectorId(), payload);
+        return state;
+    }
+
+    private boolean upsertState(String payload) {
+        int retries = 0;
+        do {
+            try {
+                connectionServiceClient.upsertReadStateConfig(getAuthInfo(), getConnectorId(), payload);
+                return true;
+            } catch (Exception e) {
+                logger.error("Exception updating the status [{}] [{}] [{}]", getTenantId(), getConnectorId(), payload, e);
+                try {
+                    Thread.sleep(1000);
+                    retries++;
+                } catch (InterruptedException ex) {
+                }
+            }
+        } while (retries < 5);
+        return false;
     }
 
     protected AuthInfo getAuthInfo() {
