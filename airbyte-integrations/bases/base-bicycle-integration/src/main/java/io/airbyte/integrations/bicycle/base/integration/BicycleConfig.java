@@ -22,6 +22,7 @@ public class BicycleConfig {
     private final String uniqueIdentifier;
     private final String eventURL;
     private final String metricStoreURL;
+    private final String traceQueryUrl;
     private String tenantId;
     private SystemAuthenticator systemAuthenticator;
     private boolean isOnPremDeployment;
@@ -34,6 +35,7 @@ public class BicycleConfig {
         this.connectorId = connectorId;
         this.uniqueIdentifier = uniqueIdentifier;
         this.eventURL = serverURL + "/api/ingester/events";
+        this.traceQueryUrl = serverURL + "/api/ingester/traces";
         this.metricStoreURL = metricStoreURL;
         this.tenantId = tenantId;
         this.systemAuthenticator = systemAuthenticator;
@@ -90,6 +92,10 @@ public class BicycleConfig {
 
     public String getMetricStoreURL() {
         return metricStoreURL;
+    }
+
+    public String getTraceQueryUrl() {
+        return traceQueryUrl;
     }
 
     private AuthInfo getAuthInfoForWorker(SystemAuthenticator systemAuthenticator, String tenantId, String role) {

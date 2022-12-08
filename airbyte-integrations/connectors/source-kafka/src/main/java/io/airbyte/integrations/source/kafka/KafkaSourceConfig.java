@@ -4,18 +4,27 @@
 
 package io.airbyte.integrations.source.kafka;
 
+import static io.airbyte.integrations.source.kafka.KafkaSource.STREAM_NAME;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.ImmutableMap;
-
-import java.io.File;
-import java.io.FileOutputStream;
-import java.util.*;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.integrations.base.Command;
 import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+import java.util.UUID;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -27,8 +36,6 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.connect.json.JsonDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static io.airbyte.integrations.source.kafka.KafkaSource.*;
 
 
 public class KafkaSourceConfig {

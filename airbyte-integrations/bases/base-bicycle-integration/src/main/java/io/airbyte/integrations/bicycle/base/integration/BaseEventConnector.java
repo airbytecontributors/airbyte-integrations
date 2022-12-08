@@ -28,7 +28,9 @@ import io.bicycle.event.processor.impl.BicycleEventProcessorImpl;
 import io.bicycle.event.publisher.api.BicycleEventPublisher;
 import io.bicycle.event.publisher.impl.BicycleEventPublisherImpl;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.common.utils.CommonUtil;
 import io.bicycle.integration.common.writer.Writer;
+import io.bicycle.integration.common.writer.WriterFactory;
 import io.bicycle.integration.connector.ProcessRawEventsResult;
 import io.bicycle.integration.connector.ProcessedEventSourceData;
 import io.bicycle.integration.connector.SyncDataRequest;
@@ -91,7 +93,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         ConfigStoreClient configStoreClient = getConfigClient(bicycleConfig);
         this.bicycleEventProcessor = new BicycleEventProcessorImpl(configStoreClient);
         EventMappingConfigurations eventMappingConfigurations = new EventMappingConfigurations(bicycleConfig.getServerURL(),bicycleConfig.getMetricStoreURL(), bicycleConfig.getServerURL(),
-                bicycleConfig.getEventURL(), bicycleConfig.getServerURL(), bicycleConfig.getEventURL());
+                bicycleConfig.getEventURL(), bicycleConfig.getServerURL(), bicycleConfig.getTraceQueryUrl());
         this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, systemAuthenticator, true);
     }
 
@@ -132,10 +134,41 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     public abstract AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws InterruptedException, ExecutionException;
 
-    public abstract AutoCloseableIterator<AirbyteMessage> syncData(JsonNode sourceConfig,
+    public AutoCloseableIterator<AirbyteMessage> syncData(JsonNode sourceConfig,
                                                                    ConfiguredAirbyteCatalog configuredAirbyteCatalog,
                                                                    JsonNode readState,
-                                                                   SyncDataRequest syncDataRequest);
+                                                                   SyncDataRequest syncDataRequest) {
+
+
+        AuthInfo authInfo = getAuthInfo();
+        String traceInfo = CommonUtil.getTraceInfo(syncDataRequest.getTraceInfo());
+        Map<String, Object> additionalProperties = configuredAirbyteCatalog.getAdditionalProperties();
+        String eventSourceType = getEventSourceType(additionalProperties);
+        String connectorId = getConnectorId(additionalProperties);
+        BicycleConfig bicycleConfig = getBicycleConfig(additionalProperties, systemAuthenticator);
+        setBicycleEventProcessorAndPublisher(bicycleConfig);
+        EventSourceInfo eventSourceInfo = new EventSourceInfo(connectorId, eventSourceType);
+        long startTime = System.currentTimeMillis() - (24 * 60 * 60 * 1000); //last 1 day
+        long endTime = System.currentTimeMillis();
+
+        logger.info("Got sync data request for event source {} and sync data request {}", eventSourceInfo,
+                syncDataRequest);
+
+        List<RawEvent> rawEvents = bicycleEventPublisher
+                .getPreviewEvents(authInfo, eventSourceInfo, syncDataRequest.getSyncDataCountLimit(),
+                        startTime, endTime);
+
+        if (rawEvents.size() > 0) {
+            Writer writer = WriterFactory.getWriter(syncDataRequest.getSyncDestination());
+            processAndSync(authInfo, traceInfo, connectorId, eventSourceInfo, System.currentTimeMillis(),
+                    writer, rawEvents, false);
+            logger.info("Received {} events from preview store for sync data request {}", rawEvents.size(),
+                    syncDataRequest);
+            return new NonEmptyAutoCloseableIterator();
+        }
+
+        return null;
+    }
 
     public EventProcessorResult convertRawEventsToBicycleEvents(AuthInfo authInfo,
                                                                EventSourceInfo eventSourceInfo,
@@ -170,13 +203,16 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                                EventSourceInfo eventSourceInfo,
                                long readTimestamp,
                                Writer writer,
-                               List<RawEvent> rawEvents) {
+                               List<RawEvent> rawEvents,
+                               boolean saveAsPreviewEvents) {
         try {
             ProcessRawEventsResult processedEvents = this.processRawEvents(authInfo, eventSourceInfo, rawEvents);
             try {
                 writer.writeEventData(
                         configuredConnectorStreamId, readTimestamp, processedEvents.getProcessedEventSourceDataList());
-                savePreviewEvents(authInfo, traceInfo, eventSourceInfo, processedEvents);
+                if (saveAsPreviewEvents) {
+                    savePreviewEvents(authInfo, traceInfo, eventSourceInfo, processedEvents);
+                }
             } catch (Exception e) {
                 logger.error(traceInfo + " Exception while writing processed events to destination", e);
             }
@@ -333,6 +369,48 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         String serverURL = additionalProperties.containsKey("bicycleServerURL") ?
                 additionalProperties.get("bicycleServerURL").toString() : "";
         return serverURL;
+    }
+
+    protected String getEventSourceType(Map<String, Object> additionalProperties) {
+        return additionalProperties.containsKey("bicycleEventSourceType") ?
+                additionalProperties.get("bicycleEventSourceType").toString() : CommonUtils.UNKNOWN_EVENT_CONNECTOR;
+    }
+
+    protected String getConnectorId(Map<String, Object> additionalProperties) {
+        return additionalProperties.containsKey("bicycleConnectorId") ?
+                additionalProperties.get("bicycleConnectorId").toString() : "";
+    }
+
+    protected BicycleConfig getBicycleConfig(Map<String, Object> additionalProperties,
+                                           SystemAuthenticator systemAuthenticator) {
+        String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
+        String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
+        String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
+        String connectorId = getConnectorId(additionalProperties);
+        String uniqueIdentifier = UUID.randomUUID().toString();
+        String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";
+        String isOnPrem = additionalProperties.get("isOnPrem").toString();
+        boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
+        return new BicycleConfig(serverURL, metricStoreURL, token, connectorId, uniqueIdentifier, tenantId,
+                systemAuthenticator, isOnPremDeployment);
+    }
+
+    private static class NonEmptyAutoCloseableIterator implements AutoCloseableIterator {
+
+        @Override
+        public void close() throws Exception {
+
+        }
+
+        @Override
+        public boolean hasNext() {
+            return false;
+        }
+
+        @Override
+        public Object next() {
+            return null;
+        }
     }
 
 }

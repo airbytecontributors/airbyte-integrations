@@ -407,14 +407,6 @@ public class KinesisSource extends BaseEventConnector {
 //        });
     }
 
-    @Override
-    public AutoCloseableIterator<AirbyteMessage> syncData(JsonNode sourceConfig,
-                                                          ConfiguredAirbyteCatalog configuredAirbyteCatalog,
-                                                          JsonNode readState,
-                                                          SyncDataRequest syncDataRequest) {
-        return null;
-    }
-
     public static void main(final String[] args) throws Exception {
 
         final Source source = new KinesisSource(null, null);
