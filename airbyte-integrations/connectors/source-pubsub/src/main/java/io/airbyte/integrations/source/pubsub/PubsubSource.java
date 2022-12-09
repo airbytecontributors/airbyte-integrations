@@ -171,11 +171,6 @@ public class PubsubSource extends BaseEventConnector {
     }
 
     @Override
-    public AutoCloseableIterator<AirbyteMessage> syncData(JsonNode sourceConfig, ConfiguredAirbyteCatalog configuredAirbyteCatalog, JsonNode readState, SyncDataRequest syncDataRequest) {
-        return null;
-    }
-
-    @Override
     public AirbyteConnectionStatus check(JsonNode config) {
         PubsubSourceConfig pubsubSourceConfig = new PubsubSourceConfig(TEST_SOURCE_CONFIG, config, null);
         SubscriptionAdminClient checkConsumer = null;
@@ -246,29 +241,6 @@ public class PubsubSource extends BaseEventConnector {
         return numberOfConsumers + 3;
     }
 
-    private String getEventSourceType(Map<String, Object> additionalProperties) {
-        return additionalProperties.containsKey("bicycleEventSourceType") ?
-                additionalProperties.get("bicycleEventSourceType").toString() : CommonUtils.UNKNOWN_EVENT_CONNECTOR;
-    }
-
-    private String getConnectorId(Map<String, Object> additionalProperties) {
-        return additionalProperties.containsKey("bicycleConnectorId") ?
-                additionalProperties.get("bicycleConnectorId").toString() : "";
-    }
-
-    private BicycleConfig getBicycleConfig(Map<String, Object> additionalProperties,
-                                           SystemAuthenticator systemAuthenticator) {
-        String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
-        String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
-        String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
-        String connectorId = getConnectorId(additionalProperties);
-        String uniqueIdentifier = UUID.randomUUID().toString();
-        String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";
-        String isOnPrem = additionalProperties.get("isOnPrem").toString();
-        boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
-        return new BicycleConfig(serverURL, metricStoreURL, token, connectorId, uniqueIdentifier, tenantId,
-                systemAuthenticator, isOnPremDeployment);
-    }
 
     @Override
     public AutoCloseableIterator<AirbyteMessage> read(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws Exception {

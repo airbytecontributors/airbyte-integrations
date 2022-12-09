@@ -135,12 +135,6 @@ public class CSVConnector extends BaseEventConnector {
         }
     }
 
-    public AutoCloseableIterator<AirbyteMessage> syncData(JsonNode sourceConfig,
-                                                          ConfiguredAirbyteCatalog configuredAirbyteCatalog,
-                                                          JsonNode readState, SyncDataRequest syncDataRequest) {
-        return null;
-    }
-
     public AirbyteConnectionStatus check(JsonNode config) throws Exception {
         LOGGER.info("Check the status");
         String csvUrl = getCsvUrl(config);

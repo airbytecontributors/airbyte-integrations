@@ -14,16 +14,40 @@ import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.base.Command;
-import io.airbyte.integrations.bicycle.base.integration.*;
 import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.base.Source;
-import io.airbyte.protocol.models.*;
+import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
+import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
+import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
+import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
+import io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator;
+import io.airbyte.protocol.models.AirbyteCatalog;
+import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteConnectionStatus.Status;
-
+import io.airbyte.protocol.models.AirbyteMessage;
+import io.airbyte.protocol.models.AirbyteRecordMessage;
+import io.airbyte.protocol.models.AirbyteStream;
+import io.airbyte.protocol.models.CatalogHelpers;
+import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
+import io.airbyte.protocol.models.ConfiguredAirbyteStream;
+import io.airbyte.protocol.models.Field;
+import io.airbyte.protocol.models.JsonSchemaType;
+import io.airbyte.protocol.models.SyncMode;
+import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.common.utils.CommonUtil;
+import io.bicycle.integration.connector.SyncDataRequest;
+import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
+import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -31,12 +55,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import io.bicycle.event.rawevent.impl.JsonRawEvent;
-import io.bicycle.integration.common.utils.CommonUtil;
-import io.bicycle.integration.connector.SyncDataRequest;
-import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
-import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -253,6 +271,13 @@ public class KafkaSource extends BaseEventConnector {
                                                         JsonNode readState,
                                                         SyncDataRequest syncDataRequest) {
 
+    AutoCloseableIterator<AirbyteMessage> nonEmptyIterator =
+            super.syncData(sourceConfig, configuredAirbyteCatalog, readState, syncDataRequest);
+
+    if (nonEmptyIterator != null) {
+        return null;
+    }
+
     String traceInfo = CommonUtil.getTraceInfo(syncDataRequest.getTraceInfo());
     int numberOfConsumers = getNumberOfConsumers(sourceConfig);
     int threadPoolSize = numberOfConsumers; // since there are no metrics, no additional thread for metric
@@ -311,19 +336,7 @@ public class KafkaSource extends BaseEventConnector {
     LOGGER.info("Completed source: {}", KafkaSource.class);
   }
 
-  private BicycleConfig getBicycleConfig(Map<String, Object> additionalProperties,
-                                         SystemAuthenticator systemAuthenticator) {
-    String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
-    String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
-    String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
-    String connectorId = getConnectorId(additionalProperties);
-    String uniqueIdentifier = UUID.randomUUID().toString();
-    String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";
-    String isOnPrem = additionalProperties.get("isOnPrem").toString();
-    boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
-    return new BicycleConfig(serverURL, metricStoreURL, token, connectorId, uniqueIdentifier, tenantId,
-            systemAuthenticator, isOnPremDeployment);
-  }
+
 
   private int getNumberOfConsumers(JsonNode sourceConfig) {
     return sourceConfig.has("bicycle_consumer_threads") ?
@@ -334,13 +347,4 @@ public class KafkaSource extends BaseEventConnector {
     return numberOfConsumers + 3;
   }
 
-  private String getEventSourceType(Map<String, Object> additionalProperties) {
-    return additionalProperties.containsKey("bicycleEventSourceType") ?
-            additionalProperties.get("bicycleEventSourceType").toString() : CommonUtils.UNKNOWN_EVENT_CONNECTOR;
-  }
-
-  private String getConnectorId(Map<String, Object> additionalProperties) {
-    return additionalProperties.containsKey("bicycleConnectorId") ?
-            additionalProperties.get("bicycleConnectorId").toString() : "";
-  }
 }

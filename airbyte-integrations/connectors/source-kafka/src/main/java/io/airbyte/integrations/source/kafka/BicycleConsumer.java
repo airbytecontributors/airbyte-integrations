@@ -289,7 +289,8 @@ public class BicycleConsumer implements Runnable {
                         eventSourceInfo,
                         System.currentTimeMillis(),
                         writer,
-                        rawEvents
+                        rawEvents,
+                        true
                 );
 
                 try {

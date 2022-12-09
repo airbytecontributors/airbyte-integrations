@@ -268,14 +268,6 @@ public class ElasticsearchSource extends BaseEventConnector {
         return readEntity(config, catalog, state, connection);
     }
 
-    @Override
-    public AutoCloseableIterator<AirbyteMessage> syncData(JsonNode sourceConfig,
-                                                          ConfiguredAirbyteCatalog configuredAirbyteCatalog,
-                                                          JsonNode readState,
-                                                          SyncDataRequest syncDataRequest) {
-        return null;
-    }
-
     private JsonNode updateTimeRange(JsonNode timeRange, final String lastEnd) {
         if(timeRange!=null) {
             ((ObjectNode)timeRange).put("method", "custom");
