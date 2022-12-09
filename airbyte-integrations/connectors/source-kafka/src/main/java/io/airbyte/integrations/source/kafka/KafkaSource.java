@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Lists;
+import com.inception.schema.types.PropertyValue;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
@@ -271,11 +272,15 @@ public class KafkaSource extends BaseEventConnector {
                                                         JsonNode readState,
                                                         SyncDataRequest syncDataRequest) {
 
-    AutoCloseableIterator<AirbyteMessage> nonEmptyIterator =
-            super.syncData(sourceConfig, configuredAirbyteCatalog, readState, syncDataRequest);
+    LOGGER.info("Received sync data request for {}", syncDataRequest);
 
-    if (nonEmptyIterator != null) {
+    PropertyValue propVal = syncDataRequest.getTraceInfo().getContextMap().get("enableExistingConnections");
+    if (propVal != null && propVal.getBooleanVal() == true) {
+      AutoCloseableIterator<AirbyteMessage> nonEmptyIterator =
+              super.syncData(sourceConfig, configuredAirbyteCatalog, readState, syncDataRequest);
+      if (nonEmptyIterator != null) {
         return null;
+      }
     }
 
     String traceInfo = CommonUtil.getTraceInfo(syncDataRequest.getTraceInfo());
