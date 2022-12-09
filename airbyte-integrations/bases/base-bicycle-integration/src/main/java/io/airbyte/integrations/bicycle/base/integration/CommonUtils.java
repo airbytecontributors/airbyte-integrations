@@ -9,7 +9,7 @@ public class CommonUtils {
     public static ObjectMapper getObjectMapper() {
         return objectMapper;
     }
-    public static String UNKNOWN_EVENT_CONNECTOR = "UNKNOWN";
+    public static final String UNKNOWN_EVENT_CONNECTOR = "UNKNOWN";
     public static String getRandomBicycleUUID() {
         return "bicycle_"+ UUID.randomUUID().toString();
     }
