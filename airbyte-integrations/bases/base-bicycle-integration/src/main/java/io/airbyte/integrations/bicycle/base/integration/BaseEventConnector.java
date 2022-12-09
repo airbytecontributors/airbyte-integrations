@@ -140,7 +140,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                                                                    JsonNode readState,
                                                                    SyncDataRequest syncDataRequest) {
 
-
+        logger.info("Got sync data request for sync data request {}", syncDataRequest);
         AuthInfo authInfo = getAuthInfo();
         String traceInfo = CommonUtil.getTraceInfo(syncDataRequest.getTraceInfo());
         Map<String, Object> additionalProperties = configuredAirbyteCatalog.getAdditionalProperties();
@@ -152,8 +152,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         long startTime = System.currentTimeMillis() - (24 * 60 * 60 * 1000); //last 1 day
         long endTime = System.currentTimeMillis();
 
-        logger.info("Got sync data request for event source {} and sync data request {}", eventSourceInfo,
-                syncDataRequest);
+
 
         List<RawEvent> rawEvents = bicycleEventPublisher
                 .getPreviewEvents(authInfo, eventSourceInfo, syncDataRequest.getSyncDataCountLimit(),
