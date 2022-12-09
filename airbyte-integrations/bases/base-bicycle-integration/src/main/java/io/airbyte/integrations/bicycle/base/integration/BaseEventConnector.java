@@ -166,7 +166,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                     syncDataRequest);
             return new NonEmptyAutoCloseableIterator();
         }
-
+        logger.info("Received no events from preview store for sync data request {} and it took {} ms",
+                syncDataRequest, System.currentTimeMillis() - endTime);
         return null;
     }
 
