@@ -49,6 +49,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,7 +65,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private ConfigStoreClient configStoreClient;
     private BicycleEventProcessor bicycleEventProcessor;
     protected BicycleEventPublisher bicycleEventPublisher;
-    private BicycleConfig bicycleConfig;
+    protected BicycleConfig bicycleConfig;
     protected SystemAuthenticator systemAuthenticator;
     protected EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier;
     protected static final String TENANT_ID = "tenantId";
@@ -91,10 +92,11 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     public void setBicycleEventProcessorAndPublisher(BicycleConfig bicycleConfig) {
         this.bicycleConfig = bicycleConfig;
-        ConfigStoreClient configStoreClient = getConfigClient(bicycleConfig);
+        configStoreClient = getConfigClient(bicycleConfig);
         this.bicycleEventProcessor = new BicycleEventProcessorImpl(configStoreClient);
         EventMappingConfigurations eventMappingConfigurations = new EventMappingConfigurations(bicycleConfig.getServerURL(),bicycleConfig.getMetricStoreURL(), bicycleConfig.getServerURL(),
                 bicycleConfig.getEventURL(), bicycleConfig.getServerURL(), bicycleConfig.getTraceQueryUrl());
+        logger.info("EventMappingConfiguration:: {}", eventMappingConfigurations);
         this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, systemAuthenticator, true);
     }
 
@@ -140,19 +142,22 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                                                                    JsonNode readState,
                                                                    SyncDataRequest syncDataRequest) {
 
-        logger.info("Got sync data request for sync data request {}", syncDataRequest);
-        AuthInfo authInfo = getAuthInfo();
         String traceInfo = CommonUtil.getTraceInfo(syncDataRequest.getTraceInfo());
         Map<String, Object> additionalProperties = configuredAirbyteCatalog.getAdditionalProperties();
+
+        logger.info("Got sync data request for sync data request {}, additional Properties {}", syncDataRequest,
+                additionalProperties);
+
         String eventSourceType = getEventSourceType(additionalProperties);
         String connectorId = getConnectorId(additionalProperties);
+        String sourceId = toUUID(connectorId);
         BicycleConfig bicycleConfig = getBicycleConfig(additionalProperties, systemAuthenticator);
         setBicycleEventProcessorAndPublisher(bicycleConfig);
-        EventSourceInfo eventSourceInfo = new EventSourceInfo(connectorId, eventSourceType);
+        EventSourceInfo eventSourceInfo = new EventSourceInfo(sourceId, eventSourceType);
         long startTime = System.currentTimeMillis() - (24 * 60 * 60 * 1000); //last 1 day
         long endTime = System.currentTimeMillis();
 
-
+        AuthInfo authInfo = getAuthInfo();
 
         List<RawEvent> rawEvents = bicycleEventPublisher
                 .getPreviewEvents(authInfo, eventSourceInfo, syncDataRequest.getSyncDataCountLimit(),
@@ -160,15 +165,30 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
         if (rawEvents.size() > 0) {
             Writer writer = WriterFactory.getWriter(syncDataRequest.getSyncDestination());
-            processAndSync(authInfo, traceInfo, connectorId, eventSourceInfo, System.currentTimeMillis(),
-                    writer, rawEvents, false);
-            logger.info("Received {} events from preview store for sync data request {}", rawEvents.size(),
-                    syncDataRequest);
+            processAndSync(authInfo, traceInfo,
+                    syncDataRequest.getConfiguredConnectorStream().getConfiguredConnectorStreamId(),
+                    eventSourceInfo, System.currentTimeMillis(), writer, rawEvents, false);
+            logger.info("Received {} events from preview store for sync data request {} and event source info {}",
+                    rawEvents.size(), syncDataRequest, eventSourceInfo);
             return new NonEmptyAutoCloseableIterator();
         }
-        logger.info("Received no events from preview store for sync data request {} and it took {} ms",
-                syncDataRequest, System.currentTimeMillis() - endTime);
+        logger.info("Received no events from preview store for sync data request {}, event source info {} " +
+                        "and it took {} ms", syncDataRequest, eventSourceInfo, System.currentTimeMillis() - endTime);
         return null;
+    }
+
+    public String toUUID(String configId) {
+        if (StringUtils.isBlank(configId)) {
+            return null;
+        } else {
+            String[] split = StringUtils.split(configId, ":");
+            if (split.length == 1) {
+                return split[0];
+            } else if (split.length == 2) {
+                return split[1];
+            }
+            return null;
+        }
     }
 
     public EventProcessorResult convertRawEventsToBicycleEvents(AuthInfo authInfo,
@@ -209,6 +229,22 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         try {
             ProcessRawEventsResult processedEvents = this.processRawEvents(authInfo, eventSourceInfo, rawEvents);
             try {
+
+                StringBuilder stringBuilder = new StringBuilder();
+                stringBuilder.append("Processed Event Result Size for traceInfo " + traceInfo + " is " +
+                         processedEvents.getProcessedEventSourceDataCount());
+                stringBuilder.append("\n");
+                for (ProcessedEventSourceData processRawEventsResult:
+                        processedEvents.getProcessedEventSourceDataList()) {
+                    stringBuilder.append("Connector Stream:: " + configuredConnectorStreamId);
+                    stringBuilder.append("\n");
+                    stringBuilder.append("Raw Event:: " + processRawEventsResult.getRawEvent());
+                    stringBuilder.append("\n");
+                    stringBuilder.append("BicycleEvent:: " + processRawEventsResult.getBicycleEvent());
+                    logger.info(stringBuilder.toString());
+                    break;
+                }
+
                 writer.writeEventData(
                         configuredConnectorStreamId, readTimestamp, processedEvents.getProcessedEventSourceDataList());
                 if (saveAsPreviewEvents) {

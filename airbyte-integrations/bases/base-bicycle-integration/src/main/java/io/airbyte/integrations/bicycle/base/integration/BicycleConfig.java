@@ -35,7 +35,7 @@ public class BicycleConfig {
         this.connectorId = connectorId;
         this.uniqueIdentifier = uniqueIdentifier;
         this.eventURL = serverURL + "/api/ingester/events";
-        this.traceQueryUrl = serverURL + "/api/ingester/traces";
+        this.traceQueryUrl = serverURL;
         this.metricStoreURL = metricStoreURL;
         this.tenantId = tenantId;
         this.systemAuthenticator = systemAuthenticator;
