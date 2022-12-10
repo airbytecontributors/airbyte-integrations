@@ -272,8 +272,6 @@ public class KafkaSource extends BaseEventConnector {
                                                         JsonNode readState,
                                                         SyncDataRequest syncDataRequest) {
 
-    LOGGER.info("Received sync data request for {}", syncDataRequest);
-
     PropertyValue propVal = syncDataRequest.getTraceInfo().getContextMap().get("enableExistingConnections");
     if (propVal != null && propVal.getBooleanVal() == true) {
       AutoCloseableIterator<AirbyteMessage> nonEmptyIterator =
@@ -281,6 +279,8 @@ public class KafkaSource extends BaseEventConnector {
       if (nonEmptyIterator != null) {
         return null;
       }
+    } else {
+      LOGGER.info("Received sync data request for {}", syncDataRequest);
     }
 
     String traceInfo = CommonUtil.getTraceInfo(syncDataRequest.getTraceInfo());
