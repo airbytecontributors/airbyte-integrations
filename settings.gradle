@@ -135,4 +135,6 @@ findProject(':airbyte-integrations:bases:base-bicycle-integration')?.name = 'bas
 include 'source-pubsub'
 include 'airbyte-integrations:connectors:source-pubsub'
 findProject(':airbyte-integrations:connectors:source-pubsub')?.name = 'source-pubsub'
+include 'airbyte-integrations:connectors:source-push'
+findProject(':airbyte-integrations:connectors:source-push')?.name = 'source-push'
 

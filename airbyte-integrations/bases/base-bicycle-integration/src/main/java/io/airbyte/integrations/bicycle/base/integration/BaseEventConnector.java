@@ -159,9 +159,9 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
         AuthInfo authInfo = getAuthInfo();
 
+        long limit =  syncDataRequest.getSyncDataCountLimit() + 10;
         List<RawEvent> rawEvents = bicycleEventPublisher
-                .getPreviewEvents(authInfo, eventSourceInfo, syncDataRequest.getSyncDataCountLimit(),
-                        startTime, endTime);
+                .getPreviewEvents(authInfo, eventSourceInfo, limit, startTime, endTime);
 
         if (rawEvents.size() > 0) {
             Writer writer = WriterFactory.getWriter(syncDataRequest.getSyncDestination());
