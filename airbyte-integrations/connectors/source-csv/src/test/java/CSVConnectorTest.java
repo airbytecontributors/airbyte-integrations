@@ -74,7 +74,7 @@ public class CSVConnectorTest {
     @Test
     public void testReadFile() throws Exception {
         String url2 = "https://drive.google.com/file/d/1prvEFRh3SYtMFiRZfBpOGMqA_Dl2d_Db/export?format=csv&usp=sharing";
-        Map<Long, Map<Long, List<Long>>> records = csvConnector.readFile(url2, "transactiondate", (value) -> {
+        Map<Long, Map<Long, List<Long>>> records = csvConnector.readFile(config, url2, "transactiondate", (value) -> {
             try {
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS");
                 LocalDateTime localDateTime = LocalDateTime.parse(value, formatter);

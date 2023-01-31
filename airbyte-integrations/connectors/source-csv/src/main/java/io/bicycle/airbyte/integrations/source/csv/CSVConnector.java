@@ -3,6 +3,12 @@ package io.bicycle.airbyte.integrations.source.csv;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.auth.oauth2.ServiceAccountCredentials;
+import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageOptions;
+import com.google.common.base.Charsets;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Lists;
 import com.inception.server.auth.api.SystemAuthenticator;
@@ -14,7 +20,6 @@ import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.*;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
-import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
@@ -27,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.net.URL;
+import java.nio.charset.Charset;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -96,6 +102,27 @@ public class CSVConnector extends BaseEventConnector {
         stopEventConnector("Successfully Stopped", JobExecutionStatus.success);
     }
 
+
+    private void storeToFile(JsonNode config, File file) {
+        final JsonNode provider = config.get("provider");
+        csvUrl = getCsvUrl(config);
+        try {
+            if (provider.get("storage").asText().equals("GCS")) {
+                String serviceAccount = provider.get("service_account_json").asText();
+                final ServiceAccountCredentials credentials = ServiceAccountCredentials
+                        .fromStream(new ByteArrayInputStream(serviceAccount.getBytes(Charsets.UTF_8)));
+                Storage storage = StorageOptions.newBuilder().setCredentials(credentials)
+                        .build().getService();
+                Blob blob = storage.get(BlobId.fromGsUtilUri(csvUrl));
+                blob.downloadTo(file.toPath());
+            } else {
+                FileUtils.copyURLToFile(new URL(csvUrl), file, CONNECT_TIMEOUT_IN_MILLIS, READ_TIMEOUT_IN_MILLIS);
+            }
+        } catch (Exception e) {
+            LOGGER.error("Unable to store file in temp storage", e);
+        }
+    }
+
     public AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws InterruptedException, ExecutionException {
         LOGGER.info("Preview CSV data");
         try {
@@ -105,8 +132,8 @@ public class CSVConnector extends BaseEventConnector {
             this.timeZone = config.get("timeZone") != null ? config.get("timeZone").asText() : "UTC";
             String datasetName = getDatasetName(config);
             File file = File.createTempFile(UUID.randomUUID().toString(),".csv");
-            FileUtils.copyURLToFile(new URL(csvUrl), file, CONNECT_TIMEOUT_IN_MILLIS, READ_TIMEOUT_IN_MILLIS);
-            CSVParser parsed = CSVFormat.DEFAULT.withFirstRecordAsHeader().parse(new FileReader(file));
+            storeToFile(config, file);
+            CSVParser parsed = CSVFormat.DEFAULT.withFirstRecordAsHeader().parse(new FileReader(file, Charset.defaultCharset()));
             Iterator<org.apache.commons.csv.CSVRecord> iterator = parsed.iterator();
             return AutoCloseableIterators.fromIterator(new AbstractIterator<>() {
                 @Override
@@ -146,8 +173,8 @@ public class CSVConnector extends BaseEventConnector {
             CSVParser parsed = null;
             try {
                 File file = File.createTempFile(UUID.randomUUID().toString(),".csv");
-                FileUtils.copyURLToFile(new URL(csvUrl), file, CONNECT_TIMEOUT_IN_MILLIS, READ_TIMEOUT_IN_MILLIS);
-                parsed = CSVFormat.DEFAULT.withFirstRecordAsHeader().parse(new FileReader(file));
+                storeToFile(config, file);
+                parsed = CSVFormat.DEFAULT.withFirstRecordAsHeader().parse(new FileReader(file, Charset.defaultCharset()));
                 parsed.iterator().hasNext();
                 return new AirbyteConnectionStatus()
                         .withStatus(AirbyteConnectionStatus.Status.SUCCEEDED)
@@ -223,7 +250,7 @@ public class CSVConnector extends BaseEventConnector {
                     ? Long.parseLong(additionalProperties.get("backfillSleepTimeInMillis").toString()) : 2000;
 
             Map<Long, Map<Long, List<Long>>> bucketVsRecords
-                    = readFile(csvUrl, timestampHeaderField, getUTCTimesupplier());
+                    = readFile(config, csvUrl, timestampHeaderField, getUTCTimesupplier());
             LOGGER.info("Read File Summary [{}] [{}] [{}]", getTenantId(), getConnectorId(),
                     bucketVsRecords.size());
 
@@ -441,11 +468,11 @@ public class CSVConnector extends BaseEventConnector {
         };
     }
 
-    public Map<Long, Map<Long, List<Long>>> readFile(String csvUrl, String timestampHeaderField,
+    public Map<Long, Map<Long, List<Long>>> readFile(JsonNode config, String csvUrl, String timestampHeaderField,
                                                Function<String, Long> timeSupplier)
                                                throws Exception {
         LOGGER.info("Started Downloading file [{}]", getTenantId(), getConnectorId());
-        file = createFile(csvUrl);
+        file = createFile(config, csvUrl);
         Map<Long, Map<Long, List<Long>>> timebucketVsRecords = new LinkedHashMap<>();
         long start = System.currentTimeMillis();
         Map<Long, List<Long>> timeInMillisEpochVsRecordNumber
@@ -464,12 +491,12 @@ public class CSVConnector extends BaseEventConnector {
         return timebucketVsRecords;
     }
 
-    private File createFile(String csvUrl) throws IOException {
+    private File createFile(JsonNode config, String csvUrl) throws IOException {
         file = File.createTempFile(UUID.randomUUID().toString(),".csv");
         file.deleteOnExit();
         LOGGER.info("Coping the csv file to location [{}] [{}]", getTenantId(), file);
         long startTimeInMiilis = System.currentTimeMillis();
-        FileUtils.copyURLToFile(new URL(csvUrl), file, CONNECT_TIMEOUT_IN_MILLIS, READ_TIMEOUT_IN_MILLIS);
+        storeToFile(config, file);
         LOGGER.info("Copied the csv file to location [{}] [{}] [{}]", getTenantId(), file,
                 (System.currentTimeMillis() - startTimeInMiilis));
         return file;
