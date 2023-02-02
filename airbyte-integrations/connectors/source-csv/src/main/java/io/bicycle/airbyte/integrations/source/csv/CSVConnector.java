@@ -103,23 +103,19 @@ public class CSVConnector extends BaseEventConnector {
     }
 
 
-    private void storeToFile(JsonNode config, File file) {
+    private void storeToFile(JsonNode config, File file) throws IOException {
         final JsonNode provider = config.get("provider");
         csvUrl = getCsvUrl(config);
-        try {
-            if (provider.get("storage").asText().equals("GCS")) {
-                String serviceAccount = provider.get("service_account_json").asText();
-                final ServiceAccountCredentials credentials = ServiceAccountCredentials
-                        .fromStream(new ByteArrayInputStream(serviceAccount.getBytes(Charsets.UTF_8)));
-                Storage storage = StorageOptions.newBuilder().setCredentials(credentials)
-                        .build().getService();
-                Blob blob = storage.get(BlobId.fromGsUtilUri(csvUrl));
-                blob.downloadTo(file.toPath());
-            } else {
-                FileUtils.copyURLToFile(new URL(csvUrl), file, CONNECT_TIMEOUT_IN_MILLIS, READ_TIMEOUT_IN_MILLIS);
-            }
-        } catch (Exception e) {
-            LOGGER.error("Unable to store file in temp storage", e);
+        if (provider.get("storage").asText().equals("GCS")) {
+            String serviceAccount = provider.get("service_account_json").asText();
+            final ServiceAccountCredentials credentials = ServiceAccountCredentials
+                    .fromStream(new ByteArrayInputStream(serviceAccount.getBytes(Charsets.UTF_8)));
+            Storage storage = StorageOptions.newBuilder().setCredentials(credentials)
+                    .build().getService();
+            Blob blob = storage.get(BlobId.fromGsUtilUri(csvUrl));
+            blob.downloadTo(file.toPath());
+        } else {
+            FileUtils.copyURLToFile(new URL(csvUrl), file, CONNECT_TIMEOUT_IN_MILLIS, READ_TIMEOUT_IN_MILLIS);
         }
     }
 
