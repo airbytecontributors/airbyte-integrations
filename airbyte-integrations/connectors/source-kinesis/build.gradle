@@ -23,6 +23,12 @@ repositories {
     }
 }
 
+configurations.all {
+    resolutionStrategy {
+        force 'com.inception:event-mapping-api:0.2.38725'
+    }
+}
+
 dependencies {
     implementation project(':airbyte-config:models')
     implementation project(':airbyte-protocol:models')

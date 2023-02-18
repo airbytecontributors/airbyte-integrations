@@ -94,8 +94,17 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         this.bicycleConfig = bicycleConfig;
         configStoreClient = getConfigClient(bicycleConfig);
         this.bicycleEventProcessor = new BicycleEventProcessorImpl(configStoreClient);
-        EventMappingConfigurations eventMappingConfigurations = new EventMappingConfigurations(bicycleConfig.getServerURL(),bicycleConfig.getMetricStoreURL(), bicycleConfig.getServerURL(),
-                bicycleConfig.getEventURL(), bicycleConfig.getServerURL(), bicycleConfig.getTraceQueryUrl());
+        EventMappingConfigurations eventMappingConfigurations =
+                new EventMappingConfigurations(
+                        bicycleConfig.getServerURL(),
+                        bicycleConfig.getServerURL(),
+                        bicycleConfig.getMetricStoreURL(),
+                        bicycleConfig.getServerURL(),
+                        bicycleConfig.getEventURL(),
+                        bicycleConfig.getTraceQueryUrl(),
+                        bicycleConfig.getServerURL(),
+                        bicycleConfig.getServerURL()
+                );
         logger.info("EventMappingConfiguration:: {}", eventMappingConfigurations);
         this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, systemAuthenticator, true);
     }

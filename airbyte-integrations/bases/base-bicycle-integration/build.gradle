@@ -13,6 +13,7 @@ configurations.all {
     resolutionStrategy {
         force 'com.inception:auth-api:0.3.31949'
 //        force 'com.inception:auth-impl:0.3.31949'
+        force 'com.inception:event-mapping-api:0.2.38725'
     }
 }
 
