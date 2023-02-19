@@ -60,6 +60,8 @@ public class CSVConnector extends BaseEventConnector {
     private static final String BACKFILL_PREVIOUS_BUCKET_NUMBER = "BACKFILL_PREVIOUS_BUCKET_NUMBER";
     private static final String BACKFILL_PREVIOUS_BUCKET_START_TIME_IN_MILLIS = "BACKFILL_PREVIOUS_BUCKET_START_TIME_IN_MILLIS";
     private volatile boolean shutdown = false;
+
+    private static final long WEEK_TIME_IN_MILLIS = (7 * 86400 * 1000);
     private static final int BATCH_SIZE = 1000;
     private int CONNECT_TIMEOUT_IN_MILLIS = 60000;
     private int READ_TIMEOUT_IN_MILLIS = 60000;
@@ -600,7 +602,11 @@ public class CSVConnector extends BaseEventConnector {
                 }
                 LOGGER.info("CSV File Headers [{}]", headers);
             }
-            Map<Long, List<Long>> timestampVsRecordsOffset = new HashMap<>();
+            Map<Long, List<Long>> timestampVsRecordsOffset = new TreeMap<>(new Comparator<Long>() {
+                public int compare(Long aLong, Long t1) {
+                    return aLong < t1 ? -1 : aLong > t1 ? 1 : 0;
+                }
+            });
             long csvStartTimeInMillisInEpoch = Long.MAX_VALUE;
             long csvEndTimeInMillisInEpoch = Long.MIN_VALUE;
             int recordNumber = 0;
@@ -649,6 +655,30 @@ public class CSVConnector extends BaseEventConnector {
                 }
                 csvDataStartTimeInMillis = csvStartTimeInMillisInEpoch;
                 epochOffsetTimeInMillis = (csvDataStartTimeInMillis % csvDataDurationInMillis);
+                double numOfWeeks = csvDataDurationInMillis / Double.valueOf(WEEK_TIME_IN_MILLIS);
+                if (numOfWeeks > 1) {
+                    if (Math.ceil(numOfWeeks) != numOfWeeks) {
+                        Map<Long, List<Long>> map = new TreeMap<>(new Comparator<Long>() {
+                            public int compare(Long aLong, Long t1) {
+                                return aLong < t1 ? -1 : aLong > t1 ? 1 : 0;
+                            }
+                        });
+                        long durationInMillis = (long) (Math.ceil(numOfWeeks) * WEEK_TIME_IN_MILLIS);
+                        long endTimeInMillis = csvDataStartTimeInMillis + durationInMillis - ((long) Math.floor(numOfWeeks) * WEEK_TIME_IN_MILLIS);
+                        long startTimeInMillis = (csvEndTimeInMillisInEpoch - ((long) Math.floor(numOfWeeks) * WEEK_TIME_IN_MILLIS));
+                        for (long timestamp : timestampVsRecordsOffset.keySet()) {
+                            if (timestamp > startTimeInMillis && timestamp <= endTimeInMillis) {
+                                map.put((timestamp+((long) Math.floor(numOfWeeks) * WEEK_TIME_IN_MILLIS)), timestampVsRecordsOffset.get(timestamp));
+                            }
+                            if (timestamp > endTimeInMillis) {
+                                break;
+                            }
+                        }
+                        timestampVsRecordsOffset.putAll(map);
+                        csvDataDurationInMillis = durationInMillis;
+                        epochOffsetTimeInMillis = (csvDataStartTimeInMillis % csvDataDurationInMillis);
+                    }
+                }
                 LOGGER.info("CSV startTimeInMillis [{}] [{}] [{}] [{}] [{}]", getTenantId(),
                         getConnectorId(), csvStartTimeInMillisInEpoch, csvEndTimeInMillisInEpoch,
                         csvDataDurationInMillis);

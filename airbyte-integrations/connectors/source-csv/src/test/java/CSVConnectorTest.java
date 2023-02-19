@@ -47,8 +47,8 @@ public class CSVConnectorTest {
 
         ObjectMapper mapper = new ObjectMapper();
         config = mapper.createObjectNode();
-        ((ObjectNode)config).put("url", "");
-        //((ObjectNode)config).put("url", "https://docs.google.com/document/d/1LGFIaYH9Ad8j2WRTdhhtKqUlIZs8OJ2v3PpZh3M9DN0/export?format=txt");
+        //((ObjectNode)config).put("url", "");
+        ((ObjectNode)config).put("url", "file:///home/ravi/Downloads/test.csv");
         ((ObjectNode)config).put("timeHeader", "transactiondate");
         ((ObjectNode)config).put("timeFormat", "yyyy-MM-dd'T'HH:mm:ss.SSS");
         ((ObjectNode)config).put("timeZone", "UTC");
@@ -57,6 +57,9 @@ public class CSVConnectorTest {
         ((ObjectNode)config).put("backfill", false);
         ((ObjectNode)config).put("replay", true);
         ((ObjectNode)config).put("backfillDateTime", "test");
+        JsonNode config1 = mapper.createObjectNode();
+        ((ObjectNode)config1).put("storage", "local");
+        ((ObjectNode)config).put("provider", config1);
         catalog= new ConfiguredAirbyteCatalog();
         catalog.getAdditionalProperties().put("bicycleServerURL", serverURL);
         catalog.getAdditionalProperties().put("bicycleTenantId", "dts-568dcea3-11b0-40c2-b89e-d189fe77002e");
@@ -73,18 +76,7 @@ public class CSVConnectorTest {
 
     @Test
     public void testReadFile() throws Exception {
-        String url2 = "https://drive.google.com/file/d/1prvEFRh3SYtMFiRZfBpOGMqA_Dl2d_Db/export?format=csv&usp=sharing";
-        Map<Long, Map<Long, List<Long>>> records = csvConnector.readFile(config, url2, "transactiondate", (value) -> {
-            try {
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS");
-                LocalDateTime localDateTime = LocalDateTime.parse(value, formatter);
-                Timestamp timestamp = Timestamp.valueOf(localDateTime);
-                return timestamp.getTime();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-            return System.currentTimeMillis();
-        });
+        csvConnector.read(config, catalog, null);
         Assertions.assertTrue(true);
     }
 
