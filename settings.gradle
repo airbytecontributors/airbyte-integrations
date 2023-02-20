@@ -26,6 +26,12 @@ dependencyResolutionManagement {
         }
     }
 }
+//
+//sourceControl {
+//    gitRepository("https://github.com/ben-manes/caffeine.git") {
+//        producesModule("com.github.ben-manes.caffeine:caffeine")
+//    }
+//}
 
 // SUB_BUILD is an enum of <blank>, PLATFORM, CONNECTORS_BASE, ALL_CONNECTORS and OCTAVIA_CLI. Blank is equivalent to all.
 if (!System.getenv().containsKey("SUB_BUILD")) {
