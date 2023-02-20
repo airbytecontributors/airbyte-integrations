@@ -9,12 +9,6 @@ application {
     applicationDefaultJvmArgs = ['-XX:+ExitOnOutOfMemoryError', '-XX:MaxRAMPercentage=75.0']
 }
 
-configurations.all {
-    resolutionStrategy {
-        force 'com.inception:event-mapping-api:0.2.38725'
-    }
-}
-
 dependencies {
     implementation project(':airbyte-config:models')
     implementation project(':airbyte-protocol:models')
@@ -23,8 +17,16 @@ dependencies {
     implementation group: 'com.inception', name: 'integration-model', version: '0.2.33522'
     implementation group: 'com.inception', name: 'integration-common-api', version: '0.2.33522'
     implementation group: 'com.inception', name: 'integration-common-impl', version: '0.2.33522'
-    implementation group: 'com.inception', name: 'bicycle-event-processor', version: '0.2.34322'
-    implementation group: 'com.inception', name: 'bicycle-event-publisher', version: '0.2.34322'
+    implementation('com.inception:bicycle-event-processor:0.2.38771') {
+        exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
+        exclude group: 'org.springframework.kafka', module:'spring-kafka'
+        exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'
+    }
+    implementation('com.inception:bicycle-event-publisher:0.2.38771') {
+        exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
+        exclude group: 'org.springframework.kafka', module:'spring-kafka'
+        exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'
+    }
 
     implementation 'com.google.cloud:google-cloud-pubsub:1.121.1'
     implementation 'com.google.cloud:google-cloud-monitoring:3.6.0'

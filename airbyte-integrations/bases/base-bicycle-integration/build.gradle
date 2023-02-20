@@ -13,7 +13,6 @@ configurations.all {
     resolutionStrategy {
         force 'com.inception:auth-api:0.3.31949'
 //        force 'com.inception:auth-impl:0.3.31949'
-        force 'com.inception:event-mapping-api:0.2.38725'
     }
 }
 
@@ -25,8 +24,19 @@ dependencies {
     implementation group: 'com.inception', name: 'integration-model', version: '0.2.33522'
     implementation group: 'com.inception', name: 'integration-common-api', version: '0.2.33522'
     implementation group: 'com.inception', name: 'integration-common-impl', version: '0.2.33522'
-    implementation group: 'com.inception', name: 'bicycle-event-processor', version: '0.2.35632'
-    implementation group: 'com.inception', name: 'bicycle-event-publisher', version: '0.2.35632'
+    implementation('com.inception:bicycle-event-processor:0.2.38771') {
+        exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
+        exclude group: 'org.springframework.kafka', module:'spring-kafka'
+        exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'
+    }
+    implementation('com.inception:bicycle-event-publisher:0.2.38771') {
+        exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
+        exclude group: 'org.springframework.kafka', module:'spring-kafka'
+        exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'
+    }
+//    api ('com.github.ben-manes.caffeine:caffeine'){
+//        exclude group:'*'
+//    }
     implementation group: 'org.springframework.kafka', name: 'spring-kafka', version: '2.8.7'
     implementation group: 'org.springframework.boot', name: 'spring-boot-autoconfigure', version: '2.7.1'
     implementation group: 'org.springframework.boot', name: 'spring-boot', version: '2.7.1'

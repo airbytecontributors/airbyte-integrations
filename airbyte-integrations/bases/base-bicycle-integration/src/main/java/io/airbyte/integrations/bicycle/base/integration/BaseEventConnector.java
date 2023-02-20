@@ -1,12 +1,12 @@
 package io.airbyte.integrations.bicycle.base.integration;
 
-import bicycle.io.events.proto.BicycleEventList;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.inception.common.client.ServiceLocator;
 import com.inception.common.client.impl.GenericApiClient;
+import com.inception.schemastore.client.SchemaStoreApiClient;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.config.Config;
@@ -15,6 +15,7 @@ import com.inception.server.config.api.ConfigNotFoundException;
 import com.inception.server.config.api.ConfigStoreException;
 import com.inception.server.configstore.client.ConfigStoreAPIClient;
 import com.inception.server.configstore.client.ConfigStoreClient;
+import com.inception.server.entitystore.client.EntityStoreApiClient;
 import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.BaseConnector;
@@ -28,6 +29,7 @@ import io.bicycle.event.processor.impl.BicycleEventProcessorImpl;
 import io.bicycle.event.publisher.api.BicycleEventPublisher;
 import io.bicycle.event.publisher.impl.BicycleEventPublisherImpl;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.common.transformation.TransformationImpl;
 import io.bicycle.integration.common.utils.CommonUtil;
 import io.bicycle.integration.common.writer.Writer;
 import io.bicycle.integration.common.writer.WriterFactory;
@@ -36,6 +38,7 @@ import io.bicycle.integration.connector.ProcessedEventSourceData;
 import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.config.EventMappingConfigurations;
+import io.bicycle.server.event.mapping.constants.BicycleEventPublisherType;
 import io.bicycle.server.event.mapping.models.converter.BicycleEventsResult;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
@@ -47,7 +50,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -63,6 +65,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getName());
     private final ConfigHelper configHelper = new ConfigHelper();
     private ConfigStoreClient configStoreClient;
+    private SchemaStoreApiClient schemaStoreApiClient;
+    private EntityStoreApiClient entityStoreApiClient;
     private BicycleEventProcessor bicycleEventProcessor;
     protected BicycleEventPublisher bicycleEventPublisher;
     protected BicycleConfig bicycleConfig;
@@ -93,20 +97,29 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     public void setBicycleEventProcessorAndPublisher(BicycleConfig bicycleConfig) {
         this.bicycleConfig = bicycleConfig;
         configStoreClient = getConfigClient(bicycleConfig);
-        this.bicycleEventProcessor = new BicycleEventProcessorImpl(configStoreClient);
+        schemaStoreApiClient = getSchemaStoreApiClient();
+        entityStoreApiClient = getEntityStoreApiClient();
+        this.bicycleEventProcessor =
+                new BicycleEventProcessorImpl(
+                        BicycleEventPublisherType.BICYCLE_EVENTS,
+                        configStoreClient,
+                        schemaStoreApiClient,
+                        entityStoreApiClient
+                );
         EventMappingConfigurations eventMappingConfigurations =
                 new EventMappingConfigurations(
-                        bicycleConfig.getServerURL(),
                         bicycleConfig.getServerURL(),
                         bicycleConfig.getMetricStoreURL(),
                         bicycleConfig.getServerURL(),
                         bicycleConfig.getEventURL(),
+                        bicycleConfig.getServerURL(),
                         bicycleConfig.getTraceQueryUrl(),
                         bicycleConfig.getServerURL(),
                         bicycleConfig.getServerURL()
                 );
         logger.info("EventMappingConfiguration:: {}", eventMappingConfigurations);
-        this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, systemAuthenticator, true);
+        this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, systemAuthenticator,
+                true, new TransformationImpl());
     }
 
     static ConfigStoreClient getConfigClient(BicycleConfig bicycleConfig) {
@@ -128,6 +141,14 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                 return super.getLatest(authInfo, ref);
             }
         };
+    }
+
+    private static SchemaStoreApiClient getSchemaStoreApiClient() {
+        return null;
+    }
+
+    private static EntityStoreApiClient getEntityStoreApiClient() {
+        return null;
     }
 
     public abstract void stopEventConnector();
