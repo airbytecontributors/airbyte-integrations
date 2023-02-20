@@ -95,31 +95,35 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     abstract protected int getTotalRecordsConsumed();
 
     public void setBicycleEventProcessorAndPublisher(BicycleConfig bicycleConfig) {
-        this.bicycleConfig = bicycleConfig;
-        configStoreClient = getConfigClient(bicycleConfig);
-        schemaStoreApiClient = getSchemaStoreApiClient();
-        entityStoreApiClient = getEntityStoreApiClient();
-        this.bicycleEventProcessor =
-                new BicycleEventProcessorImpl(
-                        BicycleEventPublisherType.BICYCLE_EVENTS,
-                        configStoreClient,
-                        schemaStoreApiClient,
-                        entityStoreApiClient
-                );
-        EventMappingConfigurations eventMappingConfigurations =
-                new EventMappingConfigurations(
-                        bicycleConfig.getServerURL(),
-                        bicycleConfig.getMetricStoreURL(),
-                        bicycleConfig.getServerURL(),
-                        bicycleConfig.getEventURL(),
-                        bicycleConfig.getServerURL(),
-                        bicycleConfig.getTraceQueryUrl(),
-                        bicycleConfig.getServerURL(),
-                        bicycleConfig.getServerURL()
-                );
-        logger.info("EventMappingConfiguration:: {}", eventMappingConfigurations);
-        this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, systemAuthenticator,
-                true, new TransformationImpl());
+        try {
+            this.bicycleConfig = bicycleConfig;
+            configStoreClient = getConfigClient(bicycleConfig);
+            schemaStoreApiClient = getSchemaStoreApiClient();
+            entityStoreApiClient = getEntityStoreApiClient();
+            this.bicycleEventProcessor =
+                    new BicycleEventProcessorImpl(
+                            BicycleEventPublisherType.BICYCLE_EVENTS,
+                            configStoreClient,
+                            schemaStoreApiClient,
+                            entityStoreApiClient
+                    );
+            EventMappingConfigurations eventMappingConfigurations =
+                    new EventMappingConfigurations(
+                            bicycleConfig.getServerURL(),
+                            bicycleConfig.getMetricStoreURL(),
+                            bicycleConfig.getServerURL(),
+                            bicycleConfig.getEventURL(),
+                            bicycleConfig.getServerURL(),
+                            bicycleConfig.getTraceQueryUrl(),
+                            bicycleConfig.getServerURL(),
+                            bicycleConfig.getServerURL()
+                    );
+            logger.info("EventMappingConfiguration:: {}", eventMappingConfigurations);
+            this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, systemAuthenticator,
+                    true, new TransformationImpl());
+        } catch (Throwable e) {
+            logger.error("Exception while setting bicycle event process and publisher", e);
+        }
     }
 
     static ConfigStoreClient getConfigClient(BicycleConfig bicycleConfig) {
