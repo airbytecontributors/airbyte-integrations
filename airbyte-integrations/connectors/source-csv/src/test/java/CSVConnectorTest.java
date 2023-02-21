@@ -48,17 +48,20 @@ public class CSVConnectorTest {
         ObjectMapper mapper = new ObjectMapper();
         config = mapper.createObjectNode();
         //((ObjectNode)config).put("url", "");
-        ((ObjectNode)config).put("url", "file:///home/ravi/Downloads/test.csv");
+        ((ObjectNode)config).put("url", "gs://kdev-repo-1645/test.csv");
         ((ObjectNode)config).put("timeHeader", "transactiondate");
         ((ObjectNode)config).put("timeFormat", "yyyy-MM-dd'T'HH:mm:ss.SSS");
         ((ObjectNode)config).put("timeZone", "UTC");
         ((ObjectNode)config).put("datasetName", "test-csv");
         ((ObjectNode)config).put("format", "csv");
-        ((ObjectNode)config).put("backfill", false);
-        ((ObjectNode)config).put("replay", true);
+        ((ObjectNode)config).put("backfill", true);
+        ((ObjectNode)config).put("replay", false);
         ((ObjectNode)config).put("backfillDateTime", "test");
+        ((ObjectNode)config).put("backfillStartDateTime", "2022-12-27T00:00:00.000");
+        ((ObjectNode)config).put("backfillEndDateTime", "2023-01-15T00:00:00.000");
         JsonNode config1 = mapper.createObjectNode();
-        ((ObjectNode)config1).put("storage", "local");
+        ((ObjectNode)config1).put("storage", "GCS");
+        ((ObjectNode)config1).put("service_account_json", "");
         ((ObjectNode)config).put("provider", config1);
         catalog= new ConfiguredAirbyteCatalog();
         catalog.getAdditionalProperties().put("bicycleServerURL", serverURL);
@@ -82,13 +85,12 @@ public class CSVConnectorTest {
 
     @Test
     public void testPublishEvents() throws Exception {
-        do {
-            try {
-                csvConnector.read(config, catalog, new ObjectMapper().createObjectNode());
-                Assertions.assertTrue(true);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        } while (true);
+        try {
+            csvConnector.read(config, catalog, new ObjectMapper().createObjectNode());
+            Assertions.assertTrue(true);
+        } catch (Exception e) {
+            e.printStackTrace();
+            Assertions.fail();
+        }
     }
 }
