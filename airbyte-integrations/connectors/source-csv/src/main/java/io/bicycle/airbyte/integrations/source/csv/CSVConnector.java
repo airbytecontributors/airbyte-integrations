@@ -60,6 +60,8 @@ public class CSVConnector extends BaseEventConnector {
     private static final String BACKFILL_PREVIOUS_BUCKET_NUMBER = "BACKFILL_PREVIOUS_BUCKET_NUMBER";
     private static final String BACKFILL_PREVIOUS_BUCKET_START_TIME_IN_MILLIS = "BACKFILL_PREVIOUS_BUCKET_START_TIME_IN_MILLIS";
     private volatile boolean shutdown = false;
+
+    private static final long WEEK_TIME_IN_MILLIS = (7 * 86400 * 1000);
     private static final int BATCH_SIZE = 1000;
     private int CONNECT_TIMEOUT_IN_MILLIS = 60000;
     private int READ_TIMEOUT_IN_MILLIS = 60000;
@@ -218,7 +220,7 @@ public class CSVConnector extends BaseEventConnector {
             LOGGER.info("Initialized State [{}]  [{}] [{}]", state, getTenantId(), getConnectorId());
         }
         try {
-            LOGGER.info("Starting Read v3 [{}]  [{}]  [{}]", getTenantId(), getConnectorId(), runCount);
+            LOGGER.info("Starting Read v5 [{}]  [{}]  [{}]", getTenantId(), getConnectorId(), runCount);
             this.csvUrl = getCsvUrl(config);
             if (csvUrl == null) {
                 throw new IllegalStateException("No csv url");
@@ -247,8 +249,8 @@ public class CSVConnector extends BaseEventConnector {
 
             Map<Long, Map<Long, List<Long>>> bucketVsRecords
                     = readFile(config, csvUrl, timestampHeaderField, getUTCTimesupplier());
-            LOGGER.info("Read File Summary [{}] [{}] [{}]", getTenantId(), getConnectorId(),
-                    bucketVsRecords.size());
+            LOGGER.info("Read File Summary [{}] [{}] size [{}] [{}]", getTenantId(), getConnectorId(),
+                    bucketVsRecords.size(), bucketVsRecords.size() > 20 ?  "" : bucketVsRecords);
 
             if (csvDataDurationInMillis == 0) {
                 throw new IllegalStateException("Incorrect data duration in the csv file["+getTenantId()+"] ["+csvUrl+"]");
@@ -389,8 +391,8 @@ public class CSVConnector extends BaseEventConnector {
                          long currentTimeInMillis, long sleepTimeInMillis) throws Exception {
         String eventSourceType = getEventSourceType();
         String connectorId = getConnectorId();
-        /*LOGGER.info("Processing Records [{}] [{}] [{}] [{}] [{}] [{}]", getTenantId(), getConnectorId(),
-                new Date(currentBucketStartTimeMillis), new Date(currentTimeInMillis), previousBucketNumber, currentBucketNumber);*/
+        LOGGER.info("Processing Records [{}] [{}] [{}] [{}] [{}] [{}]", getTenantId(), getConnectorId(),
+                new Date(currentBucketStartTimeMillis), new Date(currentTimeInMillis), previousBucketNumber, currentBucketNumber);
         if (currentBucketNumber != previousBucketNumber) {
             Map<Long, List<Long>> publishRecords = bucketVsRecords.get(previousBucketNumber);
             if (publishRecords != null) {
@@ -427,9 +429,9 @@ public class CSVConnector extends BaseEventConnector {
             //Date date = new Date(relativeTimeInMillis);
             //DateFormat dateFormat = new SimpleDateFormat(timestampformat);
             //return dateFormat.format(date);
-            /*LOGGER.info("Event Publish Time [{}] [{}] [{}] [{}] [{}]", getTenantId(), getConnectorId(),
+            LOGGER.info("Event Publish Time [{}] [{}] [{}] [{}] [{}]", getTenantId(), getConnectorId(),
                     zdt, ZonedDateTime.ofInstant(Instant.ofEpochMilli((long)timestamp), ZoneId.of(timeZone)),
-                    finalPreviousBucketNumber);*/
+                    finalPreviousBucketNumber);
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern(timestampformat);
             return zdt.format(formatter);
         };
@@ -596,7 +598,11 @@ public class CSVConnector extends BaseEventConnector {
                 }
                 LOGGER.info("CSV File Headers [{}]", headers);
             }
-            Map<Long, List<Long>> timestampVsRecordsOffset = new HashMap<>();
+            Map<Long, List<Long>> timestampVsRecordsOffset = new TreeMap<>(new Comparator<Long>() {
+                public int compare(Long aLong, Long t1) {
+                    return aLong < t1 ? -1 : aLong > t1 ? 1 : 0;
+                }
+            });
             long csvStartTimeInMillisInEpoch = Long.MAX_VALUE;
             long csvEndTimeInMillisInEpoch = Long.MIN_VALUE;
             int recordNumber = 0;
@@ -634,6 +640,9 @@ public class CSVConnector extends BaseEventConnector {
                 }
             } while (true);
 
+            if (csvStartTimeInMillisInEpoch == Long.MAX_VALUE || csvEndTimeInMillisInEpoch == Long.MIN_VALUE) {
+                throw new IllegalStateException("Could parse csv the start and end times");
+            }
             LOGGER.info("Total Records [{}] [{}] [{}]", getTenantId(), getConnectorId(), records.size());
             if (csvStartTimeInMillisInEpoch != 0  && csvEndTimeInMillisInEpoch != 0) {
                 long remainder = (csvEndTimeInMillisInEpoch - csvStartTimeInMillisInEpoch) % periodicityInMillis;
@@ -645,6 +654,30 @@ public class CSVConnector extends BaseEventConnector {
                 }
                 csvDataStartTimeInMillis = csvStartTimeInMillisInEpoch;
                 epochOffsetTimeInMillis = (csvDataStartTimeInMillis % csvDataDurationInMillis);
+                double numOfWeeks = csvDataDurationInMillis / Double.valueOf(WEEK_TIME_IN_MILLIS);
+                if (numOfWeeks > 1) {
+                    if (Math.ceil(numOfWeeks) != numOfWeeks) {
+                        Map<Long, List<Long>> map = new TreeMap<>(new Comparator<Long>() {
+                            public int compare(Long aLong, Long t1) {
+                                return aLong < t1 ? -1 : aLong > t1 ? 1 : 0;
+                            }
+                        });
+                        long durationInMillis = (long) (Math.ceil(numOfWeeks) * WEEK_TIME_IN_MILLIS);
+                        long endTimeInMillis = csvDataStartTimeInMillis + durationInMillis - ((long) Math.floor(numOfWeeks) * WEEK_TIME_IN_MILLIS);
+                        long startTimeInMillis = (csvEndTimeInMillisInEpoch - ((long) Math.floor(numOfWeeks) * WEEK_TIME_IN_MILLIS));
+                        for (long timestamp : timestampVsRecordsOffset.keySet()) {
+                            if (timestamp > startTimeInMillis && timestamp <= endTimeInMillis) {
+                                map.put((timestamp+((long) Math.floor(numOfWeeks) * WEEK_TIME_IN_MILLIS)), timestampVsRecordsOffset.get(timestamp));
+                            }
+                            if (timestamp > endTimeInMillis) {
+                                break;
+                            }
+                        }
+                        timestampVsRecordsOffset.putAll(map);
+                        csvDataDurationInMillis = durationInMillis;
+                        epochOffsetTimeInMillis = (csvDataStartTimeInMillis % csvDataDurationInMillis);
+                    }
+                }
                 LOGGER.info("CSV startTimeInMillis [{}] [{}] [{}] [{}] [{}]", getTenantId(),
                         getConnectorId(), csvStartTimeInMillisInEpoch, csvEndTimeInMillisInEpoch,
                         csvDataDurationInMillis);
