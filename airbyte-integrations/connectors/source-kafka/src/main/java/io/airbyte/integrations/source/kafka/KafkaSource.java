@@ -191,7 +191,7 @@ public class KafkaSource extends BaseEventConnector {
     List<RawEvent> rawEvents = new ArrayList<>();
     while (recordsIterator.hasNext()) {
       ConsumerRecord<String, JsonNode> record = recordsIterator.next();
-      JsonRawEvent jsonRawEvent = new JsonRawEvent(record.value().toString());
+      JsonRawEvent jsonRawEvent = new JsonRawEvent(record.value());
       rawEvents.add(jsonRawEvent);
     }
     if (rawEvents.size() == 0) {

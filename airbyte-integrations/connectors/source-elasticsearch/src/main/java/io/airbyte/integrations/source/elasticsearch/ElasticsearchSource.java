@@ -248,7 +248,7 @@ public class ElasticsearchSource extends BaseEventConnector {
         List<RawEvent> rawEvents = new ArrayList<>();
         while (recordsIterator.hasNext()) {
             JsonNode record = (JsonNode) recordsIterator.next();
-            JsonRawEvent jsonRawEvent = new JsonRawEvent(record.toString());
+            JsonRawEvent jsonRawEvent = new JsonRawEvent(record);
             rawEvents.add(jsonRawEvent);
         }
         if (rawEvents.size() == 0) {
