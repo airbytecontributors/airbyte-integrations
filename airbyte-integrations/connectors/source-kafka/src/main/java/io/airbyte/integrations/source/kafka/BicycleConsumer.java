@@ -194,7 +194,9 @@ public class BicycleConsumer implements Runnable {
 
                 try {
                     this.kafkaSource.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
-                    consumer.commitAsync();
+                    if (this.kafkaSource.isUserServiceMappingRulesMissingFlag() == false) {
+                        consumer.commitAsync();
+                    }
                 } catch (Exception exception) {
                     logger.error("Unable to publish bicycle events for {} ", name, exception);
                 }
