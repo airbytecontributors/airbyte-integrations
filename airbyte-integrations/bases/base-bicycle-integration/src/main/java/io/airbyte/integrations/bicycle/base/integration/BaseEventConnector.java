@@ -77,6 +77,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected EventSourceInfo eventSourceInfo;
 
     protected ObjectMapper objectMapper = new ObjectMapper();
+    protected boolean userServiceMappingRulesMissingFlag = true;
     protected JsonNode config;
     protected ConfiguredAirbyteCatalog catalog;
     protected Map<String, Object> additionalProperties;
@@ -93,6 +94,10 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     }
 
     abstract protected int getTotalRecordsConsumed();
+
+    public boolean isUserServiceMappingRulesMissingFlag() {
+        return userServiceMappingRulesMissingFlag;
+    }
 
     public void setBicycleEventProcessorAndPublisher(BicycleConfig bicycleConfig) {
         try {
@@ -229,6 +234,9 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                                                                EventSourceInfo eventSourceInfo,
                                                                List<RawEvent> rawEvents) {
 
+        List<UserServiceMappingRule> userServiceMappingRules = configHelper.getUserServiceMappingRules(
+                authInfo, bicycleConfig.getConnectorId(), configStoreClient);
+        userServiceMappingRulesMissingFlag = userServiceMappingRules.size() <= 0;
         EventProcessorResult eventProcessorResult =
                 bicycleEventProcessor.processEvents(authInfo, eventSourceInfo, rawEvents);
 

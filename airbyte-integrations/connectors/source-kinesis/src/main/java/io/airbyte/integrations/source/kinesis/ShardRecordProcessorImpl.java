@@ -69,7 +69,9 @@ public class ShardRecordProcessorImpl implements ShardRecordProcessor {
 
             try {
                 this.kinesisSource.publishEvents(authInfo, eventSourceinfo, eventProcessorResult);
-                processRecordsInput.checkpointer().checkpoint();
+                if (this.kinesisSource.isUserServiceMappingRulesMissingFlag() == false) {
+                    processRecordsInput.checkpointer().checkpoint();
+                }
                 if (!totalRecordsRead.containsKey(shardId)) {
                     totalRecordsRead.put(shardId, Long.valueOf(0));
                 }
