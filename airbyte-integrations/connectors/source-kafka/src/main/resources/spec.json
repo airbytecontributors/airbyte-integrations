@@ -22,9 +22,9 @@
         "title" : "Deserializer",
         "type": "string",
         "description": "You can choose one of the deserializer to deserialize the kafka messages received",
-        "enum": ["Json Deserializer",
-          "Avro Deserializer"],
-        "default": "Json Deserializer"
+        "enum": ["Json",
+          "Avro"],
+        "default": "Json"
       },
       "subscription": {
         "title": "Subscription Method",
