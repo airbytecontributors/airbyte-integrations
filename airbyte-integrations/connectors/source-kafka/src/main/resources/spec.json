@@ -18,6 +18,16 @@
         "type": "string",
         "examples": ["kafka-broker1:9092,kafka-broker2:9092"]
       },
+      "kafka_deserializer": {
+        "title" : "Kafka Deserializer",
+        "type": "string",
+        "description": "You can choose one of the deserializer to deserialize the kafka messages received",
+        "enum": ["io.bicycle.integration.standalone.kafka.BicycleJsonDeserializer",
+          "org.apache.kafka.common.serialization.StringDeserializer",
+          "org.apache.kafka.connect.json.JsonDeserializer",
+          "io.bicycle.integration.standalone.kafka.PricelineMapEventDeserializer"],
+        "default": "io.bicycle.integration.standalone.kafka.BicycleJsonDeserializer"
+      },
       "subscription": {
         "title": "Subscription Method",
         "type": "object",
