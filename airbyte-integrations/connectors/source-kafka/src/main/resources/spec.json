@@ -18,6 +18,14 @@
         "type": "string",
         "examples": ["kafka-broker1:9092,kafka-broker2:9092"]
       },
+      "deserializer": {
+        "title" : "Deserializer",
+        "type": "string",
+        "description": "You can choose one of the deserializer to deserialize the kafka messages received",
+        "enum": ["Json",
+          "Avro"],
+        "default": "Json"
+      },
       "subscription": {
         "title": "Subscription Method",
         "type": "object",
