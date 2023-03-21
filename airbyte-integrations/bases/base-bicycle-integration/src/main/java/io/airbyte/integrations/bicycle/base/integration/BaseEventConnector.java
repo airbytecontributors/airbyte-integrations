@@ -75,7 +75,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private static final String CONNECTORS_WAIT_TIME_IN_MILLIS = "CONNECTORS_WAIT_TIME_IN_MILLIS";
 
     protected List<String> listOfConnectorsWithSleepEnabled = new ArrayList<>();
-    protected long sleepTimeInMillis = 0;
+    protected long sleepTimeInMillis = 5000;
     protected EventSourceInfo eventSourceInfo;
 
     protected ObjectMapper objectMapper = new ObjectMapper();
@@ -100,6 +100,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         if (!StringUtils.isEmpty(envConnectorsUsingPreviewStore)) {
             String[] connectorsWithSleepEnabled = envConnectorsUsingPreviewStore.split(",");
             listOfConnectorsWithSleepEnabled = Arrays.asList(connectorsWithSleepEnabled);
+        } else {
+            listOfConnectorsWithSleepEnabled.add("ad2e5fb0-4218-462c-8f5d-9dc76f5ac9b6");
         }
     }
 
