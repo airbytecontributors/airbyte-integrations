@@ -123,7 +123,7 @@ public class BicycleConsumer implements Runnable {
         return value;
     }
 
-    public void read(BicycleConfig bicycleConfig, final JsonNode config, final ConfiguredAirbyteCatalog configuredAirbyteCatalog, final JsonNode state) {
+    public void read(BicycleConfig bicycleConfig, final JsonNode config, final ConfiguredAirbyteCatalog configuredAirbyteCatalog, final JsonNode state) throws InterruptedException {
         final boolean check = check(config);
 
         logger.info("======Starting read operation for consumer " + name + " config: " + config + " catalog:"+ configuredAirbyteCatalog + "=======");
@@ -197,6 +197,9 @@ public class BicycleConsumer implements Runnable {
                     consumer.commitAsync();
                 } catch (Exception exception) {
                     logger.error("Unable to publish bicycle events for {} ", name, exception);
+                }
+                if (this.kafkaSource.isSleepEnabledForConnector(authInfo, eventSourceInfo.getEventSourceId())) {
+                    Thread.sleep(this.kafkaSource.getSleepTimeInMillis());
                 }
             }
 

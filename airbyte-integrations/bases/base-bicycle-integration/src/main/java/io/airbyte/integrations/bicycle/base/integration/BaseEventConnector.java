@@ -45,10 +45,7 @@ import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.models.publisher.EventPublisherResult;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.commons.lang3.StringUtils;
@@ -74,6 +71,11 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier;
     protected static final String TENANT_ID = "tenantId";
     protected String ENV_TENANT_ID_KEY = "TENANT_ID";
+    private static final String CONNECTORS_WITH_WAIT_ENABLED = "CONNECTORS_WITH_WAIT_ENABLED";
+    private static final String CONNECTORS_WAIT_TIME_IN_MILLIS = "CONNECTORS_WAIT_TIME_IN_MILLIS";
+
+    protected List<String> listOfConnectorsWithSleepEnabled = new ArrayList<>();
+    protected long sleepTimeInMillis = 0;
     protected EventSourceInfo eventSourceInfo;
 
     protected ObjectMapper objectMapper = new ObjectMapper();
@@ -86,6 +88,29 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     public BaseEventConnector(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
         this.systemAuthenticator = systemAuthenticator;
         this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;
+        String envConnectorsUsingPreviewStore =
+                CommonUtil.getFromEnvironment(CONNECTORS_WITH_WAIT_ENABLED, false);
+        String sleepTime =
+                CommonUtil.getFromEnvironment(CONNECTORS_WAIT_TIME_IN_MILLIS, false);
+        try {
+            sleepTimeInMillis = Long.parseLong(sleepTime);
+        } catch (Exception e) {
+            logger.info("CONNECTORS_WAIT_TIME_IN_MILLIS not set correctly");
+        }
+        if (!StringUtils.isEmpty(envConnectorsUsingPreviewStore)) {
+            String[] connectorsWithSleepEnabled = envConnectorsUsingPreviewStore.split(",");
+            listOfConnectorsWithSleepEnabled = Arrays.asList(connectorsWithSleepEnabled);
+        }
+    }
+
+    public long getSleepTimeInMillis() {
+        return sleepTimeInMillis;
+    }
+
+
+    public boolean isSleepEnabledForConnector(final AuthInfo authInfo, final String connectorStreamUUID) {
+        return listOfConnectorsWithSleepEnabled.contains(connectorStreamUUID)
+                || listOfConnectorsWithSleepEnabled.contains(authInfo.getTenantId());
     }
 
     public EventConnectorJobStatusNotifier getEventConnectorJobStatusNotifier() {
