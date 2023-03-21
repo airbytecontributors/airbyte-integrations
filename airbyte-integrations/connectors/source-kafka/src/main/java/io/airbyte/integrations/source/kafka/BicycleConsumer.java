@@ -9,6 +9,7 @@ import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusN
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -199,7 +200,11 @@ public class BicycleConsumer implements Runnable {
                     logger.error("Unable to publish bicycle events for {} ", name, exception);
                 }
                 if (this.kafkaSource.isSleepEnabledForConnector(authInfo, eventSourceInfo.getEventSourceId())) {
+                    logger.info("Connector Id {} going to sleep for {} ms at timestamp {}",
+                            eventSourceInfo.getEventSourceId(), this.kafkaSource.getSleepTimeInMillis(), Instant.now());
                     Thread.sleep(this.kafkaSource.getSleepTimeInMillis());
+                    logger.info("Connector Id {} Waking up at at timestamp {}",
+                            eventSourceInfo.getEventSourceId(), Instant.now());
                 }
             }
 
