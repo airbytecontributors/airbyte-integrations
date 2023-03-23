@@ -25,6 +25,7 @@ import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.entity.mapping.api.ConnectionServiceClient;
 import io.bicycle.event.processor.ConfigHelper;
 import io.bicycle.event.processor.api.BicycleEventProcessor;
+import io.bicycle.event.processor.config.BlackListedFields;
 import io.bicycle.event.processor.impl.BicycleEventProcessorImpl;
 import io.bicycle.event.publisher.api.BicycleEventPublisher;
 import io.bicycle.event.publisher.impl.BicycleEventPublisherImpl;
@@ -69,6 +70,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected BicycleConfig bicycleConfig;
     protected SystemAuthenticator systemAuthenticator;
     protected EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier;
+    protected BlackListedFields blackListedFields;
     protected static final String TENANT_ID = "tenantId";
     protected String ENV_TENANT_ID_KEY = "TENANT_ID";
     private static final String CONNECTORS_WITH_WAIT_ENABLED = "CONNECTORS_WITH_WAIT_ENABLED";
@@ -124,6 +126,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     public void setBicycleEventProcessorAndPublisher(BicycleConfig bicycleConfig) {
         try {
             this.bicycleConfig = bicycleConfig;
+            AuthInfo authInfo = bicycleConfig.getAuthInfo();
             configStoreClient = getConfigClient(bicycleConfig);
             schemaStoreApiClient = getSchemaStoreApiClient();
             entityStoreApiClient = getEntityStoreApiClient();
@@ -134,6 +137,15 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                             schemaStoreApiClient,
                             entityStoreApiClient
                     );
+            try {
+                blackListedFields
+                        = configHelper.getTenantBlackListedFields(authInfo, configStoreClient,
+                        authInfo.getTenantId(),
+                        bicycleConfig.getConnectorId());
+                logger.info("Successfully downloaded blacklisted fields {}", blackListedFields);
+            } catch (Exception e) {
+                logger.error("Unable to download blackListed fields for tenantId", authInfo.getTenantId(), e);
+            }
             EventMappingConfigurations eventMappingConfigurations =
                     new EventMappingConfigurations(
                             bicycleConfig.getServerURL(),
