@@ -354,7 +354,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                     authInfo, eventSourceInfo, rawEvents, new ArrayList<>());
             logger.debug(traceInfo + " Preview bicycle events for event source "
                     + eventSourceInfo + bicycleEventsResult.getUnmatchedBicycleEvents());
-            if (this.bicycleEventPublisher.publishEvents(authInfo, eventSourceInfo, bicycleEventsResult)) {
+            if (this.bicycleEventPublisher.publishEvents(authInfo, eventSourceInfo, bicycleEventsResult, true)) {
                 logger.info(traceInfo + " Successfully published preview events for event source " + eventSourceInfo);
             } else {
                 logger.warn(traceInfo + " Failed to publish preview events for event source " + eventSourceInfo);
