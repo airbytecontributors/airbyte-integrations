@@ -2,9 +2,14 @@ package io.airbyte.integrations.source.elasticsearch;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.google.gson.internal.Streams;
+import com.google.gson.stream.JsonWriter;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -45,7 +50,7 @@ public class ElasticsearchConnector {
 
         long dataLateness = connectorConfiguration.getDataLateness();
         long pollFrequency = connectorConfiguration.getPollFrequency();
-        String queryLine = connectorConfiguration.getQueries().get(0);
+        String queryLine = connectorConfiguration.getQuery();
         RestClientBuilder builder = createDefaultBuilder(connectorConfiguration);
         try (RestClient restClient = builder.build()) {
             testConnection(restClient);
@@ -54,7 +59,7 @@ public class ElasticsearchConnector {
             long startEpoch = now - dataLateness - pollFrequency;
             startEpoch -= startEpoch % pollFrequency;
             long endEpoch = startEpoch + pollFrequency;
-            List<JsonNode> jsonNodes = search(restClient, startEpoch, endEpoch, queryLine);
+            List<JsonNode> jsonNodes = search(restClient, startEpoch, endEpoch, queryLine, 100, true);
             return jsonNodes;
         } catch (Exception e) {
             LOG.error("Unable to get preview data for config " + connectorConfiguration, e);
@@ -93,32 +98,37 @@ public class ElasticsearchConnector {
         }
     }
 
-    public List<JsonNode> search(RestClient restClient, long startEpoch, long endEpoch, String queryLine)
-            throws IOException {
+    public List<JsonNode> search(RestClient restClient, long startEpoch, long endEpoch, String queryLine,
+                                 int pageSize, boolean isPreview) throws IOException {
+
         String scrollDuration = DEFAULT_SCROLL_DURATION;
         Request request = new Request("POST", "/_search?scroll=" + scrollDuration);
-        String requestBody = getSearchRequest(startEpoch, endEpoch, queryLine);
+        String requestBody = getSearchRequest(startEpoch, endEpoch, queryLine, pageSize);
         StringEntity requestEntity = new StringEntity(requestBody);
         long currentPageSize = 0;
         String scrollId = null;
         List<JsonNode> jsonNodes = new ArrayList<>();
         try {
             do {
-                JsonNode searchResponse = executeRequestAsJsonNode(restClient, request, requestEntity);
-                jsonNodes.add(searchResponse);
-                boolean timedOut = searchResponse.get("timed_out").asBoolean();
+                JsonObject searchResponse = executeRequest(restClient, request, requestEntity);
+                boolean timedOut = searchResponse.get("timed_out").getAsBoolean();
                 LOG.info("timedOut = {}", timedOut);
                 // TODO assert timedOut false
-                scrollId = searchResponse.get("_scroll_id").asText();
+                scrollId = searchResponse.get("_scroll_id").getAsString();
                 LOG.debug("scrollId = {}", scrollId);
-                JsonNode shards = searchResponse.get("_shards");
-                int failedShardCount = shards.get("failed").asInt();
+                JsonObject shards = searchResponse.get("_shards").getAsJsonObject();
+                int failedShardCount = shards.get("failed").getAsInt();
                 LOG.debug("failedShardCount = {}", failedShardCount);
                 // TODO assert failed == 0
-                JsonNode hitsMeta = searchResponse.get("hits");
-                long numHits = hitsMeta.get("total").asLong();
+                JsonObject hitsMeta = searchResponse.get("hits").getAsJsonObject();
+                long numHits = hitsMeta.get("total").getAsLong();
                 LOG.info("numHits = {}", numHits);
-                JsonNode hits = hitsMeta.get("hits");
+                JsonArray hits = hitsMeta.get("hits").getAsJsonArray();
+                jsonNodes.addAll(convertHitsToJsonNodes(hits));
+                if (isPreview && jsonNodes.size() >= 100) {
+                    LOG.info("Received 100 records for preview");
+                    break;
+                }
                 currentPageSize = hits.size();
                 LOG.info("hits.size() = {}", currentPageSize);
                 request = new Request("POST", "/_search/scroll");
@@ -138,6 +148,13 @@ public class ElasticsearchConnector {
         }
 
         return jsonNodes;
+
+    }
+
+    public List<JsonNode> search(RestClient restClient, long startEpoch, long endEpoch, String queryLine)
+            throws IOException {
+
+        return search(restClient, startEpoch, endEpoch, queryLine, DEFAULT_PAGE_SIZE, false);
     }
 
     private JsonNode executeRequestAsJsonNode(RestClient restClient, Request request, StringEntity requestEntity)
@@ -174,9 +191,8 @@ public class ElasticsearchConnector {
         return jsonResponse;
     }
 
-    private String getSearchRequest(long startEpoch, long endEpoch, String queryLine) {
+    private String getSearchRequest(long startEpoch, long endEpoch, String queryLine, int pageSize) {
         long searchTimeout = DEFAULT_SEARCH_TIMEOUT;
-        int pageSize = DEFAULT_PAGE_SIZE;
         String requestBody = "{\n"
                 + "  \"version\": true,\n"
                 + "  \"size\": " + pageSize + ",\n"
@@ -271,7 +287,7 @@ public class ElasticsearchConnector {
 
     private List<HttpHost> getHttpHosts(ConnectorConfiguration connectorConfiguration) {
         List<HttpHost> hosts = new ArrayList<>();
-        hosts.add(new HttpHost(connectorConfiguration.getEndpoint()));
+        hosts.add(HttpHost.create(connectorConfiguration.getEndpoint()));
         return hosts;
     }
 
@@ -286,4 +302,35 @@ public class ElasticsearchConnector {
         final byte[] encodedAuth = Base64.encodeBase64(auth.getBytes(StandardCharsets.ISO_8859_1));
         return new String(encodedAuth, Charset.defaultCharset());
     }
+
+    public List<JsonNode> convertHitsToJsonNodes(JsonArray hits) throws IOException {
+        if (hits.size() < 1) {
+            return Collections.EMPTY_LIST;
+        }
+
+        return toJsonNodes(hits);
+    }
+
+    private List<JsonNode> toJsonNodes(JsonArray hits) {
+
+        List<JsonNode> jsonNodes = new ArrayList<>();
+        for (JsonElement hit : hits) {
+            try {
+                StringWriter stringWriter = new StringWriter();
+                JsonWriter jsonWriter = new JsonWriter(stringWriter);
+                jsonWriter.setLenient(true);
+                stringWriter.append("{\"_raw\":");
+                Streams.write(hit, jsonWriter);
+                stringWriter.append("}");
+                jsonNodes.add(objectMapper.readTree(stringWriter.toString()));
+            }catch (Exception e){
+                LOG.error("Unable to deserialize json string ", e);
+            }
+        }
+
+        return jsonNodes;
+    }
+
+
+
 }

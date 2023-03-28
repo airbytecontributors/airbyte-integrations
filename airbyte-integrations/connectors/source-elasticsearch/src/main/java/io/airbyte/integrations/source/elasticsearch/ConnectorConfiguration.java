@@ -18,7 +18,7 @@ public class ConnectorConfiguration {
     private long pollFrequency;
     private long dataLateness;
     private String indexPattern;
-    private List<String> queries;
+    private String query;
     private String timestampField;
 
     private AuthenticationMethod authenticationMethod = new AuthenticationMethod();
@@ -55,19 +55,19 @@ public class ConnectorConfiguration {
     }
 
     public long getPollFrequency() {
-        return pollFrequency;
+        return pollFrequency * 1000;
     }
 
     public long getDataLateness() {
-        return dataLateness;
+        return dataLateness * 1000;
     }
 
     public String getIndexPattern() {
         return indexPattern;
     }
 
-    public List<String> getQueries() {
-        return queries;
+    public String getQuery() {
+        return query;
     }
 
     public String getTimestampField() {
@@ -97,6 +97,11 @@ public class ConnectorConfiguration {
         return "ConnectorConfiguration{" +
                 "endpoint='" + endpoint + '\'' +
                 ", upsert=" + upsert +
+                ", pollFrequency=" + pollFrequency +
+                ", dataLateness=" + dataLateness +
+                ", indexPattern='" + indexPattern + '\'' +
+                ", query='" + query + '\'' +
+                ", timestampField='" + timestampField + '\'' +
                 ", authenticationMethod=" + authenticationMethod +
                 '}';
     }

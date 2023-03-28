@@ -96,38 +96,34 @@
         ]
       },
       "query": {
-        "title": "Elastic Search Query",
-        "type": "array",
-        "items": {
-          "type": "string",
-          "description": "The elastic search query to be run"
-        },
-        "pollFrequency": {
-          "title": "Poll Interval",
-          "type": "number",
-          "format": "int64",
-          "default": 60,
-          "description": "How often to run the elastic search query"
-        },
-        "dataLateness": {
-          "title": "DataLateness In Seconds",
-          "type": "number",
-          "format": "int64",
-          "description": "The amount of delay between the time when data should have been available and the actual time it became available."
-        },
-        "indexPattern": {
-          "title": "Index Pattern",
-          "type": "string",
-          "examples": [
-            "sample.index"
-          ]
-        },
-        "timeField": {
-          "title": "Time Field",
-          "type": "string",
-          "description": "Field on which to query",
-          "default": "@timestamp"
-        }
+        "title": "Query String",
+        "type": "string"
+      },
+      "pollFrequency": {
+        "title": "Poll Interval",
+        "type": "number",
+        "format": "int64",
+        "default": 60,
+        "description": "How often to run the elastic search query"
+      },
+      "dataLateness": {
+        "title": "DataLateness In Seconds",
+        "type": "number",
+        "format": "int64",
+        "description": "The amount of delay between the time when data should have been available and the actual time it became available."
+      },
+      "indexPattern": {
+        "title": "Index Pattern",
+        "type": "string",
+        "examples": [
+          "sample.index"
+        ]
+      },
+      "timeField": {
+        "title": "Time Field",
+        "type": "string",
+        "description": "Field on which to query",
+        "default": "@timestamp"
       }
     }
   }

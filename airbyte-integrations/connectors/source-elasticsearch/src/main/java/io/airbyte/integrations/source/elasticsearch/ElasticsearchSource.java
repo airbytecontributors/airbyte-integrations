@@ -25,7 +25,6 @@ import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
-import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
@@ -34,7 +33,6 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import static io.airbyte.integrations.source.elasticsearch.ElasticsearchConstants.*;
-import static io.airbyte.integrations.source.elasticsearch.typemapper.ElasticsearchTypeMapper.*;
 
 public class ElasticsearchSource extends BaseEventConnector {
     private static final Logger LOGGER = LoggerFactory.getLogger(ElasticsearchSource.class);
@@ -195,7 +193,7 @@ public class ElasticsearchSource extends BaseEventConnector {
             RestClient restClient = restClientBuilder.build();
             long dataLateness = configObject.getDataLateness();
             long pollFrequency = configObject.getPollFrequency();
-            String queryLine = configObject.getQueries().get(0);
+            String queryLine = configObject.getQuery();
             while (!this.getStopConnectorBoolean().get()) {
 
                 long now = System.currentTimeMillis();
@@ -262,6 +260,8 @@ public class ElasticsearchSource extends BaseEventConnector {
     @Override
     public AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) {
         final ConnectorConfiguration configObject = convertConfig(config);
+        String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
+
         final ElasticsearchConnector elasticsearchConnector = new ElasticsearchConnector();
         final AirbyteConnectionStatus check = check(config);
         if (check.getStatus().equals(AirbyteConnectionStatus.Status.FAILED)) {
