@@ -193,7 +193,11 @@ public class ElasticsearchSource extends BaseEventConnector {
             RestClient restClient = restClientBuilder.build();
             long dataLateness = configObject.getDataLateness();
             long pollFrequency = configObject.getPollFrequency();
+<<<<<<< HEAD
+            String queryLine = configObject.getQueryWithIndexPattern();
+=======
             String queryLine = configObject.getQuery();
+>>>>>>> 01a875c8013624bf5dfb1c7ac0b32c0c8ea4dd91
             while (!this.getStopConnectorBoolean().get()) {
 
                 long now = System.currentTimeMillis();
@@ -260,8 +264,6 @@ public class ElasticsearchSource extends BaseEventConnector {
     @Override
     public AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) {
         final ConnectorConfiguration configObject = convertConfig(config);
-        String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
-
         final ElasticsearchConnector elasticsearchConnector = new ElasticsearchConnector();
         final AirbyteConnectionStatus check = check(config);
         if (check.getStatus().equals(AirbyteConnectionStatus.Status.FAILED)) {
