@@ -4,7 +4,15 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "Elasticsearch Connection Configuration",
     "type": "object",
-    "required": ["endpoint"],
+    "required": [
+      "endpoint",
+      "authenticationMethod",
+      "query",
+      "pollFrequency",
+      "dataLateness",
+      "indexPattern",
+      "timeField"
+    ],
     "additionalProperties": false,
     "properties": {
       "endpoint": {
@@ -21,7 +29,9 @@
             "title": "None",
             "additionalProperties": false,
             "description": "No authentication will be used",
-            "required": ["method"],
+            "required": [
+              "method"
+            ],
             "properties": {
               "method": {
                 "type": "string",
@@ -33,7 +43,11 @@
             "title": "Api Key/Secret",
             "additionalProperties": false,
             "description": "Use a api key and secret combination to authenticate",
-            "required": ["method", "apiKeyId", "apiKeySecret"],
+            "required": [
+              "method",
+              "apiKeyId",
+              "apiKeySecret"
+            ],
             "properties": {
               "method": {
                 "type": "string",
@@ -56,7 +70,11 @@
             "title": "Username/Password",
             "additionalProperties": false,
             "description": "Basic auth header with a username and password",
-            "required": ["method", "username", "password"],
+            "required": [
+              "method",
+              "username",
+              "password"
+            ],
             "properties": {
               "method": {
                 "type": "string",
@@ -77,54 +95,35 @@
           }
         ]
       },
-      "connectorType": {
-        "title": "Type of connector: entity or event",
-        "enum": ["entity", "event"],
-        "type": "string",
-        "default": "event"
+      "query": {
+        "title": "Query String",
+        "type": "string"
       },
-      "timeRange": {
-        "title": "Time Range",
-        "type": "object",
-        "description": "Timestamp range for querying",
-        "oneOf": [
-          {
-            "title": "All",
-            "additionalProperties": false,
-            "description": "Get all data upto now",
-            "required": ["method"],
-            "properties": {
-              "method": {
-                "type": "string",
-                "const": "all"
-              }
-            }
-          },
-          {
-            "title": "Custom",
-            "additionalProperties": false,
-            "description": "Create a custom time range query",
-            "required": ["method"],
-            "properties":  {
-              "method": {
-                "type": "string",
-                "const": "custom"
-              },
-              "timeField": {
-                "title": "Time Field",
-                "type": "string",
-                "description": "Field on which to query",
-                "default": "@timestamp"
-              },
-              "from": {
-                "title": "From",
-                "type": "string",
-                "format": "date-time",
-                "description": "Begin time in ISO 8601 format of YYYY-MM-DDThh:mm:ssZ in UTC time"
-              }
-            }
-          }
+      "pollFrequency": {
+        "title": "Poll Interval",
+        "type": "number",
+        "format": "int64",
+        "default": 60,
+        "description": "How often to run the elastic search query"
+      },
+      "dataLateness": {
+        "title": "DataLateness In Seconds",
+        "type": "number",
+        "format": "int64",
+        "description": "The amount of delay between the time when data should have been available and the actual time it became available."
+      },
+      "indexPattern": {
+        "title": "Index Pattern",
+        "type": "string",
+        "examples": [
+          "sample.index"
         ]
+      },
+      "timeField": {
+        "title": "Time Field",
+        "type": "string",
+        "description": "Field on which to query",
+        "default": "@timestamp"
       }
     }
   }

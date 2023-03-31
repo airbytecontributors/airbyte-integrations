@@ -7,153 +7,191 @@ package io.airbyte.integrations.source.elasticsearch;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import java.util.Objects;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ConnectorConfiguration {
 
-  private String endpoint;
-  private boolean upsert;
-  private AuthenticationMethod authenticationMethod = new AuthenticationMethod();
+    private String endpoint;
+    private boolean upsert;
+    private long pollFrequency;
+    private long dataLateness;
+    private String indexPattern;
+    private String query;
+    private String timestampField;
 
-  public ConnectorConfiguration() {}
+    private AuthenticationMethod authenticationMethod = new AuthenticationMethod();
 
-  public static ConnectorConfiguration fromJsonNode(JsonNode config) {
-    return new ObjectMapper().convertValue(config, ConnectorConfiguration.class);
-  }
-
-  public String getEndpoint() {
-    return this.endpoint;
-  }
-
-  public boolean isUpsert() {
-    return this.upsert;
-  }
-
-  public AuthenticationMethod getAuthenticationMethod() {
-    return this.authenticationMethod;
-  }
-
-  public void setEndpoint(String endpoint) {
-    this.endpoint = endpoint;
-  }
-
-  public void setUpsert(boolean upsert) {
-    this.upsert = upsert;
-  }
-
-  public void setAuthenticationMethod(AuthenticationMethod authenticationMethod) {
-    this.authenticationMethod = authenticationMethod;
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (this == o)
-      return true;
-    if (o == null || getClass() != o.getClass())
-      return false;
-    ConnectorConfiguration that = (ConnectorConfiguration) o;
-    return upsert == that.upsert && Objects.equals(endpoint, that.endpoint) && Objects.equals(authenticationMethod, that.authenticationMethod);
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(endpoint, upsert, authenticationMethod);
-  }
-
-  @Override
-  public String toString() {
-    return "ConnectorConfiguration{" +
-        "endpoint='" + endpoint + '\'' +
-        ", upsert=" + upsert +
-        ", authenticationMethod=" + authenticationMethod +
-        '}';
-  }
-
-  static class AuthenticationMethod {
-
-    private ElasticsearchAuthenticationMethod method = ElasticsearchAuthenticationMethod.none;
-    private String username;
-    private String password;
-    private String apiKeyId;
-    private String apiKeySecret;
-
-    public ElasticsearchAuthenticationMethod getMethod() {
-      return this.method;
+    public ConnectorConfiguration() {
     }
 
-    public String getUsername() {
-      return this.username;
+    public static ConnectorConfiguration fromJsonNode(JsonNode config) {
+        return new ObjectMapper().convertValue(config, ConnectorConfiguration.class);
     }
 
-    public String getPassword() {
-      return this.password;
+    public String getEndpoint() {
+        return this.endpoint;
     }
 
-    public String getApiKeyId() {
-      return this.apiKeyId;
+    public boolean isUpsert() {
+        return this.upsert;
     }
 
-    public String getApiKeySecret() {
-      return this.apiKeySecret;
+    public AuthenticationMethod getAuthenticationMethod() {
+        return this.authenticationMethod;
     }
 
-    public void setMethod(ElasticsearchAuthenticationMethod method) {
-      this.method = method;
+    public void setEndpoint(String endpoint) {
+        this.endpoint = endpoint;
     }
 
-    public void setUsername(String username) {
-      this.username = username;
+    public void setUpsert(boolean upsert) {
+        this.upsert = upsert;
     }
 
-    public void setPassword(String password) {
-      this.password = password;
+    public void setAuthenticationMethod(AuthenticationMethod authenticationMethod) {
+        this.authenticationMethod = authenticationMethod;
     }
 
-    public void setApiKeyId(String apiKeyId) {
-      this.apiKeyId = apiKeyId;
+    public long getPollFrequency() {
+        return pollFrequency * 1000;
     }
 
-    public void setApiKeySecret(String apiKeySecret) {
-      this.apiKeySecret = apiKeySecret;
+    public long getDataLateness() {
+        return dataLateness * 1000;
     }
 
-    public boolean isValid() {
-      return switch (this.method) {
-        case none -> true;
-        case basic -> Objects.nonNull(this.username) && Objects.nonNull(this.password);
-        case secret -> Objects.nonNull(this.apiKeyId) && Objects.nonNull(this.apiKeySecret);
-      };
+    public String getIndexPattern() {
+        return indexPattern;
+    }
+
+    public String getQuery() {
+        return query;
+    }
+
+    public String getTimestampField() {
+        return timestampField;
     }
 
     @Override
     public boolean equals(Object o) {
-      if (this == o)
+      if (this == o) {
         return true;
-      if (o == null || getClass() != o.getClass())
+      }
+      if (o == null || getClass() != o.getClass()) {
         return false;
-      AuthenticationMethod that = (AuthenticationMethod) o;
-      return method == that.method &&
-          Objects.equals(username, that.username) &&
-          Objects.equals(password, that.password) &&
-          Objects.equals(apiKeyId, that.apiKeyId) &&
-          Objects.equals(apiKeySecret, that.apiKeySecret);
+      }
+        ConnectorConfiguration that = (ConnectorConfiguration) o;
+        return upsert == that.upsert && Objects.equals(endpoint, that.endpoint) &&
+                Objects.equals(authenticationMethod, that.authenticationMethod);
     }
 
     @Override
     public int hashCode() {
-      return Objects.hash(method, username, password, apiKeyId, apiKeySecret);
+        return Objects.hash(endpoint, upsert, authenticationMethod);
     }
 
     @Override
     public String toString() {
-      return "AuthenticationMethod{" +
-          "method=" + method +
-          ", username='" + username + '\'' +
-          ", apiKeyId='" + apiKeyId + '\'' +
-          '}';
+        return "ConnectorConfiguration{" +
+                "endpoint='" + endpoint + '\'' +
+                ", upsert=" + upsert +
+                ", pollFrequency=" + pollFrequency +
+                ", dataLateness=" + dataLateness +
+                ", indexPattern='" + indexPattern + '\'' +
+                ", query='" + query + '\'' +
+                ", timestampField='" + timestampField + '\'' +
+                ", authenticationMethod=" + authenticationMethod +
+                '}';
     }
 
-  }
+    static class AuthenticationMethod {
+
+        private ElasticsearchAuthenticationMethod method = ElasticsearchAuthenticationMethod.none;
+        private String username;
+        private String password;
+        private String apiKeyId;
+        private String apiKeySecret;
+
+        public ElasticsearchAuthenticationMethod getMethod() {
+            return this.method;
+        }
+
+        public String getUsername() {
+            return this.username;
+        }
+
+        public String getPassword() {
+            return this.password;
+        }
+
+        public String getApiKeyId() {
+            return this.apiKeyId;
+        }
+
+        public String getApiKeySecret() {
+            return this.apiKeySecret;
+        }
+
+        public void setMethod(ElasticsearchAuthenticationMethod method) {
+            this.method = method;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+
+        public void setApiKeyId(String apiKeyId) {
+            this.apiKeyId = apiKeyId;
+        }
+
+        public void setApiKeySecret(String apiKeySecret) {
+            this.apiKeySecret = apiKeySecret;
+        }
+
+        public boolean isValid() {
+            return switch (this.method) {
+                case none -> true;
+                case basic -> Objects.nonNull(this.username) && Objects.nonNull(this.password);
+                case secret -> Objects.nonNull(this.apiKeyId) && Objects.nonNull(this.apiKeySecret);
+            };
+        }
+
+        @Override
+        public boolean equals(Object o) {
+          if (this == o) {
+            return true;
+          }
+          if (o == null || getClass() != o.getClass()) {
+            return false;
+          }
+            AuthenticationMethod that = (AuthenticationMethod) o;
+            return method == that.method &&
+                    Objects.equals(username, that.username) &&
+                    Objects.equals(password, that.password) &&
+                    Objects.equals(apiKeyId, that.apiKeyId) &&
+                    Objects.equals(apiKeySecret, that.apiKeySecret);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(method, username, password, apiKeyId, apiKeySecret);
+        }
+
+        @Override
+        public String toString() {
+            return "AuthenticationMethod{" +
+                    "method=" + method +
+                    ", username='" + username + '\'' +
+                    ", apiKeyId='" + apiKeyId + '\'' +
+                    '}';
+        }
+
+    }
 
 }
