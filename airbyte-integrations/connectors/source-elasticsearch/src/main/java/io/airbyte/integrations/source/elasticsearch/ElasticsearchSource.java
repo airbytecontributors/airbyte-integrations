@@ -260,8 +260,6 @@ public class ElasticsearchSource extends BaseEventConnector {
     @Override
     public AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) {
         final ConnectorConfiguration configObject = convertConfig(config);
-        String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
-
         final ElasticsearchConnector elasticsearchConnector = new ElasticsearchConnector();
         final AirbyteConnectionStatus check = check(config);
         if (check.getStatus().equals(AirbyteConnectionStatus.Status.FAILED)) {
