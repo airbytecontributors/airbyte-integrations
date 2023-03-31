@@ -7,7 +7,6 @@ package io.airbyte.integrations.source.elasticsearch;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.util.List;
 import java.util.Objects;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -80,12 +79,12 @@ public class ConnectorConfiguration {
 
     @Override
     public boolean equals(Object o) {
-      if (this == o) {
-        return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
-        return false;
-      }
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         ConnectorConfiguration that = (ConnectorConfiguration) o;
         return upsert == that.upsert && Objects.equals(endpoint, that.endpoint) &&
                 Objects.equals(authenticationMethod, that.authenticationMethod);
@@ -168,12 +167,12 @@ public class ConnectorConfiguration {
 
         @Override
         public boolean equals(Object o) {
-          if (this == o) {
-            return true;
-          }
-          if (o == null || getClass() != o.getClass()) {
-            return false;
-          }
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
             AuthenticationMethod that = (AuthenticationMethod) o;
             return method == that.method &&
                     Objects.equals(username, that.username) &&
@@ -196,6 +195,6 @@ public class ConnectorConfiguration {
                     '}';
         }
 
-    }
 
+    }
 }

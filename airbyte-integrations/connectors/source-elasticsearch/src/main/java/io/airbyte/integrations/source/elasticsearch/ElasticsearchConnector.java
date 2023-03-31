@@ -51,6 +51,7 @@ public class ElasticsearchConnector {
         long dataLateness = connectorConfiguration.getDataLateness();
         long pollFrequency = connectorConfiguration.getPollFrequency();
         String queryLine = connectorConfiguration.getQueryWithIndexPattern();
+
         RestClientBuilder builder = createDefaultBuilder(connectorConfiguration);
         try (RestClient restClient = builder.build()) {
             testConnection(restClient);
