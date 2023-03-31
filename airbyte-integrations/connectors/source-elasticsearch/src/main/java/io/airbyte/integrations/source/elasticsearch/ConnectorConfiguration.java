@@ -74,6 +74,10 @@ public class ConnectorConfiguration {
         return timestampField;
     }
 
+    public String getQueryWithIndexPattern() {
+        return "_index:" + indexPattern + " AND " + query;
+    }
+
     @Override
     public boolean equals(Object o) {
       if (this == o) {

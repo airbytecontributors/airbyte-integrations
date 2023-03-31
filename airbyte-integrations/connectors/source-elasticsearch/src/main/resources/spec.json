@@ -101,15 +101,13 @@
       },
       "pollFrequency": {
         "title": "Poll Interval",
-        "type": "number",
-        "format": "int64",
+        "type": "integer",
         "default": 60,
         "description": "How often to run the elastic search query"
       },
       "dataLateness": {
         "title": "DataLateness In Seconds",
-        "type": "number",
-        "format": "int64",
+        "type": "integer",
         "description": "The amount of delay between the time when data should have been available and the actual time it became available."
       },
       "indexPattern": {

@@ -193,7 +193,7 @@ public class ElasticsearchSource extends BaseEventConnector {
             RestClient restClient = restClientBuilder.build();
             long dataLateness = configObject.getDataLateness();
             long pollFrequency = configObject.getPollFrequency();
-            String queryLine = configObject.getQuery();
+            String queryLine = configObject.getQueryWithIndexPattern();
             while (!this.getStopConnectorBoolean().get()) {
 
                 long now = System.currentTimeMillis();
