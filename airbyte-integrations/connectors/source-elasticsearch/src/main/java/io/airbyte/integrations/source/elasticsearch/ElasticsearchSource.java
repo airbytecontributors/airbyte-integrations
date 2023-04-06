@@ -17,6 +17,8 @@ import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusN
 import io.airbyte.protocol.models.*;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -36,6 +38,8 @@ import static io.airbyte.integrations.source.elasticsearch.ElasticsearchConstant
 
 public class ElasticsearchSource extends BaseEventConnector {
     private static final Logger LOGGER = LoggerFactory.getLogger(ElasticsearchSource.class);
+    public static final String STATE = "state";
+    public static final String ELASTIC_LAG = "elastic_lag";
     private final ObjectMapper mapper = new ObjectMapper();
     int totalRecordsConsumed = 0;
     private AtomicBoolean stopConnectorBoolean = new AtomicBoolean(false);
@@ -130,6 +134,11 @@ public class ElasticsearchSource extends BaseEventConnector {
 
     @Override
     public AutoCloseableIterator<AirbyteMessage> read(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws IOException {
+        try {
+            super.read(config, catalog, state);
+        } catch (Exception exception) {
+            LOGGER.error("Unable to call super read", exception);
+        }
         final ConnectorConfiguration configObject = convertConfig(config);
         final ElasticsearchConnection connection = new ElasticsearchConnection(configObject);
 
@@ -170,8 +179,9 @@ public class ElasticsearchSource extends BaseEventConnector {
         String isOnPrem = additionalProperties.get("isOnPrem").toString();
         boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
 
-        BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL, token, connectorId,uniqueIdentifier, tenantId,systemAuthenticator, isOnPremDeployment);
+        BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL, token, connectorId,uniqueIdentifier, tenantId, systemAuthenticator, isOnPremDeployment);
         setBicycleEventProcessorAndPublisher(bicycleConfig);
+
         eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
         ConfiguredAirbyteStream configuredAirbyteStream = catalog.getStreams().get(0);
         int sampledRecords = 0;
@@ -180,12 +190,16 @@ public class ElasticsearchSource extends BaseEventConnector {
         LOGGER.info("======Starting read operation for elasticsearch index" + index + "=======");
 
         final ConnectorConfiguration configObject = convertConfig(config);
+        ScheduledExecutorService ses = Executors.newScheduledThreadPool(1);
 
         ElasticsearchConnector elasticsearchConnector = new ElasticsearchConnector();
 
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
+
         try {
 
+            ElasticMetricsGenerator elasticMetricsGenerator = new ElasticMetricsGenerator(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher, this);
+            ses.scheduleAtFixedRate(elasticMetricsGenerator, 60, 30, TimeUnit.SECONDS);
             eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,
                     "Elastic Event Connector started Successfully", connectorId, 0, authInfo);
 
@@ -193,29 +207,51 @@ public class ElasticsearchSource extends BaseEventConnector {
             RestClient restClient = restClientBuilder.build();
             long dataLateness = configObject.getDataLateness();
             long pollFrequency = configObject.getPollFrequency();
-<<<<<<< HEAD
             String queryLine = configObject.getQueryWithIndexPattern();
-=======
-            String queryLine = configObject.getQuery();
->>>>>>> 01a875c8013624bf5dfb1c7ac0b32c0c8ea4dd91
-            while (!this.getStopConnectorBoolean().get()) {
+            Map<String, Long> metrics = new HashMap<>();
+            LOGGER.info("Trying to get the state for elastic search");
+            AirbyteStateMessage airbyteStateMessage = getState(authInfo, connectorId);
+            LOGGER.info("Fetching state from elastic search {}", airbyteStateMessage);
+            long currentState = System.currentTimeMillis();
+            long now = currentState;
+            if (airbyteStateMessage  != null) {
+                JsonNode jsonNode = airbyteStateMessage.getData();
+                if (jsonNode != null && jsonNode.has(STATE)) {
+                    currentState = jsonNode.get(STATE).longValue();
+                }
+            }
+            LOGGER.info("Current state from elastic search {}", currentState);
+            long startEpoch = now - dataLateness - pollFrequency;
+            startEpoch -= startEpoch % pollFrequency;
+            long endEpoch = startEpoch + pollFrequency;
 
-                long now = System.currentTimeMillis();
-                long startEpoch = now - dataLateness - pollFrequency;
-                startEpoch -= startEpoch % pollFrequency;
-                long endEpoch = startEpoch + pollFrequency;
+            while (!this.getStopConnectorBoolean().get()) {
+                //LOGGER.info("Inside the while loop");
                 List<JsonNode> recordsList = elasticsearchConnector.search(restClient, startEpoch, endEpoch, queryLine);
                 EventProcessorResult eventProcessorResult = null;
                 try {
                     List<RawEvent> rawEvents = this.convertRecordsToRawEvents(recordsList);
-                    eventProcessorResult = convertRawEventsToBicycleEvents(authInfo,eventSourceInfo,rawEvents);
+                    eventProcessorResult = convertRawEventsToBicycleEvents(authInfo, eventSourceInfo,rawEvents);
                     sampledRecords += recordsList.size();
                 } catch (Exception exception) {
                     LOGGER.error("Unable to convert raw records to bicycle events", exception);
                 }
 
                 try {
-                    publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
+                    boolean result = publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
+                    if (!result) {
+                        LOGGER.warn("Events not published successfully for stream Id {}",
+                                eventSourceInfo.getEventSourceId());
+                        metrics.put(ELASTIC_LAG, System.currentTimeMillis() - endEpoch);
+                        elasticMetricsGenerator.addMetrics(metrics);
+                        continue;
+                    }
+                    JsonNode toBeSavedState = getUpdatedState(STATE, endEpoch);
+                    LOGGER.info("Got updated state {}", toBeSavedState);
+                    setState(authInfo, connectorId, toBeSavedState);
+                    //lag metrics
+                    metrics.put(ELASTIC_LAG, System.currentTimeMillis() - endEpoch);
+                    elasticMetricsGenerator.addMetrics(metrics);
                     LOGGER.info("New events found:{}. Total events published:{}", recordsList.size(), sampledRecords);
                 } catch (Exception exception) {
                     LOGGER.error("Unable to publish bicycle events", exception);
@@ -234,12 +270,11 @@ public class ElasticsearchSource extends BaseEventConnector {
                 }
             }
             LOGGER.info("Shutting down the Elasticsearch Event Connector manually for connector {}", bicycleConfig.getConnectorId());
-        }
-        catch(Exception exception) {
+        } catch(Throwable exception) {
             LOGGER.error("Exception while trying to fetch records from Elasticsearch", exception);
             this.stopEventConnector("Shutting down the ElasticSearch Event Connector due to Exception",JobExecutionStatus.failure);
-        }
-        finally {
+        } finally {
+            ses.shutdown();
             LOGGER.info("Closing server connection.");
             connection.close();
             LOGGER.info("Closed server connection.");
@@ -387,7 +422,5 @@ public class ElasticsearchSource extends BaseEventConnector {
         }
 
     }
-
-
 
 }

@@ -21,6 +21,7 @@ import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.BaseConnector;
 import io.airbyte.integrations.base.Source;
 import io.airbyte.protocol.models.AirbyteMessage;
+import io.airbyte.protocol.models.AirbyteStateMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.entity.mapping.api.ConnectionServiceClient;
 import io.bicycle.event.processor.ConfigHelper;
@@ -441,6 +442,13 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         }
     }
 
+    protected JsonNode getUpdatedState(String key, long value) {
+        state = getState();
+        ObjectNode objectNode = (ObjectNode) state;
+        objectNode.put(key, value);
+        return objectNode;
+    }
+
     protected void saveState(String key, long value) throws JsonProcessingException {
         JsonNode state = getState();
         JsonNode oldValue = state.get(key);
@@ -467,6 +475,39 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                 ((ObjectNode) state).remove(key);
             }
         }
+    }
+
+    protected AirbyteStateMessage getState(AuthInfo authInfo, String streamId) {
+
+        try {
+            String state = connectionServiceClient.getReadStateConfigById(authInfo, streamId);
+            if (!StringUtils.isEmpty(state)) {
+                AirbyteStateMessage airbyteMessage = objectMapper.readValue(state, AirbyteStateMessage.class);
+                return airbyteMessage;
+            }
+        }catch (Throwable e) {
+            logger.error("Unable to get state for streamId " + streamId, e);
+        }
+
+        return null;
+    }
+
+    protected boolean setState(AuthInfo authInfo, String streamId, JsonNode jsonNode) {
+
+        try {
+            logger.info("Setting state for stream {} {}", streamId, jsonNode);
+            AirbyteStateMessage airbyteMessage = new AirbyteStateMessage();
+            airbyteMessage.setData(jsonNode);
+            String airbyteMessageAsString = objectMapper.writeValueAsString(airbyteMessage);
+            connectionServiceClient.upsertReadStateConfig(authInfo, streamId, airbyteMessageAsString);
+            logger.info("Successfully set state for stream {}", streamId);
+
+            return true;
+        }catch (Throwable e) {
+            logger.error("Unable to set state for streamId " + streamId, e);
+        }
+
+        return false;
     }
 
     private JsonNode getState() {

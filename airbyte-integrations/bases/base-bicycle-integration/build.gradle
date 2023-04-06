@@ -45,7 +45,7 @@ dependencies {
 
     implementation "com.inception:entity-meta-pipeline-client:0.2.26939"
     implementation group: 'com.inception', name: 'event-model', version: "0.1.0-snapshot.202205191419.c95071d"
-    implementation group: 'com.inception', name: 'entity-mapping-client', version: '0.2.38744'
+    implementation group: 'com.inception', name: 'entity-mapping-client', version: '0.2.40829'
     implementation group: 'com.inception', name: 'ingester-client', version: "0.1.0-snapshot.202205191425.1d3ac77"
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
