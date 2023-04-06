@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
-import com.inception.server.auth.model.BearerTokenAuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
@@ -221,7 +220,6 @@ public class ElasticsearchSource extends BaseEventConnector {
                     currentState = jsonNode.get(STATE).longValue();
                 }
             }
-
             LOGGER.info("Current state from elastic search {}", currentState);
             long startEpoch = now - dataLateness - pollFrequency;
             startEpoch -= startEpoch % pollFrequency;
@@ -424,7 +422,5 @@ public class ElasticsearchSource extends BaseEventConnector {
         }
 
     }
-
-
 
 }
