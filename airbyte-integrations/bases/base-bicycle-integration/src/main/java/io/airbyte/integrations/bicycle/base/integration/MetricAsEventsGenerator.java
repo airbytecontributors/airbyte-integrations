@@ -94,6 +94,15 @@ public class MetricAsEventsGenerator implements Runnable {
 //        return encodedMetricName;
 //    }
 
+    public void addMetrics(Map<String, Long> metrics) {
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put(UNIQUE_IDENTIFIER, bicycleConfig.getUniqueIdentifier());
+        attributes.put(CONNECTOR_ID, eventSourceInfo.getEventSourceId());
+        for(Map.Entry<String, Long> entry: metrics.entrySet()) {
+            metricsMap.put(getTagEncodedMetricName(entry.getKey(), attributes), entry.getValue());
+        }
+    }
+
     @Override
     public void run() {
 
