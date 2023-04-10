@@ -442,11 +442,10 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         }
     }
 
-    protected JsonNode getUpdatedState(String key, long value) {
-        state = getState();
-        ObjectNode objectNode = (ObjectNode) state;
-        objectNode.put(key, value);
-        return objectNode;
+    public JsonNode getUpdatedState(String key, long value) {
+        ObjectNode state = objectMapper.createObjectNode();
+        state.put(key, value);
+        return state;
     }
 
     protected void saveState(String key, long value) throws JsonProcessingException {
@@ -492,7 +491,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return null;
     }
 
-    protected boolean setState(AuthInfo authInfo, String streamId, JsonNode jsonNode) {
+    public boolean setState(AuthInfo authInfo, String streamId, JsonNode jsonNode) {
 
         try {
             logger.info("Setting state for stream {} {}", streamId, jsonNode);

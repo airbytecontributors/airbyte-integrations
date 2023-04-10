@@ -41,9 +41,13 @@ public class ElasticsearchConnector {
     public static final int DEFAULT_SOCKET_TIMEOUT = 10 * SECONDS;
     public static final int DEFAULT_SEARCH_TIMEOUT = 30 * SECONDS;
     private static final ObjectMapper objectMapper = new ObjectMapper();
+    private InMemoryConsumer inMemoryConsumer;
 
     public ElasticsearchConnector() {
+    }
 
+    public ElasticsearchConnector(InMemoryConsumer inMemoryConsumer) {
+        this.inMemoryConsumer = inMemoryConsumer;
     }
 
     public List<JsonNode> getPreviewRecords(ConnectorConfiguration connectorConfiguration) {
@@ -108,9 +112,10 @@ public class ElasticsearchConnector {
         StringEntity requestEntity = new StringEntity(requestBody);
         long currentPageSize = 0;
         String scrollId = null;
-        List<JsonNode> jsonNodes = new ArrayList<>();
+        List<JsonNode> previewJsonNodes = new ArrayList<>();
         try {
             do {
+                List<JsonNode> jsonNodes = new ArrayList<>();
                 JsonObject searchResponse = executeRequest(restClient, request, requestEntity);
                 boolean timedOut = searchResponse.get("timed_out").getAsBoolean();
                 LOG.info("timedOut = {}", timedOut);
@@ -126,11 +131,17 @@ public class ElasticsearchConnector {
                 LOG.info("numHits = {}", numHits);
                 JsonArray hits = hitsMeta.get("hits").getAsJsonArray();
                 jsonNodes.addAll(convertHitsToJsonNodes(hits));
-                if (isPreview && jsonNodes.size() >= 100) {
+                if (isPreview) {
+                    previewJsonNodes.addAll(jsonNodes);
+                }
+                if (isPreview && previewJsonNodes.size() >= 100) {
                     LOG.info("Received 100 records for preview");
                     break;
+                } else if (!isPreview) {
+                    inMemoryConsumer.addEventsToQueue(endEpoch, scrollId, jsonNodes);
                 }
                 currentPageSize = hits.size();
+                LOG.info("Records size {}", jsonNodes.size());
                 LOG.info("hits.size() = {}", currentPageSize);
                 request = new Request("POST", "/_search/scroll");
                 requestEntity = new StringEntity("{\n"
@@ -148,7 +159,7 @@ public class ElasticsearchConnector {
             }
         }
 
-        return jsonNodes;
+        return previewJsonNodes;
 
     }
 

@@ -25,9 +25,9 @@ public class ElasticMetricsGenerator extends MetricAsEventsGenerator {
             Map<String, String> attributes = new HashMap<>();
             attributes.put(UNIQUE_IDENTIFIER, bicycleConfig.getUniqueIdentifier());
             attributes.put(CONNECTOR_ID, eventSourceInfo.getEventSourceId());
-            ElasticsearchSource eventConnector = (ElasticsearchSource) this.eventConnector;
+            /*ElasticsearchSource eventConnector = (ElasticsearchSource) this.eventConnector;
             metricsMap.put(getTagEncodedMetricName(TOTAL_EVENTS_PROCESSED_METRIC, attributes),
-                    Long.valueOf(eventConnector.getTotalRecordsConsumed()));
+                    Long.valueOf(eventConnector.getTotalRecordsConsumed()));*/
             this.publishMetrics(attributes, metricsMap);
 
         } catch (Exception exception) {
