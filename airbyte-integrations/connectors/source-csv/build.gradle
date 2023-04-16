@@ -17,6 +17,7 @@ dependencies {
     implementation group: 'com.inception', name: 'integration-model', version: '0.2.38744'
     implementation group: 'com.inception', name: 'integration-common-api', version: '0.2.38744'
     implementation group: 'com.inception', name: 'integration-common-impl', version: '0.2.38744'
+
     implementation('com.inception:bicycle-event-processor:0.2.41251') {
         exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
         exclude group: 'org.springframework.kafka', module:'spring-kafka'

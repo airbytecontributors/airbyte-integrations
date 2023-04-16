@@ -29,6 +29,7 @@ dependencies {
         exclude group: 'org.springframework.kafka', module:'spring-kafka'
         exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'
     }
+
     implementation('com.inception:bicycle-event-publisher:0.2.41251') {
         exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
         exclude group: 'org.springframework.kafka', module:'spring-kafka'
