@@ -8,6 +8,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Objects;
+import org.apache.commons.lang3.StringEscapeUtils;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ConnectorConfiguration {
@@ -74,7 +75,12 @@ public class ConnectorConfiguration {
     }
 
     public String getQueryWithIndexPattern() {
-        return "_index:" + indexPattern + " AND " + query;
+        String queryWithIndex =  "_index:" + indexPattern + " AND " + query;
+        return escapeString(queryWithIndex);
+    }
+
+    public String escapeString(String str) {
+        return StringEscapeUtils.escapeJava(str);
     }
 
     @Override

@@ -243,6 +243,7 @@ public class ElasticsearchConnector {
                 + "  },\n"
                 + "  \"timeout\": \"" + searchTimeout + "ms\"\n"
                 + "}";
+        LOG.info("Request Body {}", requestBody);
         return requestBody;
     }
 
