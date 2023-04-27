@@ -2,12 +2,14 @@ package io.airbyte.integrations.source.elasticsearch;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.internal.Streams;
 import com.google.gson.stream.JsonWriter;
+import io.airbyte.integrations.bicycle.base.integration.CommonConstants;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.charset.Charset;
@@ -335,7 +337,10 @@ public class ElasticsearchConnector {
                 stringWriter.append("{\"_raw\":");
                 Streams.write(hit, jsonWriter);
                 stringWriter.append("}");
-                jsonNodes.add(objectMapper.readTree(stringWriter.toString()));
+                JsonNode jsonNode = objectMapper.readTree(stringWriter.toString());
+                ObjectNode objectNode = (ObjectNode) jsonNode;
+                objectNode.put(CommonConstants.CONNECTOR_IN_TIMESTAMP, System.currentTimeMillis());
+                jsonNodes.add(objectNode);
             }catch (Exception e){
                 LOG.error("Unable to deserialize json string ", e);
             }
