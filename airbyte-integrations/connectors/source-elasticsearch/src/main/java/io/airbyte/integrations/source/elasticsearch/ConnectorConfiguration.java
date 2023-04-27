@@ -31,6 +31,9 @@ public class ConnectorConfiguration {
     }
 
     public String getEndpoint() {
+        if (this.endpoint != null && this.endpoint.endsWith("/")) {
+            endpoint = endpoint.substring(0, endpoint.length() - 1);
+        }
         return this.endpoint;
     }
 
