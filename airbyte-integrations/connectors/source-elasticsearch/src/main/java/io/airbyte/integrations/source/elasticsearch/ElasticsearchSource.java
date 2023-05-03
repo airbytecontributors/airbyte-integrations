@@ -42,7 +42,6 @@ public class ElasticsearchSource extends BaseEventConnector {
     public static final String ELASTIC_LAG = "elastic_lag";
     private final ObjectMapper mapper = new ObjectMapper();
     private int totalRecordsConsumed = 0;
-    private AtomicBoolean stopConnectorBoolean = new AtomicBoolean(false);
 
     public ElasticsearchSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
         super(systemAuthenticator, eventConnectorJobStatusNotifier);
@@ -155,10 +154,6 @@ public class ElasticsearchSource extends BaseEventConnector {
 
     private ConnectorConfiguration convertConfig(JsonNode config) {
         return mapper.convertValue(config, ConnectorConfiguration.class);
-    }
-
-    protected AtomicBoolean getStopConnectorBoolean() {
-        return stopConnectorBoolean;
     }
 
     public void stopEventConnector() {

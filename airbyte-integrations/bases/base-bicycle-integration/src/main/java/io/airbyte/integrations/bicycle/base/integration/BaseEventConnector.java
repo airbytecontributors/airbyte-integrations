@@ -49,6 +49,7 @@ import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -74,6 +75,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected BlackListedFields blackListedFields;
     protected static final String TENANT_ID = "tenantId";
     protected String ENV_TENANT_ID_KEY = "TENANT_ID";
+    protected static final int CONSUMER_THREADS_DEFAULT_VALUE = 1;
     private static final String CONNECTORS_WITH_WAIT_ENABLED = "CONNECTORS_WITH_WAIT_ENABLED";
     private static final String CONNECTORS_WAIT_TIME_IN_MILLIS = "CONNECTORS_WAIT_TIME_IN_MILLIS";
 
@@ -82,6 +84,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected EventSourceInfo eventSourceInfo;
 
     protected ObjectMapper objectMapper = new ObjectMapper();
+    protected AtomicBoolean stopConnectorBoolean = new AtomicBoolean(false);
+
     protected JsonNode config;
     protected ConfiguredAirbyteCatalog catalog;
     protected Map<String, Object> additionalProperties;
@@ -98,7 +102,6 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         try {
             sleepTimeInMillis = Long.parseLong(sleepTime);
         } catch (Exception e) {
-            logger.info("CONNECTORS_WAIT_TIME_IN_MILLIS not set correctly");
         }
         if (!StringUtils.isEmpty(envConnectorsUsingPreviewStore)) {
             String[] connectorsWithSleepEnabled = envConnectorsUsingPreviewStore.split(",");
@@ -106,6 +109,18 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         } else {
             listOfConnectorsWithSleepEnabled.add("ad2e5fb0-4218-462c-8f5d-9dc76f5ac9b6");
         }
+    }
+
+    public String getStringFieldValueFromConfig(JsonNode config, String fieldName, String defaultValue) {
+        return config.has(fieldName) ? config.get(fieldName).asText() : defaultValue;
+    }
+
+    public int getIntFieldValueFromConfig(JsonNode config, String fieldName, int defaultValue) {
+        return config.has(fieldName) ? config.get(fieldName).asInt() : defaultValue;
+    }
+
+    public AtomicBoolean getStopConnectorBoolean() {
+        return stopConnectorBoolean;
     }
 
     public long getSleepTimeInMillis() {
@@ -198,6 +213,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     public abstract void stopEventConnector();
 
     public void stopEventConnector(String message, JobExecutionStatus jobExecutionStatus) {
+        stopConnectorBoolean.set(true);
         if (eventConnectorJobStatusNotifier.getSchedulesExecutorService() != null) {
             eventConnectorJobStatusNotifier.getSchedulesExecutorService().shutdown();
         }

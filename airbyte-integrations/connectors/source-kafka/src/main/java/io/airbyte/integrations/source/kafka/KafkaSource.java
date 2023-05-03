@@ -66,16 +66,10 @@ public class KafkaSource extends BaseEventConnector {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(KafkaSource.class);
   public static final String STREAM_NAME = "stream_name";
-  private static final int CONSUMER_THREADS_DEFAULT_VALUE = 1;
-  protected AtomicBoolean stopConnectorBoolean = new AtomicBoolean(false);
   private final Map<String, Map<String, Long>> consumerToTopicPartitionRecordsRead = new HashMap<>();
 
   public KafkaSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
     super(systemAuthenticator,eventConnectorJobStatusNotifier);
-  }
-
-  protected AtomicBoolean getStopConnectorBoolean() {
-    return stopConnectorBoolean;
   }
 
   @Override
@@ -83,7 +77,7 @@ public class KafkaSource extends BaseEventConnector {
     KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config, null);
     KafkaConsumer<String, JsonNode> consumer = null;
     try {
-      final String testTopic = config.has("test_topic") ? config.get("test_topic").asText() : "";
+      final String testTopic = getStringFieldValueFromConfig(config, "test_topic", "");
       if (!testTopic.isBlank()) {
         consumer = kafkaSourceConfig.getCheckConsumer();
         consumer.subscribe(Pattern.compile(testTopic));
@@ -116,20 +110,25 @@ public class KafkaSource extends BaseEventConnector {
     return new AirbyteCatalog().withStreams(streams);
   }
 
+//  TODO: do we need this??
   public void stopEventConnector() {
-    stopConnectorBoolean.set(true);
     super.stopEventConnector("Kafka Event Connector Stopped manually", JobExecutionStatus.success);
   }
 
   @Override
   public void stopEventConnector(String message, JobExecutionStatus jobExecutionStatus) {
-    stopConnectorBoolean.set(true);
     super.stopEventConnector(message, jobExecutionStatus);
   }
 
   @Override
   public AutoCloseableIterator<AirbyteMessage> read(final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state) {
-    int numberOfConsumers = getNumberOfConsumers(config);
+    try {
+      super.read(config, catalog, state);
+    } catch (Exception exception) {
+      LOGGER.error("Error while initiating BaseEventConnector read", exception);
+    }
+
+    int numberOfConsumers = getIntFieldValueFromConfig(config, "bicycle_consumer_threads", CONSUMER_THREADS_DEFAULT_VALUE);
     int threadPoolSize = getThreadPoolSize(numberOfConsumers);
     stopConnectorBoolean.set(false);
     ScheduledExecutorService ses = Executors.newScheduledThreadPool(threadPoolSize);

@@ -40,7 +40,6 @@ import java.util.stream.Collectors;
 
 public class PubsubSource extends BaseEventConnector {
     private AtomicLong totalBytesProcessed = new AtomicLong(0);
-    private AtomicBoolean stopConnectorBoolean = new AtomicBoolean(false);
     private final String PARTITION_TIMESTAMP = "recordTimestamp";
     private static final int CONSUMER_THREADS_DEFAULT_VALUE = 1;
     public static final String STREAM_NAME = "stream_name";
@@ -55,10 +54,6 @@ public class PubsubSource extends BaseEventConnector {
     protected PubsubSourceConfig pubsubSourceConfig;
     public PubsubSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
         super(systemAuthenticator, eventConnectorJobStatusNotifier);
-    }
-
-    protected AtomicBoolean getStopConnectorBoolean() {
-        return stopConnectorBoolean;
     }
 
 
