@@ -16,11 +16,12 @@ import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.base.Source;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
-import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.*;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
+import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
@@ -51,8 +52,10 @@ public class KinesisSource extends BaseEventConnector {
     protected KinesisClientConfig kinesisClientConfig;
     private String applicationName;
     private Collection<Scheduler> schedulerArrayList = null;
-    public KinesisSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorStatusHandler) {
-        super(systemAuthenticator, eventConnectorStatusHandler);
+    public KinesisSource(SystemAuthenticator systemAuthenticator,
+                         EventConnectorJobStatusNotifier eventConnectorStatusHandler,
+                         ConnectorConfigManager connectorConfigManager) {
+        super(systemAuthenticator, eventConnectorStatusHandler, connectorConfigManager);
     }
 
     @Override
@@ -409,7 +412,7 @@ public class KinesisSource extends BaseEventConnector {
 
     public static void main(final String[] args) throws Exception {
 
-        final Source source = new KinesisSource(null, null);
+        final Source source = new KinesisSource(null, null, null);
         LOGGER.info("Starting source: {}", KinesisSource.class);
         new IntegrationRunner(source).run(args);
         LOGGER.info("Completed source: {}", KinesisSource.class);

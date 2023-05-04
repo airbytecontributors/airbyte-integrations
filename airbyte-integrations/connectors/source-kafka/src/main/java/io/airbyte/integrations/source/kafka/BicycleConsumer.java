@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.integrations.base.Command;
-import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 
@@ -17,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.utils.CommonUtil;
 import io.bicycle.integration.common.writer.Writer;
 import io.bicycle.integration.common.writer.WriterFactory;
@@ -69,7 +69,7 @@ public class BicycleConsumer implements Runnable {
         this.name = name;
         this.config = connectorConfig;
         this.catalog = configuredCatalog;
-        this.kafkaSourceConfig = new KafkaSourceConfig(name, config, getConnectorId(catalog));
+        this.kafkaSourceConfig = new KafkaSourceConfig(name, config, getConnectorId(catalog), bicycleConfig, instance.getConnectorConfigManager());
         this.bicycleConfig = bicycleConfig;
         this.topicPartitionRecordsRead = topicPartitionRecordsRead;
         this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;

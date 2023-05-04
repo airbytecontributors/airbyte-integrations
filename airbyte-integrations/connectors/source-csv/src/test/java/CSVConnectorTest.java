@@ -3,20 +3,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
-import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.airbyte.integrations.source.csv.CSVConnector;
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
+import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-import java.io.IOException;
-import java.sql.Timestamp;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 public class CSVConnectorTest {
@@ -73,7 +70,8 @@ public class CSVConnectorTest {
         catalog.getAdditionalProperties().put("isOnPrem", "true");
 
         String consumerThreadId = UUID.randomUUID().toString();
-        csvConnector = new CSVConnector(Mockito.mock(SystemAuthenticator.class), Mockito.mock(EventConnectorJobStatusNotifier.class));
+        csvConnector = new CSVConnector(Mockito.mock(SystemAuthenticator.class),
+                Mockito.mock(EventConnectorJobStatusNotifier.class), null);
         csvConnector.setBicycleEventProcessorAndPublisher(bicycleConfig);
     }
 

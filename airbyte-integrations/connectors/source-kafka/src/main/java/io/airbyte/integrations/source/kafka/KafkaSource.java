@@ -18,7 +18,6 @@ import io.airbyte.integrations.base.Command;
 import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.base.Source;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
-import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator;
@@ -35,6 +34,8 @@ import io.airbyte.protocol.models.Field;
 import io.airbyte.protocol.models.JsonSchemaType;
 import io.airbyte.protocol.models.SyncMode;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
+import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.integration.common.utils.CommonUtil;
 import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
@@ -70,8 +71,10 @@ public class KafkaSource extends BaseEventConnector {
   protected AtomicBoolean stopConnectorBoolean = new AtomicBoolean(false);
   private final Map<String, Map<String, Long>> consumerToTopicPartitionRecordsRead = new HashMap<>();
 
-  public KafkaSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
-    super(systemAuthenticator,eventConnectorJobStatusNotifier);
+  public KafkaSource(SystemAuthenticator systemAuthenticator,
+                     EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
+                     ConnectorConfigManager connectorConfigManager) {
+    super(systemAuthenticator, eventConnectorJobStatusNotifier, connectorConfigManager);
   }
 
   protected AtomicBoolean getStopConnectorBoolean() {
@@ -80,7 +83,8 @@ public class KafkaSource extends BaseEventConnector {
 
   @Override
   public AirbyteConnectionStatus check(final JsonNode config) {
-    KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config, null);
+    KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config, null,
+            null, getConnectorConfigManager());
     KafkaConsumer<String, JsonNode> consumer = null;
     try {
       final String testTopic = config.has("test_topic") ? config.get("test_topic").asText() : "";
@@ -105,7 +109,8 @@ public class KafkaSource extends BaseEventConnector {
 
   @Override
   public AirbyteCatalog discover(final JsonNode config) {
-    KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config, null);
+    KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config,
+            null, null, null);
     KafkaConsumer<String, JsonNode> consumer = kafkaSourceConfig.getConsumer(Command.DISCOVER);
     final Set<String> topicsToSubscribe = kafkaSourceConfig.getTopicsToSubscribe();
     final List<AirbyteStream> streams = topicsToSubscribe.stream().map(topic -> CatalogHelpers
@@ -214,7 +219,8 @@ public class KafkaSource extends BaseEventConnector {
     ConfiguredAirbyteStream configuredAirbyteStream = (ConfiguredAirbyteStream)catalog.getStreams().get(0);
     ((ObjectNode)config).put("stream_name", configuredAirbyteStream.getStream().getName());
 
-    final KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(),config, null);
+    final KafkaSourceConfig kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config,
+            null, null, null);
     final KafkaConsumer<String, JsonNode> consumer = kafkaSourceConfig.getConsumer(Command.READ);
     final List<ConsumerRecord<String, JsonNode>> recordsList = new ArrayList<>();
 
@@ -338,7 +344,7 @@ public class KafkaSource extends BaseEventConnector {
   }
 
   public static void main(final String[] args) throws Exception {
-    final Source source = new KafkaSource(null,null);
+    final Source source = new KafkaSource(null,null, null);
     LOGGER.info("Starting source: {}", KafkaSource.class);
     new IntegrationRunner(source).run(args);
     LOGGER.info("Completed source: {}", KafkaSource.class);

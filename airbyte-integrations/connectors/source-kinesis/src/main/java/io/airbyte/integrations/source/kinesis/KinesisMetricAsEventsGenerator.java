@@ -1,9 +1,9 @@
 package io.airbyte.integrations.source.kinesis;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator;
 import io.bicycle.event.publisher.api.BicycleEventPublisher;
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -1,11 +1,10 @@
 package io.airbyte.integrations.source.elasticsearch;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator;
 import io.bicycle.event.publisher.api.BicycleEventPublisher;
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 

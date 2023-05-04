@@ -25,6 +25,10 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
+import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
+import io.bicycle.integration.common.kafka.KafkaProtocol;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.CommonClientConfigs;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -32,6 +36,7 @@ import org.apache.kafka.clients.consumer.ConsumerRebalanceListener;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.SaslConfigs;
+import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.connect.json.JsonDeserializer;
 import org.slf4j.Logger;
@@ -47,10 +52,18 @@ public class KafkaSourceConfig {
   private Set<String> topicsToSubscribe;
   private boolean trustStoreFileInitialized;
   private final String consumerThreadName;
+  private String connectorId;
+  private BicycleConfig bicycleConfig;
+  private ConnectorConfigManager connectorConfigManager;
   private final String trustStoreFilePath;
-  public KafkaSourceConfig(String consumerThreadName, final JsonNode config, String connectorId) {
+  private final io.bicycle.integration.common.kafka.processing.CommonUtils commonUtils = new io.bicycle.integration.common.kafka.processing.CommonUtils();
+  public KafkaSourceConfig(String consumerThreadName, final JsonNode config, String connectorId,
+                           BicycleConfig bicycleConfig, ConnectorConfigManager connectorConfigManager) {
     this.config = config;
     this.consumerThreadName = consumerThreadName;
+    this.connectorId = connectorId;
+    this.bicycleConfig = bicycleConfig;
+    this.connectorConfigManager = connectorConfigManager;
     String trustStoreFileIdentifier = StringUtils.isEmpty(connectorId) ? UUID.randomUUID().toString() : connectorId;
     this.trustStoreFilePath = "/tmp/bicycle/kafka/" + trustStoreFileIdentifier + "/client.truststore.jks";
   }
@@ -95,25 +108,37 @@ public class KafkaSourceConfig {
   private KafkaConsumer<String, String> buildMetricsConsumer(final JsonNode config) {
 
     Map<String, Object> props = getDefaultProps(config);
-
-    props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-    props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
     props.put(ConsumerConfig.GROUP_ID_CONFIG, "metrics-consumer");
+
+    Deserializer valueDeserializer = commonUtils.getValueDeserializer(config, connectorId,
+            connectorConfigManager, bicycleConfig);
+
+    LOGGER.info("Using Bicycle Custom Object Mapper with value deserializer {} ",
+            valueDeserializer.getClass().getName());
+
+    // props.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, 5024);
+    // props.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, 60000);
+
     final Map<String, Object> filteredProps = props.entrySet().stream()
             .filter(entry -> entry.getValue() != null && !entry.getValue().toString().isBlank())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
     filteredProps.put("ssl.endpoint.identification.algorithm", "");
 
-    return new KafkaConsumer<>(filteredProps);
+    return new KafkaConsumer<>(filteredProps, new StringDeserializer(), valueDeserializer);
   }
 
   private KafkaConsumer<String, JsonNode> buildKafkaConsumer(final JsonNode config) {
 
     Map<String, Object> props = getDefaultProps(config);
+    Deserializer valueDeserializer = commonUtils.getValueDeserializer(config, connectorId,
+            connectorConfigManager, bicycleConfig);
 
-    props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
-    props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, JsonDeserializer.class.getName());
+    LOGGER.info("Using Bicycle Custom Object Mapper with value deserializer {} ",
+            valueDeserializer.getClass().getName());
+
+    // props.put(ConsumerConfig.FETCH_MIN_BYTES_CONFIG, 5024);
+    // props.put(ConsumerConfig.FETCH_MAX_WAIT_MS_CONFIG, 60000);
 
     final Map<String, Object> filteredProps = props.entrySet().stream()
             .filter(entry -> entry.getValue() != null && !entry.getValue().toString().isBlank())
@@ -121,7 +146,7 @@ public class KafkaSourceConfig {
 
     filteredProps.put("ssl.endpoint.identification.algorithm", "");
 
-    return new KafkaConsumer<>(filteredProps);
+    return new KafkaConsumer<>(filteredProps, new StringDeserializer(), valueDeserializer);
   }
 
   private Map<String, Object> propertiesByProtocol(final JsonNode config) {

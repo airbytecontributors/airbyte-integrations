@@ -1,9 +1,9 @@
 package io.airbyte.integrations.source.kafka;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator;
 import io.bicycle.event.publisher.api.BicycleEventPublisher;
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.ListConsumerGroupOffsetsResult;
@@ -27,7 +27,7 @@ public class KafkaMetricAsEventsGenerator extends MetricAsEventsGenerator {
 
     public KafkaMetricAsEventsGenerator(BicycleConfig bicycleConfig, EventSourceInfo eventSourceInfo, JsonNode config, BicycleEventPublisher bicycleEventPublisher, KafkaSource kafkaSource) {
         super(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher,kafkaSource);
-        this.kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config, bicycleConfig.getConnectorId());
+        this.kafkaSourceConfig = new KafkaSourceConfig(UUID.randomUUID().toString(), config, bicycleConfig.getConnectorId(), bicycleConfig, kafkaSource.getConnectorConfigManager());
         consumerGroupId = config.has("group_id") ? config.get("group_id").asText() : null;
         kafkaConsumer = getKafkaConsumer();
         this.adminClient = getAdminClient();
