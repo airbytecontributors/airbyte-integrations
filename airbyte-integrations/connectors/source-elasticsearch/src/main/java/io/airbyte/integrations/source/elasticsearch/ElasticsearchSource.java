@@ -203,11 +203,15 @@ public class ElasticsearchSource extends BaseEventConnector {
                     eventSourceInfo, config, bicycleEventPublisher, this);
             InMemoryConsumer inMemoryConsumer = new InMemoryConsumer(this,
                     bicycleConfig, eventSourceInfo, elasticMetricsGenerator, 1);
-            ElasticsearchConnector elasticsearchConnector = new ElasticsearchConnector(inMemoryConsumer);
+            ElasticsearchConnector elasticsearchConnector = new ElasticsearchConnector(inMemoryConsumer, bicycleConfig, getConnectorConfigManager());
 
             ses.scheduleAtFixedRate(elasticMetricsGenerator, 60, 30, TimeUnit.SECONDS);
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,
+            try {
+                eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,
                     "Elastic Event Connector started Successfully", connectorId, 0, authInfo);
+            } catch (Exception e) {
+                LOGGER.error("Exception while getting sending elastic event connector status");
+            }
 
             RestClientBuilder restClientBuilder = elasticsearchConnector.createDefaultBuilder(configObject);
             RestClient restClient = restClientBuilder.build();
