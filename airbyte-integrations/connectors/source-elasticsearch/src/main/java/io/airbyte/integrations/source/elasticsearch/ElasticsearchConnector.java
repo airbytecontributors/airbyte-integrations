@@ -17,6 +17,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
+import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
+import io.bicycle.integration.common.objectmapper.BicycleCustomObjectMapper;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.http.Header;
 import org.apache.http.HttpHeaders;
@@ -44,12 +48,15 @@ public class ElasticsearchConnector {
     public static final int DEFAULT_SEARCH_TIMEOUT = 30 * SECONDS;
     private static final ObjectMapper objectMapper = new ObjectMapper();
     private InMemoryConsumer inMemoryConsumer;
-
+    private BicycleCustomObjectMapper bicycleCustomObjectMapper;
     public ElasticsearchConnector() {
     }
 
-    public ElasticsearchConnector(InMemoryConsumer inMemoryConsumer) {
+    public ElasticsearchConnector(InMemoryConsumer inMemoryConsumer, BicycleConfig bicycleConfig,
+                                  ConnectorConfigManager connectorConfigManager) {
         this.inMemoryConsumer = inMemoryConsumer;
+        bicycleCustomObjectMapper = new BicycleCustomObjectMapper(bicycleConfig.getConnectorId(),
+                connectorConfigManager, bicycleConfig);
     }
 
     public List<JsonNode> getPreviewRecords(ConnectorConfiguration connectorConfiguration) {
@@ -337,7 +344,7 @@ public class ElasticsearchConnector {
                 stringWriter.append("{\"_raw\":");
                 Streams.write(hit, jsonWriter);
                 stringWriter.append("}");
-                JsonNode jsonNode = objectMapper.readTree(stringWriter.toString());
+                JsonNode jsonNode = bicycleCustomObjectMapper.readTree(stringWriter.toString());
                 ObjectNode objectNode = (ObjectNode) jsonNode;
                 objectNode.put(CommonConstants.CONNECTOR_IN_TIMESTAMP, System.currentTimeMillis());
                 jsonNodes.add(objectNode);

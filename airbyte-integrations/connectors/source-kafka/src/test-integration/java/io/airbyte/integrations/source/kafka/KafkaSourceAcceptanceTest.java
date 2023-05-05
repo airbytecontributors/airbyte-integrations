@@ -12,7 +12,6 @@ import com.inception.server.auth.api.SystemAuthenticator;
 import io.airbyte.commons.jackson.MoreMappers;
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.commons.resources.MoreResources;
-import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.integrations.standardtest.source.EventSourceAcceptanceTest;
 import io.airbyte.integrations.standardtest.source.TestDestinationEnv;
@@ -29,6 +28,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
+import io.bicycle.integration.common.kafka.KafkaProtocol;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;

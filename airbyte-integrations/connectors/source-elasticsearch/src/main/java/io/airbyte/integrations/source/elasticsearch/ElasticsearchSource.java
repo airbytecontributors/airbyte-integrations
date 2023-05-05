@@ -11,7 +11,6 @@ import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
-import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.*;
@@ -27,6 +26,8 @@ import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
+import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
@@ -44,8 +45,10 @@ public class ElasticsearchSource extends BaseEventConnector {
     private int totalRecordsConsumed = 0;
     private AtomicBoolean stopConnectorBoolean = new AtomicBoolean(false);
 
-    public ElasticsearchSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
-        super(systemAuthenticator, eventConnectorJobStatusNotifier);
+    public ElasticsearchSource(SystemAuthenticator systemAuthenticator,
+                               EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
+                               ConnectorConfigManager connectorConfigManager) {
+        super(systemAuthenticator, eventConnectorJobStatusNotifier, connectorConfigManager);
     }
 
     @Override
@@ -54,7 +57,7 @@ public class ElasticsearchSource extends BaseEventConnector {
     }
 
     public static void main(String[] args) throws Exception {
-        final var Source = new ElasticsearchSource(null,null);
+        final var Source = new ElasticsearchSource(null,null, null);
         LOGGER.info("starting Source: {}", ElasticsearchSource.class);
         new IntegrationRunner(Source).run(args);
         LOGGER.info("completed Source: {}", ElasticsearchSource.class);
@@ -200,11 +203,15 @@ public class ElasticsearchSource extends BaseEventConnector {
                     eventSourceInfo, config, bicycleEventPublisher, this);
             InMemoryConsumer inMemoryConsumer = new InMemoryConsumer(this,
                     bicycleConfig, eventSourceInfo, elasticMetricsGenerator, 1);
-            ElasticsearchConnector elasticsearchConnector = new ElasticsearchConnector(inMemoryConsumer);
+            ElasticsearchConnector elasticsearchConnector = new ElasticsearchConnector(inMemoryConsumer, bicycleConfig, getConnectorConfigManager());
 
             ses.scheduleAtFixedRate(elasticMetricsGenerator, 60, 30, TimeUnit.SECONDS);
-            eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,
+            try {
+                eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,
                     "Elastic Event Connector started Successfully", connectorId, 0, authInfo);
+            } catch (Exception e) {
+                LOGGER.error("Exception while getting sending elastic event connector status");
+            }
 
             RestClientBuilder restClientBuilder = elasticsearchConnector.createDefaultBuilder(configObject);
             RestClient restClient = restClientBuilder.build();
