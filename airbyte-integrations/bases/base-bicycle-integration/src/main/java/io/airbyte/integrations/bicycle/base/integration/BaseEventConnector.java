@@ -154,15 +154,6 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                             schemaStoreApiClient,
                             entityStoreApiClient
                     );
-            try {
-                blackListedFields
-                        = configHelper.getTenantBlackListedFields(authInfo, configStoreClient,
-                        authInfo.getTenantId(),
-                        bicycleConfig.getConnectorId());
-                logger.info("Successfully downloaded blacklisted fields {}", blackListedFields);
-            } catch (Exception e) {
-                logger.error("Unable to download blackListed fields for tenantId", authInfo.getTenantId(), e);
-            }
             EventMappingConfigurations eventMappingConfigurations =
                     new EventMappingConfigurations(
                             bicycleConfig.getServerURL(),
