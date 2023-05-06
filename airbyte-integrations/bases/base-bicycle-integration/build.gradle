@@ -21,9 +21,9 @@ dependencies {
     implementation project(':airbyte-protocol:models')
 //    implementation group: 'com.inception', name: 'auth-impl', version: '0.3.31949'
     implementation group: 'com.inception', name: 'auth-api', version: '0.3.31949'
-    implementation group: 'com.inception', name: 'integration-model', version: '0.2.41965'
-    implementation group: 'com.inception', name: 'integration-common-api', version: '0.2.41965'
-    implementation group: 'com.inception', name: 'integration-common-impl', version: '0.2.41965'
+    implementation group: 'com.inception', name: 'integration-model', version: '0.2.42088'
+    implementation group: 'com.inception', name: 'integration-common-api', version: '0.2.42088'
+    implementation group: 'com.inception', name: 'integration-common-impl', version: '0.2.42088'
     implementation('com.inception:bicycle-event-processor:0.2.41251') {
         exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
         exclude group: 'org.springframework.kafka', module:'spring-kafka'
