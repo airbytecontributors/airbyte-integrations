@@ -37,6 +37,7 @@ import net.sf.jsqlparser.parser.CCJSqlParserUtil;
 import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.Select;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -150,8 +151,9 @@ public class BigQuerySource extends AbstractRelationalDbSource<StandardSQLTypeNa
                                                                final StandardSQLTypeName cursorFieldType,
                                                                final String cursor) {
     String sqlQuery = database.getSqlQuery();
-    if (sqlQuery != null) {
+    if (!StringUtils.isEmpty(sqlQuery)) {
       try {
+        LOGGER.info("Queueing incremental query for table: {} with SQL query {}", tableName, sqlQuery);
         Select selectStatement = (Select) CCJSqlParserUtil.parse(sqlQuery);
         PlainSelect plainSelect = (PlainSelect) selectStatement.getSelectBody();
         Expression where = plainSelect.getWhere();

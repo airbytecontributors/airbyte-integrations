@@ -29,7 +29,7 @@
       },
       "sql_query": {
         "type": "string",
-        "description": "SQL Query for big query, This query will be run against big query",
+        "description": "SQL Query for big query, This can be provided if we want to fetch selective data",
         "title": "SQL Query"
       }
     }
