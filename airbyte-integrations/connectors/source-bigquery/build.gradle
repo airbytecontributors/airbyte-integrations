@@ -12,6 +12,8 @@ application {
 dependencies {
     implementation 'com.google.cloud:google-cloud-bigquery:2.10.1'
     implementation 'org.apache.commons:commons-lang3:3.11'
+    implementation group: 'com.github.jsqlparser', name: 'jsqlparser', version: '4.5'
+
     implementation project(':airbyte-db:lib')
     implementation project(':airbyte-integrations:bases:base-java')
     implementation project(':airbyte-protocol:models')

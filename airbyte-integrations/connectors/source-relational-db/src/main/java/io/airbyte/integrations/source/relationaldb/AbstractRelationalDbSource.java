@@ -32,10 +32,15 @@ public abstract class AbstractRelationalDbSource<DataType, Database extends SqlD
                                                                final List<String> columnNames,
                                                                final String schemaName,
                                                                final String tableName) {
+    String sqlQuery = database.getSqlQuery();
+    if (sqlQuery != null) {
+      LOGGER.info("Queueing query for table: {}", tableName);
+      return queryTable(database, sqlQuery);
+    }
     LOGGER.info("Queueing query for table: {}", tableName);
     return queryTable(database, String.format("SELECT %s FROM %s",
-        enquoteIdentifierList(columnNames),
-        getFullTableName(schemaName, tableName)));
+            enquoteIdentifierList(columnNames),
+            getFullTableName(schemaName, tableName)));
   }
 
   protected String getIdentifierWithQuoting(final String identifier) {
