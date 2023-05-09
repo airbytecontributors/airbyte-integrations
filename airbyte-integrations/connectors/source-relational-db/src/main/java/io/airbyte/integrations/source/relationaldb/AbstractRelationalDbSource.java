@@ -12,6 +12,8 @@ import io.airbyte.integrations.base.Source;
 import java.util.List;
 import java.util.StringJoiner;
 import java.util.stream.Stream;
+
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,10 +34,15 @@ public abstract class AbstractRelationalDbSource<DataType, Database extends SqlD
                                                                final List<String> columnNames,
                                                                final String schemaName,
                                                                final String tableName) {
+    String sqlQuery = database.getSqlQuery();
+    if (!StringUtils.isEmpty(sqlQuery)) {
+      LOGGER.info("Queueing query for table: {} with SQL query {}", tableName, sqlQuery);
+      return queryTable(database, sqlQuery);
+    }
     LOGGER.info("Queueing query for table: {}", tableName);
     return queryTable(database, String.format("SELECT %s FROM %s",
-        enquoteIdentifierList(columnNames),
-        getFullTableName(schemaName, tableName)));
+            enquoteIdentifierList(columnNames),
+            getFullTableName(schemaName, tableName)));
   }
 
   protected String getIdentifierWithQuoting(final String identifier) {
