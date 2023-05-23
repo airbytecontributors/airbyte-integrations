@@ -31,6 +31,8 @@ import io.bicycle.event.processor.impl.BicycleEventProcessorImpl;
 import io.bicycle.event.publisher.api.BicycleEventPublisher;
 import io.bicycle.event.publisher.impl.BicycleEventPublisherImpl;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
+import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.integration.common.transformation.TransformationImpl;
 import io.bicycle.integration.common.utils.CommonUtil;
 import io.bicycle.integration.common.writer.Writer;
@@ -54,7 +56,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static io.airbyte.integrations.bicycle.base.integration.BicycleConfig.SAAS_API_ROLE;
+import static io.bicycle.integration.common.bicycleconfig.BicycleConfig.SAAS_API_ROLE;
+
 
 /**
  * @author sumitmaheshwari
@@ -71,6 +74,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected BicycleConfig bicycleConfig;
     protected SystemAuthenticator systemAuthenticator;
     protected EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier;
+    private ConnectorConfigManager connectorConfigManager;
     protected BlackListedFields blackListedFields;
     protected static final String TENANT_ID = "tenantId";
     protected String ENV_TENANT_ID_KEY = "TENANT_ID";
@@ -88,9 +92,17 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected JsonNode state;
 
     protected ConnectionServiceClient connectionServiceClient;
-    public BaseEventConnector(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
+
+    public Logger getLogger() {
+        return logger;
+    }
+
+    public BaseEventConnector(SystemAuthenticator systemAuthenticator,
+                              EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
+                              ConnectorConfigManager connectorConfigManager) {
         this.systemAuthenticator = systemAuthenticator;
         this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;
+        this.connectorConfigManager = connectorConfigManager;
         String envConnectorsUsingPreviewStore =
                 CommonUtil.getFromEnvironment(CONNECTORS_WITH_WAIT_ENABLED, false);
         String sleepTime =
@@ -106,6 +118,10 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         } else {
             listOfConnectorsWithSleepEnabled.add("ad2e5fb0-4218-462c-8f5d-9dc76f5ac9b6");
         }
+    }
+
+    public ConnectorConfigManager getConnectorConfigManager() {
+        return connectorConfigManager;
     }
 
     public long getSleepTimeInMillis() {
@@ -138,15 +154,6 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                             schemaStoreApiClient,
                             entityStoreApiClient
                     );
-            try {
-                blackListedFields
-                        = configHelper.getTenantBlackListedFields(authInfo, configStoreClient,
-                        authInfo.getTenantId(),
-                        bicycleConfig.getConnectorId());
-                logger.info("Successfully downloaded blacklisted fields {}", blackListedFields);
-            } catch (Exception e) {
-                logger.error("Unable to download blackListed fields for tenantId", authInfo.getTenantId(), e);
-            }
             EventMappingConfigurations eventMappingConfigurations =
                     new EventMappingConfigurations(
                             bicycleConfig.getServerURL(),

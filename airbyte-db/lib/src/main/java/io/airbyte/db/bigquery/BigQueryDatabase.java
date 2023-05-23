@@ -48,6 +48,11 @@ public class BigQueryDatabase extends SqlDatabase {
     this(projectId, jsonCreds, new BigQuerySourceOperations());
   }
 
+  public BigQueryDatabase(final String projectId, final String jsonCreds, final String sqlQuery) {
+    this(projectId, jsonCreds, new BigQuerySourceOperations());
+    this.sqlQuery = sqlQuery;
+  }
+
   public BigQueryDatabase(final String projectId, final String jsonCreds, final BigQuerySourceOperations sourceOperations) {
     try {
       this.sourceOperations = sourceOperations;

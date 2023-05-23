@@ -2,16 +2,14 @@ package io.airbyte.integrations.source.pubsub;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.cloud.pubsub.v1.SubscriptionAdminClient;
-import com.google.cloud.pubsub.v1.stub.SubscriberStub;
 import com.google.pubsub.v1.PullRequest;
 import com.google.pubsub.v1.PullResponse;
 import com.google.pubsub.v1.ReceivedMessage;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
-import io.airbyte.integrations.base.Command;
-import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.writer.Writer;
 import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;

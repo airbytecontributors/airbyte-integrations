@@ -10,7 +10,7 @@ import static io.airbyte.integrations.source.elasticsearch.ElasticsearchSource.E
 import static io.airbyte.integrations.source.elasticsearch.ElasticsearchSource.STATE;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.inception.server.auth.model.AuthInfo;
-import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;

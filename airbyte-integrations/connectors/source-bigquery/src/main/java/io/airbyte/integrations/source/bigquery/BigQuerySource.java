@@ -30,6 +30,14 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import net.sf.jsqlparser.JSQLParserException;
+import net.sf.jsqlparser.expression.Expression;
+import net.sf.jsqlparser.parser.CCJSqlParserUtil;
+import net.sf.jsqlparser.statement.Statement;
+import net.sf.jsqlparser.statement.select.PlainSelect;
+import net.sf.jsqlparser.statement.select.Select;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,6 +49,7 @@ public class BigQuerySource extends AbstractRelationalDbSource<StandardSQLTypeNa
   public static final String CONFIG_DATASET_ID = "dataset_id";
   public static final String CONFIG_PROJECT_ID = "project_id";
   public static final String CONFIG_CREDS = "credentials_json";
+  public static final String SQL_QUERY = "sql_query";
 
   private JsonNode dbConfig;
   private final BigQuerySourceOperations sourceOperations = new BigQuerySourceOperations();
@@ -59,7 +68,9 @@ public class BigQuerySource extends AbstractRelationalDbSource<StandardSQLTypeNa
   @Override
   protected BigQueryDatabase createDatabase(final JsonNode config) {
     dbConfig = Jsons.clone(config);
-    return new BigQueryDatabase(config.get(CONFIG_PROJECT_ID).asText(), config.get(CONFIG_CREDS).asText());
+    String sqlQuery = config.has(SQL_QUERY) ? config.get(SQL_QUERY).asText() : null;
+    return new BigQueryDatabase(config.get(CONFIG_PROJECT_ID).asText(),
+            config.get(CONFIG_CREDS).asText(), sqlQuery);
   }
 
   @Override
@@ -139,6 +150,27 @@ public class BigQuerySource extends AbstractRelationalDbSource<StandardSQLTypeNa
                                                                final String cursorField,
                                                                final StandardSQLTypeName cursorFieldType,
                                                                final String cursor) {
+    String sqlQuery = database.getSqlQuery();
+    if (!StringUtils.isEmpty(sqlQuery)) {
+      try {
+        LOGGER.info("Queueing incremental query for table: {} with SQL query {}", tableName, sqlQuery);
+        Select selectStatement = (Select) CCJSqlParserUtil.parse(sqlQuery);
+        PlainSelect plainSelect = (PlainSelect) selectStatement.getSelectBody();
+        Expression where = plainSelect.getWhere();
+        String extraWhereClause = " AND " + cursorField + " > ?";
+        if (where != null) {
+          where = CCJSqlParserUtil.parseCondExpression(where.toString() + extraWhereClause);
+        } else {
+          where = CCJSqlParserUtil.parseCondExpression(extraWhereClause.substring(5));
+        }
+        plainSelect.setWhere(where);
+        String newQuery = selectStatement.toString();
+        return queryTableWithParams(database, newQuery,
+                sourceOperations.getQueryParameter(cursorFieldType, cursor));
+      } catch (JSQLParserException e) {
+        LOGGER.error("Unable to parse Sql query");
+      }
+    }
     return queryTableWithParams(database, String.format("SELECT %s FROM %s WHERE %s > ?",
         enquoteIdentifierList(columnNames),
         getFullTableName(schemaName, tableName),

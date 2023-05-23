@@ -20,6 +20,7 @@ import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.*;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
@@ -91,8 +92,10 @@ public class CSVConnector extends BaseEventConnector {
 
     private List<CSVRecord> records = new ArrayList<>();
 
-    public CSVConnector(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
-        super(systemAuthenticator, eventConnectorJobStatusNotifier);
+    public CSVConnector(SystemAuthenticator systemAuthenticator,
+                        EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
+                        ConnectorConfigManager connectorConfigManager) {
+        super(systemAuthenticator, eventConnectorJobStatusNotifier, connectorConfigManager);
     }
 
     protected int getTotalRecordsConsumed() {
@@ -596,7 +599,7 @@ public class CSVConnector extends BaseEventConnector {
                 if (headers == null || headers.length == 0) {
                     throw new IllegalStateException("No headers available for csv");
                 }
-                LOGGER.info("CSV File Headers [{}]", headers);
+                LOGGER.info("CSV File Headers {}", headers);
             }
             Map<Long, List<Long>> timestampVsRecordsOffset = new TreeMap<>(new Comparator<Long>() {
                 public int compare(Long aLong, Long t1) {

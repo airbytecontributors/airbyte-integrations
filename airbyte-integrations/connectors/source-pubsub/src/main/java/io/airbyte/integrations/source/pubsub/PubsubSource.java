@@ -8,7 +8,6 @@ import com.google.cloud.pubsub.v1.SubscriptionAdminClient;
 import com.google.cloud.pubsub.v1.SubscriptionAdminSettings;
 import com.google.cloud.pubsub.v1.TopicAdminClient;
 import com.google.cloud.pubsub.v1.TopicAdminSettings;
-import com.google.cloud.pubsub.v1.stub.SubscriberStub;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Lists;
 import com.google.pubsub.v1.*;
@@ -20,7 +19,8 @@ import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.bicycle.base.integration.*;
 import io.airbyte.protocol.models.*;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
-import io.bicycle.integration.connector.SyncDataRequest;
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
+import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import org.slf4j.Logger;
@@ -53,8 +53,9 @@ public class PubsubSource extends BaseEventConnector {
     }
 
     protected PubsubSourceConfig pubsubSourceConfig;
-    public PubsubSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
-        super(systemAuthenticator, eventConnectorJobStatusNotifier);
+    public PubsubSource(SystemAuthenticator systemAuthenticator, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
+                        ConnectorConfigManager connectorConfigManager) {
+        super(systemAuthenticator, eventConnectorJobStatusNotifier, connectorConfigManager);
     }
 
     protected AtomicBoolean getStopConnectorBoolean() {

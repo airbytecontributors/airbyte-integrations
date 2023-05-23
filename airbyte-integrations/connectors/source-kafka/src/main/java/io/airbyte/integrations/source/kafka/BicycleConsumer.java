@@ -1,10 +1,10 @@
 package io.airbyte.integrations.source.kafka;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.integrations.base.Command;
-import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 
@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.utils.CommonUtil;
 import io.bicycle.integration.common.writer.Writer;
 import io.bicycle.integration.common.writer.WriterFactory;
@@ -69,7 +70,7 @@ public class BicycleConsumer implements Runnable {
         this.name = name;
         this.config = connectorConfig;
         this.catalog = configuredCatalog;
-        this.kafkaSourceConfig = new KafkaSourceConfig(name, config, getConnectorId(catalog));
+        this.kafkaSourceConfig = new KafkaSourceConfig(name, config, getConnectorId(catalog), bicycleConfig, instance.getConnectorConfigManager());
         this.bicycleConfig = bicycleConfig;
         this.topicPartitionRecordsRead = topicPartitionRecordsRead;
         this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;
@@ -132,13 +133,20 @@ public class BicycleConsumer implements Runnable {
             throw new RuntimeException("Unable establish a connection");
         }
 
+        String topic = config.get(STREAM_NAME).asText();
+        if (topic == null || topic.isEmpty()) {
+            topic = config.has("test_topic") ? config.get("test_topic").asText() : "";
+            ((ObjectNode) config).put(STREAM_NAME, topic);
+        }
+
+        logger.info("Reading from topic {} for connector {}", topic, bicycleConfig.getConnectorId());
+
         final KafkaConsumer<String, JsonNode> consumer = kafkaSourceConfig.getConsumer(Command.READ);
 
         boolean resetOffsetToLatest = config.has("reset_to_latest") ?
                 Boolean.parseBoolean(config.get("reset_to_latest").asText()) : Boolean.FALSE;
 
         if (resetOffsetToLatest) {
-            String topic = config.get(STREAM_NAME).asText();
             resetOffsetsToLatest(consumer, topic);
         }
 

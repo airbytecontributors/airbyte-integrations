@@ -1,6 +1,6 @@
 package io.airbyte.integrations.source.kinesis;
 
-import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import software.amazon.kinesis.processor.ShardRecordProcessor;
 import software.amazon.kinesis.processor.ShardRecordProcessorFactory;

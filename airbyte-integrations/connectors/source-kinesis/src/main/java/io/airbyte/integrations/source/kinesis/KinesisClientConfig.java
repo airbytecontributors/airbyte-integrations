@@ -6,7 +6,7 @@ import com.amazonaws.services.kinesis.AmazonKinesis;
 import com.amazonaws.services.kinesis.AmazonKinesisClientBuilder;
 import com.amazonaws.services.kinesis.model.*;
 import com.fasterxml.jackson.databind.JsonNode;
-import io.airbyte.integrations.bicycle.base.integration.BicycleConfig;
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import org.apache.commons.lang3.ObjectUtils;
 import org.slf4j.Logger;
