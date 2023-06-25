@@ -22,8 +22,11 @@
         "title" : "Deserializer",
         "type": "string",
         "description": "You can choose one of the deserializer to deserialize the kafka messages received",
-        "enum": ["Json",
-          "Avro"],
+        "enum": [
+          "Json",
+          "Avro",
+          "Proto"
+        ],
         "default": "Json"
       },
       "subscription": {

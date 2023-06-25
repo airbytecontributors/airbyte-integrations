@@ -159,7 +159,8 @@ public class KafkaSource extends BaseEventConnector {
     MetricAsEventsGenerator metricAsEventsGenerator = new KafkaMetricAsEventsGenerator(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher,this);
     AuthInfo authInfo = bicycleConfig.getAuthInfo();
     try {
-      ses.scheduleAtFixedRate(metricAsEventsGenerator, 60, 300, TimeUnit.SECONDS);
+      ses.scheduleAtFixedRate(metricAsEventsGenerator, 60,
+              runtimeConfig.getSourceMetricPollingIntervalInSecs(),TimeUnit.SECONDS);
       eventConnectorJobStatusNotifier.setNumberOfThreadsRunning(new AtomicInteger(numberOfConsumers));
       eventConnectorJobStatusNotifier.setScheduledExecutorService(ses);
       for (int i = 0; i < numberOfConsumers; i++) {

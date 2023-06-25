@@ -14,17 +14,16 @@ dependencies {
     implementation project(':airbyte-protocol:models')
     implementation project(':airbyte-integrations:bases:base-java')
     implementation group: 'com.inception', name: 'event-model', version: "0.1.0-snapshot.202205191419.c95071d"
-    implementation group: 'com.inception', name: 'integration-model', version: '0.2.43728'
-    implementation group: 'com.inception', name: 'integration-common-api', version: '0.2.43728'
-    implementation group: 'com.inception', name: 'integration-common-impl', version: '0.2.43728'
-
-    implementation('com.inception:bicycle-event-processor:0.2.43729') {
+    implementation group: 'com.inception', name: 'integration-model', version: "${metaPipelineVersion}"
+    implementation group: 'com.inception', name: 'integration-common-api', version: "${metaPipelineVersion}"
+    implementation group: 'com.inception', name: 'integration-common-impl', version: "${metaPipelineVersion}"
+    implementation("com.inception:bicycle-event-processor:${bicyleEventProcessorVersion}") {
         exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
         exclude group: 'org.springframework.kafka', module:'spring-kafka'
         exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'
     }
 
-    implementation('com.inception:bicycle-event-publisher:0.2.43729') {
+    implementation("com.inception:bicycle-event-publisher:${bicyleEventProcessorVersion}") {
         exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
         exclude group: 'org.springframework.kafka', module:'spring-kafka'
         exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'

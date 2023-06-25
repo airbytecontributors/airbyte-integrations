@@ -150,7 +150,10 @@ public class BicycleConsumer implements Runnable {
             resetOffsetsToLatest(consumer, topic);
         }
 
-        int samplingRate = config.has("sampling_rate") ? config.get("sampling_rate").asInt(): 100;
+        int samplingRate = config.has("sampling_rate") ? config.get("sampling_rate").asInt() : 100;
+        if (kafkaSource.getRuntimeConfig() != null) {
+            samplingRate = kafkaSource.getRuntimeConfig().getEventsSamplingRate();
+        }
 
         int sampledRecords = 0;
         try {

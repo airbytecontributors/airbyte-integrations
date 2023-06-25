@@ -40,6 +40,7 @@ import io.bicycle.integration.common.writer.WriterFactory;
 import io.bicycle.integration.connector.ProcessRawEventsResult;
 import io.bicycle.integration.connector.ProcessedEventSourceData;
 import io.bicycle.integration.connector.SyncDataRequest;
+import io.bicycle.integration.connector.runtime.RuntimeConfig;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.config.EventMappingConfigurations;
 import io.bicycle.server.event.mapping.constants.BicycleEventPublisherType;
@@ -92,6 +93,12 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected JsonNode state;
 
     protected ConnectionServiceClient connectionServiceClient;
+
+    public RuntimeConfig getRuntimeConfig() {
+        return runtimeConfig;
+    }
+
+    protected RuntimeConfig runtimeConfig;
 
     public Logger getLogger() {
         return logger;
@@ -167,7 +174,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                     );
             logger.info("EventMappingConfiguration:: {}", eventMappingConfigurations);
             this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, systemAuthenticator,
-                    true, new TransformationImpl());
+                    true, new TransformationImpl(), connectorConfigManager);
         } catch (Throwable e) {
             logger.error("Exception while setting bicycle event process and publisher", e);
         }
@@ -584,8 +591,13 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";
         String isOnPrem = additionalProperties.get("isOnPrem").toString();
         boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
-        return new BicycleConfig(serverURL, metricStoreURL, token, connectorId, uniqueIdentifier, tenantId,
+        BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL, token, connectorId, uniqueIdentifier, tenantId,
                 systemAuthenticator, isOnPremDeployment);
+        runtimeConfig = this.getConnectorConfigManager().getRuntimeConfig(bicycleConfig.getAuthInfo(), connectorId);
+        if (runtimeConfig != null && connectorConfigManager.isDefaultConfig(runtimeConfig)) {
+            runtimeConfig = null;
+        }
+        return bicycleConfig;
     }
 
     private static class NonEmptyAutoCloseableIterator implements AutoCloseableIterator {
