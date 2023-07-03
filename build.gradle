@@ -32,8 +32,8 @@ repositories {
     mavenCentral()
 }
 
-ext.bicyleEventProcessorVersion = "0.2.44313"
-ext.metaPipelineVersion = "0.2.44293"
+ext.bicyleEventProcessorVersion = "0.2.44619"
+ext.metaPipelineVersion = "0.2.44578"
 Properties env = new Properties()
 rootProject.file('.env').withInputStream { env.load(it) }
 

@@ -344,7 +344,12 @@ public class ElasticsearchConnector {
                 stringWriter.append("{\"_raw\":");
                 Streams.write(hit, jsonWriter);
                 stringWriter.append("}");
-                JsonNode jsonNode = bicycleCustomObjectMapper.readTree(stringWriter.toString());
+                JsonNode jsonNode = null;
+                if (bicycleCustomObjectMapper != null) {
+                    jsonNode = bicycleCustomObjectMapper.readTree(stringWriter.toString());
+                } else {
+                    jsonNode = objectMapper.readTree(stringWriter.toString());
+                }
                 ObjectNode objectNode = (ObjectNode) jsonNode;
                 objectNode.put(CommonConstants.CONNECTOR_IN_TIMESTAMP, System.currentTimeMillis());
                 jsonNodes.add(objectNode);
