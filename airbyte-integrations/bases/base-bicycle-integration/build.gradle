@@ -21,16 +21,27 @@ dependencies {
     implementation project(':airbyte-protocol:models')
 //    implementation group: 'com.inception', name: 'auth-impl', version: '0.3.31949'
     implementation group: 'com.inception', name: 'auth-api', version: '0.3.31949'
+<<<<<<< Updated upstream
     implementation group: 'com.inception', name: 'integration-model', version: "${metaPipelineVersion}"
     implementation group: 'com.inception', name: 'integration-common-api', version: "${metaPipelineVersion}"
     implementation group: 'com.inception', name: 'integration-common-impl', version: "${metaPipelineVersion}"
     implementation("com.inception:bicycle-event-processor:${bicyleEventProcessorVersion}") {
+=======
+    implementation group: 'com.inception', name: 'integration-model', version: '0.2.43728'
+    implementation group: 'com.inception', name: 'integration-common-api', version: '0.2.43728'
+    implementation group: 'com.inception', name: 'integration-common-impl', version: '0.2.43728'
+    implementation('com.inception:bicycle-event-processor:0.2.44719') {
+>>>>>>> Stashed changes
         exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
         exclude group: 'org.springframework.kafka', module:'spring-kafka'
         exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'
     }
 
+<<<<<<< Updated upstream
     implementation("com.inception:bicycle-event-publisher:${bicyleEventProcessorVersion}") {
+=======
+    implementation('com.inception:bicycle-event-publisher:0.2.44719') {
+>>>>>>> Stashed changes
         exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
         exclude group: 'org.springframework.kafka', module:'spring-kafka'
         exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'

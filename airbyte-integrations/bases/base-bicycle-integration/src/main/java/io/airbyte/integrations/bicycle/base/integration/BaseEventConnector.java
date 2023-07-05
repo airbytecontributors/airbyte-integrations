@@ -377,10 +377,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                     processRawEventsResult.getProcessedEventSourceDataList()) {
                 rawEvents.add(new JsonRawEvent(processedEventSourceData.getRawEvent()));
             }
-            BicycleEventsResult bicycleEventsResult = this.bicycleEventProcessor.processEventsForPreview(
-                    authInfo, eventSourceInfo, rawEvents, new ArrayList<>());
             logger.debug(traceInfo + " Preview bicycle events for event source "
-                    + eventSourceInfo + bicycleEventsResult.getUnmatchedBicycleEvents());
+                    + eventSourceInfo + rawEvents);
             if (this.bicycleEventPublisher.publishPreviewEvents(authInfo, eventSourceInfo, rawEvents, true)) {
                 logger.info(traceInfo + " Successfully published preview events for event source " + eventSourceInfo);
             } else {
