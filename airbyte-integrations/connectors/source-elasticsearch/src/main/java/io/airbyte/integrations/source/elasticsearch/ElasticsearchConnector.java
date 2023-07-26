@@ -136,7 +136,12 @@ public class ElasticsearchConnector {
                 LOG.debug("failedShardCount = {}", failedShardCount);
                 // TODO assert failed == 0
                 JsonObject hitsMeta = searchResponse.get("hits").getAsJsonObject();
-                long numHits = hitsMeta.get("total").getAsLong();
+                long numHits;
+                if (hitsMeta.get("total").isJsonObject()) {
+                    numHits = hitsMeta.get("total").getAsJsonObject().get("value").getAsLong();
+                } else {
+                    numHits = hitsMeta.get("total").getAsLong();
+                }
                 LOG.info("numHits = {}", numHits);
                 JsonArray hits = hitsMeta.get("hits").getAsJsonArray();
                 jsonNodes.addAll(convertHitsToJsonNodes(hits));
