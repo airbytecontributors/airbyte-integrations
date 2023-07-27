@@ -4,7 +4,6 @@
 
 package io.airbyte.integrations.source.elasticsearch;
 
-import co.elastic.clients.base.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -28,7 +27,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -110,8 +108,8 @@ public class ElasticsearchConnection {
             final var info = client.info(RequestOptions.DEFAULT);
             log.info("checked elasticsearch connection: {}, node-name: {}, version: {}", info.getClusterName(), info.getNodeName(), info.getVersion());
             return true;
-        } catch (ApiException e) {
-            log.error("failed to ping elasticsearch", unwrappedApiException("failed write operation", e));
+        } catch (IOException e) {
+            log.error("failed to ping elasticsearch", e);
             return false;
         } catch (Exception e) {
             log.error("unknown exception while pinging elasticsearch server", e);
@@ -125,27 +123,6 @@ public class ElasticsearchConnection {
      */
     public void close() throws IOException {
         this.client.close();
-    }
-
-    /**
-     * Unwraps a rest client ApiException, so we can log the details
-     *
-     * @param message message to add to the log entry
-     * @param e source ApiException
-     * @return a new RuntimeException with the ApiException as the source
-     */
-    private RuntimeException unwrappedApiException(String message, ApiException e) {
-        log.error(message);
-        if (Objects.isNull(e) || Objects.isNull(e.error())) {
-            log.error("unknown ApiException");
-            return new RuntimeException(e);
-        }
-        if (ElasticsearchError.class.isAssignableFrom(e.error().getClass())) {
-            ElasticsearchError esException = ((ElasticsearchError) e.error());
-            String errorMessage = String.format("ElasticsearchError: status:%s, error:%s", esException.status(), esException.error().toString());
-            return new RuntimeException(errorMessage);
-        }
-        return new RuntimeException(e);
     }
 
     /**
