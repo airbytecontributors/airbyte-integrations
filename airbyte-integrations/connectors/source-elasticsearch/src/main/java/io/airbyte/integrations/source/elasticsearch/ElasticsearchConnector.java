@@ -48,6 +48,7 @@ public class ElasticsearchConnector {
     public static final int DEFAULT_SEARCH_TIMEOUT = 30 * SECONDS;
     private static final ObjectMapper objectMapper = new ObjectMapper();
     private InMemoryConsumer inMemoryConsumer;
+    private BicycleConfig bicycleConfig;
     private BicycleCustomObjectMapper bicycleCustomObjectMapper;
     public ElasticsearchConnector() {
     }
@@ -55,6 +56,7 @@ public class ElasticsearchConnector {
     public ElasticsearchConnector(InMemoryConsumer inMemoryConsumer, BicycleConfig bicycleConfig,
                                   ConnectorConfigManager connectorConfigManager) {
         this.inMemoryConsumer = inMemoryConsumer;
+        this.bicycleConfig = bicycleConfig;
         bicycleCustomObjectMapper = new BicycleCustomObjectMapper(bicycleConfig.getConnectorId(),
                 connectorConfigManager, bicycleConfig);
     }
@@ -221,6 +223,8 @@ public class ElasticsearchConnector {
                 JsonObject jsonResponse = JsonParser.parseString(responseBody).getAsJsonObject();
                 return jsonResponse;
             } catch (Exception e) {
+                LOG.error("Error while trying to search for elasticsearch records for connectorId {}",
+                        bicycleConfig != null ? bicycleConfig.getConnectorId() : null, e);
                 retry-=1;
             }
         }
