@@ -8,6 +8,7 @@ import io.airbyte.integrations.base.Command;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 
+import io.bicycle.integration.connector.runtime.BackFillConfiguration;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -155,6 +156,8 @@ public class BicycleConsumer implements Runnable {
             samplingRate = kafkaSource.getRuntimeConfig().getEventsSamplingRate();
         }
 
+        BackFillConfiguration backfillConfiguration = kafkaSource.getRuntimeConfig().getBackFillConfig();
+
         int sampledRecords = 0;
         try {
             while (!this.kafkaSource.getStopConnectorBoolean().get()) {
@@ -168,6 +171,12 @@ public class BicycleConsumer implements Runnable {
                 for (ConsumerRecord record : consumerRecords) {
                     logger.debug("Consumer Record: key - {}, value - {}, partition - {}, offset - {}",
                             record.key(), record.value(), record.partition(), record.offset());
+
+                    long timestamp = record.timestamp();
+                    //In case of backfill we need to only consume message that fall in backfill timestamp range
+                    if (!kafkaSource.shouldContinue(backfillConfiguration, timestamp)) {
+                        continue;
+                    }
 
                     if (counter > sampledRecords) {
                         break;
@@ -210,10 +219,11 @@ public class BicycleConsumer implements Runnable {
                 } catch (Exception exception) {
                     logger.error("Unable to publish bicycle events for {} ", name, exception);
                 }
-                if (this.kafkaSource.isSleepEnabledForConnector(authInfo, eventSourceInfo.getEventSourceId())) {
+                int delayInSecs = this.kafkaSource.getDelayInProcessing(backfillConfiguration);
+                if (delayInSecs > 0) {
                     logger.info("Connector Id {} going to sleep for {} ms at timestamp {}",
-                            eventSourceInfo.getEventSourceId(), this.kafkaSource.getSleepTimeInMillis(), Instant.now());
-                    Thread.sleep(this.kafkaSource.getSleepTimeInMillis());
+                            eventSourceInfo.getEventSourceId(), delayInSecs, Instant.now());
+                    Thread.sleep(delayInSecs);
                     logger.info("Connector Id {} Waking up at at timestamp {}",
                             eventSourceInfo.getEventSourceId(), Instant.now());
                 }
@@ -224,7 +234,6 @@ public class BicycleConsumer implements Runnable {
             kafkaSourceConfig.resetConsumer();
         }
     }
-
     public void syncData(BicycleConfig bicycleConfig,
                          final JsonNode config,
                          final ConfiguredAirbyteCatalog configuredAirbyteCatalog,

@@ -15,6 +15,22 @@ dependencies {
     implementation project(':airbyte-integrations:bases:base-java')
     implementation group: 'com.inception', name: 'event-model', version: "0.1.0-snapshot.202205191419.c95071d"
 
+    implementation group: 'com.inception', name: 'integration-model', version: "${metaPipelineVersion}"
+    implementation group: 'com.inception', name: 'integration-common-api', version: "${metaPipelineVersion}"
+    implementation group: 'com.inception', name: 'integration-common-impl', version: "${metaPipelineVersion}"
+
+    implementation("com.inception:bicycle-event-processor:${bicyleEventProcessorVersion}") {
+        exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
+        exclude group: 'org.springframework.kafka', module:'spring-kafka'
+        exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'
+    }
+
+    implementation("com.inception:bicycle-event-publisher:${bicyleEventProcessorVersion}") {
+        exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
+        exclude group: 'org.springframework.kafka', module:'spring-kafka'
+        exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'
+    }
+
     implementation 'com.google.cloud:google-cloud-pubsub:1.121.1'
     implementation 'com.google.cloud:google-cloud-monitoring:3.6.0'
 
