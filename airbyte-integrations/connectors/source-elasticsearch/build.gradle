@@ -32,7 +32,7 @@ dependencies {
     }
     implementation project(':airbyte-integrations:bases:base-bicycle-integration')
 
-    implementation 'co.elastic.clients:elasticsearch-java:7.15.0'
+    implementation 'org.elasticsearch.client:elasticsearch-rest-client:7.0.0'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.12.3'
     implementation group: 'com.inception', name: 'entity-mapping-client', version: '0.2.40829'
 

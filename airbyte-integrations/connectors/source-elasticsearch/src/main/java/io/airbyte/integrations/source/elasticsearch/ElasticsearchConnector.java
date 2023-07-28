@@ -42,12 +42,13 @@ public class ElasticsearchConnector {
     private static final String DEFAULT_USER = System.getProperty("ES_USER");
     private static final String DEFAULT_PASS = System.getProperty("ES_PASSWORD");
     public static final String DEFAULT_SCROLL_DURATION = "15m";
-    public static final int DEFAULT_PAGE_SIZE = 1000;
+    public static final int DEFAULT_PAGE_SIZE = 500;
     private static final int SECONDS = 1000;
     public static final int DEFAULT_SOCKET_TIMEOUT = 10 * SECONDS;
     public static final int DEFAULT_SEARCH_TIMEOUT = 30 * SECONDS;
     private static final ObjectMapper objectMapper = new ObjectMapper();
     private InMemoryConsumer inMemoryConsumer;
+    private BicycleConfig bicycleConfig;
     private BicycleCustomObjectMapper bicycleCustomObjectMapper;
     public ElasticsearchConnector() {
     }
@@ -55,6 +56,7 @@ public class ElasticsearchConnector {
     public ElasticsearchConnector(InMemoryConsumer inMemoryConsumer, BicycleConfig bicycleConfig,
                                   ConnectorConfigManager connectorConfigManager) {
         this.inMemoryConsumer = inMemoryConsumer;
+        this.bicycleConfig = bicycleConfig;
         bicycleCustomObjectMapper = new BicycleCustomObjectMapper(bicycleConfig.getConnectorId(),
                 connectorConfigManager, bicycleConfig);
     }
@@ -126,6 +128,9 @@ public class ElasticsearchConnector {
             do {
                 List<JsonNode> jsonNodes = new ArrayList<>();
                 JsonObject searchResponse = executeRequest(restClient, request, requestEntity);
+                if (searchResponse == null) {
+                    return Collections.emptyList();
+                }
                 boolean timedOut = searchResponse.get("timed_out").getAsBoolean();
                 LOG.info("timedOut = {}", timedOut);
                 // TODO assert timedOut false
@@ -200,21 +205,30 @@ public class ElasticsearchConnector {
         return jsonNode;
     }
 
-    private JsonObject executeRequest(RestClient restClient, Request request, StringEntity requestEntity)
-            throws IOException {
-        if (requestEntity != null) {
-            requestEntity.setContentType("application/json");
-            request.setEntity(requestEntity);
+    private JsonObject executeRequest(RestClient restClient, Request request, StringEntity requestEntity) {
+        int retry = 3;
+        while (retry > 0) {
+            try {
+                if (requestEntity != null) {
+                    requestEntity.setContentType("application/json");
+                    request.setEntity(requestEntity);
+                }
+                Response response = restClient.performRequest(request);
+                int statusCode = response.getStatusLine().getStatusCode();
+                Header[] headers = response.getHeaders();
+                String responseBody = EntityUtils.toString(response.getEntity());
+                LOG.info("statusCode = {}", statusCode);
+                // TODO assert status 200
+                LOG.debug("responseBody = {}", responseBody);
+                JsonObject jsonResponse = JsonParser.parseString(responseBody).getAsJsonObject();
+                return jsonResponse;
+            } catch (Exception e) {
+                LOG.error("Error while trying to search for elasticsearch records for connectorId {}",
+                        bicycleConfig != null ? bicycleConfig.getConnectorId() : null, e);
+                retry-=1;
+            }
         }
-        Response response = restClient.performRequest(request);
-        int statusCode = response.getStatusLine().getStatusCode();
-        Header[] headers = response.getHeaders();
-        String responseBody = EntityUtils.toString(response.getEntity());
-        LOG.info("statusCode = {}", statusCode);
-        // TODO assert status 200
-        LOG.debug("responseBody = {}", responseBody);
-        JsonObject jsonResponse = JsonParser.parseString(responseBody).getAsJsonObject();
-        return jsonResponse;
+        return null;
     }
 
     private String getSearchRequest(long startEpoch, long endEpoch, String queryLine, int pageSize) {

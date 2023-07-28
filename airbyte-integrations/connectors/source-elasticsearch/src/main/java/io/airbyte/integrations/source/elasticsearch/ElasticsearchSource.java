@@ -237,7 +237,7 @@ public class ElasticsearchSource extends BaseEventConnector {
 
             while (!this.getStopConnectorBoolean().get()) {
                 inMemoryConsumer.rescheduleIfStopped();
-                elasticsearchConnector.search(restClient, startEpoch, endEpoch, queryLine);
+                elasticsearchConnector.search(restClient, startEpoch, endEpoch, queryLine, configObject.getPageSize(), false);
                 startEpoch = endEpoch;
                 endEpoch = startEpoch + pollFrequency;
                 while ((System.currentTimeMillis() - dataLateness) < endEpoch) {

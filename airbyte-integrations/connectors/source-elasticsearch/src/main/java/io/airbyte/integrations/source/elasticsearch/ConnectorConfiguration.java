@@ -10,11 +10,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Objects;
 import org.apache.commons.lang3.StringEscapeUtils;
 
+import static io.airbyte.integrations.source.elasticsearch.ElasticsearchConnector.DEFAULT_PAGE_SIZE;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ConnectorConfiguration {
 
     private String endpoint;
     private boolean upsert;
+    private Integer pageSize;
     private long pollFrequency;
     private long dataLateness;
     private String indexPattern;
@@ -60,6 +63,11 @@ public class ConnectorConfiguration {
     public long getPollFrequency() {
         return pollFrequency * 1000;
     }
+
+    public int getPageSize() {
+        return pageSize == null ? DEFAULT_PAGE_SIZE : pageSize;
+    }
+
 
     public long getDataLateness() {
         return dataLateness * 1000;
