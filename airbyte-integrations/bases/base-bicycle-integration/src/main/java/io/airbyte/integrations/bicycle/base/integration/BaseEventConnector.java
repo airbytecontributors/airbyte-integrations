@@ -1,5 +1,6 @@
 package io.airbyte.integrations.bicycle.base.integration;
 
+import static io.bicycle.integration.common.bicycleconfig.BicycleConfig.SAAS_API_ROLE;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -40,24 +41,24 @@ import io.bicycle.integration.common.writer.WriterFactory;
 import io.bicycle.integration.connector.ProcessRawEventsResult;
 import io.bicycle.integration.connector.ProcessedEventSourceData;
 import io.bicycle.integration.connector.SyncDataRequest;
+import io.bicycle.integration.connector.runtime.BackFillConfiguration;
 import io.bicycle.integration.connector.runtime.RuntimeConfig;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.config.EventMappingConfigurations;
 import io.bicycle.server.event.mapping.constants.BicycleEventPublisherType;
-import io.bicycle.server.event.mapping.models.converter.BicycleEventsResult;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.models.publisher.EventPublisherResult;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
-
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
-
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static io.bicycle.integration.common.bicycleconfig.BicycleConfig.SAAS_API_ROLE;
 
 
 /**
@@ -83,7 +84,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private static final String CONNECTORS_WAIT_TIME_IN_MILLIS = "CONNECTORS_WAIT_TIME_IN_MILLIS";
 
     protected List<String> listOfConnectorsWithSleepEnabled = new ArrayList<>();
-    protected long sleepTimeInMillis = 5000;
+
     protected EventSourceInfo eventSourceInfo;
 
     protected ObjectMapper objectMapper = new ObjectMapper();
@@ -112,13 +113,6 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         this.connectorConfigManager = connectorConfigManager;
         String envConnectorsUsingPreviewStore =
                 CommonUtil.getFromEnvironment(CONNECTORS_WITH_WAIT_ENABLED, false);
-        String sleepTime =
-                CommonUtil.getFromEnvironment(CONNECTORS_WAIT_TIME_IN_MILLIS, false);
-        try {
-            sleepTimeInMillis = Long.parseLong(sleepTime);
-        } catch (Exception e) {
-            logger.info("CONNECTORS_WAIT_TIME_IN_MILLIS not set correctly");
-        }
         if (!StringUtils.isEmpty(envConnectorsUsingPreviewStore)) {
             String[] connectorsWithSleepEnabled = envConnectorsUsingPreviewStore.split(",");
             listOfConnectorsWithSleepEnabled = Arrays.asList(connectorsWithSleepEnabled);
@@ -131,14 +125,31 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return connectorConfigManager;
     }
 
-    public long getSleepTimeInMillis() {
-        return sleepTimeInMillis;
+    public int getDelayInProcessing(final BackFillConfiguration backFillConfiguration) {
+        if (backFillConfiguration.getEnableBackFill()) {
+            return backFillConfiguration.getDelayInSecs();
+        }
+        return 0;
     }
 
+    public boolean shouldContinue(BackFillConfiguration backFillConfiguration, long timestampInMillis) {
 
-    public boolean isSleepEnabledForConnector(final AuthInfo authInfo, final String connectorStreamUUID) {
-        return listOfConnectorsWithSleepEnabled.contains(connectorStreamUUID)
-                || listOfConnectorsWithSleepEnabled.contains(authInfo.getTenantId());
+        if (!backFillConfiguration.getEnableBackFill()) {
+            return true;
+        }
+
+        long startTime = backFillConfiguration.getStartTimeInMillis();
+        long endTime = backFillConfiguration.getEndTimeInMillis();
+
+        if (startTime == 0 && endTime == 0) {
+            return true;
+        }
+
+        if (timestampInMillis >= startTime && timestampInMillis <= endTime) {
+            return true;
+        }
+
+        return false;
     }
 
     public EventConnectorJobStatusNotifier getEventConnectorJobStatusNotifier() {
