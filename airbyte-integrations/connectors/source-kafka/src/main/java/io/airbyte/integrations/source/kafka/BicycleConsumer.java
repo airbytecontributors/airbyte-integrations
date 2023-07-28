@@ -168,12 +168,6 @@ public class BicycleConsumer implements Runnable {
         }
 
         BackFillConfiguration backfillConfiguration = kafkaSource.getRuntimeConfig().getBackFillConfig();
-        boolean isBackFillEnabled = backfillConfiguration.getEnableBackFill();
-
-        if (isBackFillEnabled) {
-            logger.info("Backfill is enabled for connector {}", bicycleConfig.getConnectorId());
-
-        }
 
         int sampledRecords = 0;
         try {
