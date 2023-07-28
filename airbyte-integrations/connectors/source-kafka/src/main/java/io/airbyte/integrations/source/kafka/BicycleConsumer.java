@@ -52,6 +52,7 @@ public class BicycleConsumer implements Runnable {
     private final EventSourceInfo eventSourceInfo;
     private final boolean isDestinationSyncConnector;
     private final SyncDataRequest syncDataRequest;
+    private final BackFillConfiguration backFillConfiguration;
 
     public BicycleConsumer(String name, Map<String, Long> topicPartitionRecordsRead, BicycleConfig bicycleConfig, JsonNode connectorConfig, ConfiguredAirbyteCatalog configuredCatalog, EventSourceInfo eventSourceInfo, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier, KafkaSource instance) {
         this(name, topicPartitionRecordsRead, bicycleConfig, connectorConfig, configuredCatalog, eventSourceInfo,
@@ -71,11 +72,21 @@ public class BicycleConsumer implements Runnable {
         this.name = name;
         this.config = connectorConfig;
         this.catalog = configuredCatalog;
-        this.kafkaSourceConfig = new KafkaSourceConfig(name, config, getConnectorId(catalog), bicycleConfig, instance.getConnectorConfigManager());
+        this.kafkaSource = instance;
+        this.backFillConfiguration = kafkaSource.getRuntimeConfig().getBackFillConfig();
+        boolean isBackFillEnabled = backFillConfiguration.getEnableBackFill();
+        if (isBackFillEnabled) {
+            logger.info("Backfill is enabled for connector {}, setting auto_offset_reset to earliest",
+                    bicycleConfig.getConnectorId());
+            ((ObjectNode) config).put("auto_offset_reset", "earliest");
+        }
+
+        this.kafkaSourceConfig = new KafkaSourceConfig(name, config, getConnectorId(catalog), bicycleConfig,
+                instance.getConnectorConfigManager());
         this.bicycleConfig = bicycleConfig;
         this.topicPartitionRecordsRead = topicPartitionRecordsRead;
         this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;
-        this.kafkaSource = instance;
+
         this.eventSourceInfo = eventSourceInfo;
         this.isDestinationSyncConnector = isDestinationSyncConnector;
         this.syncDataRequest = syncDataRequest;
@@ -157,6 +168,12 @@ public class BicycleConsumer implements Runnable {
         }
 
         BackFillConfiguration backfillConfiguration = kafkaSource.getRuntimeConfig().getBackFillConfig();
+        boolean isBackFillEnabled = backfillConfiguration.getEnableBackFill();
+
+        if (isBackFillEnabled) {
+            logger.info("Backfill is enabled for connector {}", bicycleConfig.getConnectorId());
+
+        }
 
         int sampledRecords = 0;
         try {

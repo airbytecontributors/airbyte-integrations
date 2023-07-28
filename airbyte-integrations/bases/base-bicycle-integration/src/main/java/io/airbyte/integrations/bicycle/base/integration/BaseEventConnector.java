@@ -134,7 +134,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     public boolean shouldContinue(BackFillConfiguration backFillConfiguration, long timestampInMillis) {
 
-        if (!backFillConfiguration.getEnableBackFill()){
+        if (!backFillConfiguration.getEnableBackFill()) {
             return true;
         }
 
