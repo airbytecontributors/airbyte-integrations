@@ -42,7 +42,6 @@ public class ElasticsearchConnector {
     private static final String DEFAULT_USER = System.getProperty("ES_USER");
     private static final String DEFAULT_PASS = System.getProperty("ES_PASSWORD");
     public static final String DEFAULT_SCROLL_DURATION = "15m";
-    public static final int DEFAULT_PAGE_SIZE = 500;
     private static final int SECONDS = 1000;
     public static final int DEFAULT_SOCKET_TIMEOUT = 10 * SECONDS;
     public static final int DEFAULT_SEARCH_TIMEOUT = 30 * SECONDS;
@@ -82,36 +81,6 @@ public class ElasticsearchConnector {
         }
 
         return Collections.emptyList();
-    }
-
-    public void run() throws IOException, InterruptedException {
-        RestClientBuilder builder = createDefaultBuilder(null);
-        try (RestClient restClient = builder.build()) {
-            testConnection(restClient);
-            String queryLine = "_index:bigbasket-prod-k8s-* AND level:ERROR AND failed";
-            long dataLateness = 180 * SECONDS;
-            long pollFrequency = 60 * SECONDS;
-
-            long now = System.currentTimeMillis();
-            long startEpoch = now - dataLateness - pollFrequency;
-            startEpoch -= startEpoch % pollFrequency;
-            long endEpoch = startEpoch + pollFrequency;
-            while (true) {
-                LOG.info("Searching between {}:{}@{}", startEpoch, endEpoch,
-                        (System.currentTimeMillis() - endEpoch) / SECONDS);
-                search(restClient, startEpoch, endEpoch, queryLine);
-                startEpoch = endEpoch;
-                endEpoch = startEpoch + pollFrequency;
-                while ((System.currentTimeMillis() - dataLateness) < endEpoch) {
-                    //Added a while loop because sometimes the thread seems to be waking 2-3 seconds before time
-                    long sleepTime = endEpoch - (System.currentTimeMillis() - dataLateness);
-                    LOG.info("Sleeping: {}", sleepTime);
-                    if (sleepTime > 0) {
-                        Thread.sleep(sleepTime);
-                    }
-                }
-            }
-        }
     }
 
     public List<JsonNode> search(RestClient restClient, long startEpoch, long endEpoch, String queryLine,
@@ -180,12 +149,6 @@ public class ElasticsearchConnector {
 
         return previewJsonNodes;
 
-    }
-
-    public List<JsonNode> search(RestClient restClient, long startEpoch, long endEpoch, String queryLine)
-            throws IOException {
-
-        return search(restClient, startEpoch, endEpoch, queryLine, DEFAULT_PAGE_SIZE, false);
     }
 
     private JsonNode executeRequestAsJsonNode(RestClient restClient, Request request, StringEntity requestEntity)

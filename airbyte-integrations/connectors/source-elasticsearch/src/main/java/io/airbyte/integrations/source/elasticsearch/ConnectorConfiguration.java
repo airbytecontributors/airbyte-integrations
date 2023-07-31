@@ -10,11 +10,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Objects;
 import org.apache.commons.lang3.StringEscapeUtils;
 
-import static io.airbyte.integrations.source.elasticsearch.ElasticsearchConnector.DEFAULT_PAGE_SIZE;
-
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ConnectorConfiguration {
 
+    public static final int DEFAULT_PAGE_SIZE = 100;
     private String endpoint;
     private boolean upsert;
     private Integer pageSize;
