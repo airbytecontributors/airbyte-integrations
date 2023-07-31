@@ -75,6 +75,7 @@ public class BicycleConsumer implements Runnable {
         this.kafkaSource = instance;
         this.backFillConfiguration = kafkaSource.getRuntimeConfig().getBackFillConfig();
         boolean isBackFillEnabled = backFillConfiguration.getEnableBackFill();
+        logger.info("Runtime config available is {}", kafkaSource.getRuntimeConfig());
         if (isBackFillEnabled) {
             logger.info("Backfill is enabled for connector {}, setting auto_offset_reset to earliest",
                     bicycleConfig.getConnectorId());
