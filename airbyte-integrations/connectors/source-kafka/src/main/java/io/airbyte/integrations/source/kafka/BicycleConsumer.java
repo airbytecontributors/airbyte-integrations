@@ -190,7 +190,8 @@ public class BicycleConsumer implements Runnable {
                     //In case of backfill we need to only consume message that fall in backfill timestamp range
                     if (!kafkaSource.shouldContinue(backfillConfiguration, timestamp)) {
                         if (logRateLimiter.tryAcquire()) {
-                            logger.info("Records are read but not ignored because of backfill config");
+                            logger.info("Records are read but not ignored because of backfill config, " +
+                                    "processed till timestamp {}", record.timestamp());
                         }
                         continue;
                     }
@@ -213,12 +214,15 @@ public class BicycleConsumer implements Runnable {
                     recordsList.add(record);
                 }
 
-                logger.info("No of records read from consumer after sampling {} are {}, " +
-                                "but these might not get processed because of back fill config ", name, counter);
-
                 if (recordsList.size() == 0) {
+                    if (backfillConfiguration.getEnableBackFill() && counter > 0) {
+                        logger.info("No of records read from consumer after sampling {} are {}, " +
+                                "but these might not get processed back fill config is enabled", name, counter);
+                    }
                     continue;
                 }
+
+                logger.info("No of records read from consumer after sampling {} are {}", name, counter);
 
                 EventProcessorResult eventProcessorResult = null;
                 AuthInfo authInfo = bicycleConfig.getAuthInfo();
