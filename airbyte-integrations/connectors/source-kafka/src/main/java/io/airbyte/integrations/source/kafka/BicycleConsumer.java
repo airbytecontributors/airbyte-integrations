@@ -73,7 +73,7 @@ public class BicycleConsumer implements Runnable {
         this.config = connectorConfig;
         this.catalog = configuredCatalog;
         this.kafkaSource = instance;
-        this.backFillConfiguration = kafkaSource.getRuntimeConfig().getBackFillConfig();
+        this.backFillConfiguration = kafkaSource.getRuntimeConfig() == null ? BackFillConfiguration.getDefaultInstance() : kafkaSource.getRuntimeConfig().getBackFillConfig();
         boolean isBackFillEnabled = backFillConfiguration.getEnableBackFill();
         logger.info("Runtime config available is {}", kafkaSource.getRuntimeConfig());
         if (isBackFillEnabled) {

@@ -53,10 +53,11 @@ public class KafkaSourceTest {
         catalog= new ConfiguredAirbyteCatalog();
 
         String consumerThreadId = UUID.randomUUID().toString();
-        kafkaSource=new KafkaSource(Mockito.mock(SystemAuthenticator.class),
+        kafkaSource = new KafkaSource(Mockito.mock(SystemAuthenticator.class),
                 Mockito.mock(EventConnectorJobStatusNotifier.class), null);
         kafkaSource.setBicycleEventProcessorAndPublisher(bicycleConfig);
-        bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog, eventSourceInfo, Mockito.mock(EventConnectorJobStatusNotifier.class), Mockito.mock(KafkaSource.class));
+        bicycleConsumer = new BicycleConsumer(consumerThreadId, totalRecordsRead, bicycleConfig, config, catalog, eventSourceInfo, Mockito.mock(EventConnectorJobStatusNotifier.class),
+                kafkaSource);
 
     }
 
