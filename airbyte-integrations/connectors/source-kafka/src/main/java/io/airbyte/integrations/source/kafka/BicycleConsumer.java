@@ -2,6 +2,7 @@ package io.airbyte.integrations.source.kafka;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.util.concurrent.RateLimiter;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.integrations.base.Command;
@@ -41,6 +42,7 @@ import static io.airbyte.integrations.source.kafka.KafkaSource.STREAM_NAME;
 public class BicycleConsumer implements Runnable {
 
     private static final Logger logger = LoggerFactory.getLogger(BicycleConsumer.class.getName());
+    private static final RateLimiter logRateLimiter = RateLimiter.create(2.0 / 300);
     private final KafkaSourceConfig kafkaSourceConfig;
     private final JsonNode config;
     private final BicycleConfig bicycleConfig;
@@ -183,10 +185,13 @@ public class BicycleConsumer implements Runnable {
                 for (ConsumerRecord record : consumerRecords) {
                     logger.debug("Consumer Record: key - {}, value - {}, partition - {}, offset - {}",
                             record.key(), record.value(), record.partition(), record.offset());
-
+                    counter++;
                     long timestamp = record.timestamp();
                     //In case of backfill we need to only consume message that fall in backfill timestamp range
                     if (!kafkaSource.shouldContinue(backfillConfiguration, timestamp)) {
+                        if (logRateLimiter.tryAcquire()) {
+                            logger.info("Records are read but not ignored because of backfill config");
+                        }
                         continue;
                     }
 
@@ -206,11 +211,10 @@ public class BicycleConsumer implements Runnable {
                         topicPartitionRecordsRead.put(key, 1L);
                     }
                     recordsList.add(record);
-                    counter++;
                 }
 
-                logger.info("No of records read from consumer after sampling {} are {} ", name,
-                        counter);
+                logger.info("No of records read from consumer after sampling {} are {}, " +
+                                "but these might not get processed because of back fill config ", name, counter);
 
                 if (recordsList.size() == 0) {
                     continue;

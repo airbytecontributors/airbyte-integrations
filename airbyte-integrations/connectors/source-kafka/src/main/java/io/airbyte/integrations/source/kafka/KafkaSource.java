@@ -5,6 +5,7 @@
 package io.airbyte.integrations.source.kafka;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Lists;
@@ -70,6 +71,9 @@ public class KafkaSource extends BaseEventConnector {
   private static final int CONSUMER_THREADS_DEFAULT_VALUE = 1;
   protected AtomicBoolean stopConnectorBoolean = new AtomicBoolean(false);
   private final Map<String, Map<String, Long>> consumerToTopicPartitionRecordsRead = new HashMap<>();
+
+  private final io.bicycle.integration.common.kafka.processing.CommonUtils commonUtils =
+          new io.bicycle.integration.common.kafka.processing.CommonUtils();
 
   public KafkaSource(SystemAuthenticator systemAuthenticator,
                      EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
@@ -193,11 +197,29 @@ public class KafkaSource extends BaseEventConnector {
 
   @Override
   public List<RawEvent> convertRecordsToRawEvents(List<?> records) {
-    Iterator<ConsumerRecord<String, JsonNode>> recordsIterator = (Iterator<ConsumerRecord<String, JsonNode>>) records.iterator();
+    Iterator<ConsumerRecord<String, JsonNode>> recordsIterator =
+            (Iterator<ConsumerRecord<String, JsonNode>>) records.iterator();
     List<RawEvent> rawEvents = new ArrayList<>();
+    boolean printed = false;
     while (recordsIterator.hasNext()) {
+
       ConsumerRecord<String, JsonNode> record = recordsIterator.next();
-      JsonRawEvent jsonRawEvent = new JsonRawEvent(record.value());
+      JsonNode jsonNode = record.value();
+      try {
+        if (jsonNode.isTextual()) {
+          ObjectReader objectReader = objectMapper.reader();
+          jsonNode = objectReader.readTree(jsonNode.textValue());
+        }
+        ObjectNode objectNode = (ObjectNode) jsonNode;
+        commonUtils.addRecordProperties(jsonNode, record);
+        jsonNode = objectNode;
+      } catch (Exception e) {
+        if (!printed) {
+          LOGGER.error("Error while adding record metadata {}", e);
+          printed = true;
+        }
+      }
+      JsonRawEvent jsonRawEvent = new JsonRawEvent(jsonNode);
       rawEvents.add(jsonRawEvent);
     }
     if (rawEvents.size() == 0) {
