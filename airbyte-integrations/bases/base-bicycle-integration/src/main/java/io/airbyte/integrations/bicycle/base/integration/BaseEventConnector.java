@@ -145,8 +145,12 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             return true;
         }
 
-        if (timestampInMillis >= startTime && timestampInMillis <= endTime) {
-            return true;
+        if (timestampInMillis >= startTime) {
+            if (endTime != 0 && timestampInMillis <= endTime) {
+                return true;
+            } else if (endTime == 0) {
+                return true;
+            }
         }
 
         return false;
