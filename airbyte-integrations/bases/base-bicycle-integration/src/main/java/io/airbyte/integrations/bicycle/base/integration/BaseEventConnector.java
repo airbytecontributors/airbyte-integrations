@@ -374,6 +374,16 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                 authInfo, eventSourceInfo, rawEvents, userServiceMappingRules);
     }
 
+    public List<UserServiceMappingRule> getUserServiceMappingRules(AuthInfo authInfo, EventSourceInfo eventSourceInfo) {
+
+        return this.configHelper.getUserServiceMappingRules(
+                        authInfo,
+                        eventSourceInfo.getEventSourceId(),
+                        configStoreClient
+                );
+
+    }
+
     public String getTenantId() {
         return this.bicycleConfig.getTenantId();
     }
