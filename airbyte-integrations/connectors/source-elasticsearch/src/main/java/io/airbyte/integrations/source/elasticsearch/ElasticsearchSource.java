@@ -14,6 +14,7 @@ import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.*;
+import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.Executors;
@@ -237,6 +238,12 @@ public class ElasticsearchSource extends BaseEventConnector {
 
             while (!this.getStopConnectorBoolean().get()) {
                 inMemoryConsumer.rescheduleIfStopped();
+                List<UserServiceMappingRule> rules =
+                        getUserServiceMappingRules(authInfo, eventSourceInfo);
+               //This means we are unable to download the configs because of some exception in config store.
+                if (rules == null) {
+                    continue;
+                }
                 elasticsearchConnector.search(restClient, startEpoch, endEpoch, queryLine, configObject.getPageSize(), false);
                 startEpoch = endEpoch;
                 endEpoch = startEpoch + pollFrequency;
