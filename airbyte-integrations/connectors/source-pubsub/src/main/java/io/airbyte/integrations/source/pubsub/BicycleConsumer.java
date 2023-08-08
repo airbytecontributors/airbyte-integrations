@@ -12,6 +12,7 @@ import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.writer.Writer;
 import io.bicycle.integration.connector.SyncDataRequest;
+import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
@@ -162,7 +163,13 @@ public class BicycleConsumer implements Runnable {
             AuthInfo authInfo = bicycleConfig.getAuthInfo();
             try {
                 List<RawEvent> rawEvents = this.pubsubSource.convertRecordsToRawEvents(recordsList);
-                eventProcessorResult = this.pubsubSource.convertRawEventsToBicycleEvents(authInfo,eventSourceInfo,rawEvents);
+                List<UserServiceMappingRule> userServiceMappingRules =
+                        this.pubsubSource.getUserServiceMappingRules(authInfo, eventSourceInfo);
+                if (userServiceMappingRules == null) {
+                    return;
+                }
+                eventProcessorResult = this.pubsubSource.convertRawEventsToBicycleEvents(authInfo,eventSourceInfo,
+                        rawEvents, userServiceMappingRules);
             } catch (Exception exception) {
                 logger.error("Unable to convert raw records to bicycle events for {} ",name, exception);
             }

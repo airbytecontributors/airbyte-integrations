@@ -295,11 +295,22 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     }
 
     public EventProcessorResult convertRawEventsToBicycleEvents(AuthInfo authInfo,
-                                                               EventSourceInfo eventSourceInfo,
-                                                               List<RawEvent> rawEvents) {
+                                                                EventSourceInfo eventSourceInfo,
+                                                                List<RawEvent> rawEvents) {
 
         EventProcessorResult eventProcessorResult =
                 bicycleEventProcessor.processEvents(authInfo, eventSourceInfo, rawEvents);
+
+        return eventProcessorResult;
+
+    }
+    public EventProcessorResult convertRawEventsToBicycleEvents(AuthInfo authInfo,
+                                                               EventSourceInfo eventSourceInfo,
+                                                               List<RawEvent> rawEvents,
+                                                                List<UserServiceMappingRule> userServiceMappingRules) {
+
+        EventProcessorResult eventProcessorResult =
+                bicycleEventProcessor.processEvents(authInfo, eventSourceInfo, rawEvents, userServiceMappingRules);
 
         return eventProcessorResult;
 

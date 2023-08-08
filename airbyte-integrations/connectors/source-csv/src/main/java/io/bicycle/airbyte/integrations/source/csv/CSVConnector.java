@@ -21,6 +21,7 @@ import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusN
 import io.airbyte.protocol.models.*;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
+import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
@@ -525,7 +526,9 @@ public class CSVConnector extends BaseEventConnector {
         List<RawEvent> rawEvents = convertRecordsToRawEvents(timestampHeaderField, timeSupplier,
                  timeVsRecordNumber);
         if (publishEventsEnabled) {
-            EventProcessorResult eventProcessorResult = convertRawEventsToBicycleEvents(authInfo, eventSourceInfo, rawEvents);
+            List<UserServiceMappingRule> rules = getUserServiceMappingRules(authInfo, eventSourceInfo);
+            EventProcessorResult eventProcessorResult = convertRawEventsToBicycleEvents(authInfo, eventSourceInfo,
+                    rawEvents, rules);
             publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
         }
     }

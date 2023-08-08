@@ -2,6 +2,7 @@ package io.airbyte.integrations.source.kinesis;
 
 import com.inception.server.auth.model.AuthInfo;
 import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
+import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
@@ -62,7 +63,13 @@ public class ShardRecordProcessorImpl implements ShardRecordProcessor {
             AuthInfo authInfo = bicycleConfig.getAuthInfo();
             try {
                 List<RawEvent> rawEvents = this.kinesisSource.convertRecordsToRawEvents(recordsList);
-                eventProcessorResult = this.kinesisSource.convertRawEventsToBicycleEvents(authInfo, eventSourceinfo, rawEvents);
+                List<UserServiceMappingRule> userServiceMappingRules =
+                        this.kinesisSource.getUserServiceMappingRules(authInfo, eventSourceinfo);
+                if (userServiceMappingRules == null) {
+                    return;
+                }
+                eventProcessorResult = this.kinesisSource.convertRawEventsToBicycleEvents(authInfo, eventSourceinfo,
+                        rawEvents, userServiceMappingRules);
             } catch (Exception exception) {
                 logger.error("Unable to convert raw records to bicycle events", exception);
             }
