@@ -10,6 +10,7 @@ import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusN
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 
 import io.bicycle.integration.connector.runtime.BackFillConfiguration;
+import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -228,7 +229,12 @@ public class BicycleConsumer implements Runnable {
                 AuthInfo authInfo = bicycleConfig.getAuthInfo();
                 try {
                     List<RawEvent> rawEvents = this.kafkaSource.convertRecordsToRawEvents(recordsList);
-                    eventProcessorResult = this.kafkaSource.convertRawEventsToBicycleEvents(authInfo,eventSourceInfo,rawEvents);
+                    List<UserServiceMappingRule> userServiceMappingRules =
+                            this.kafkaSource.getUserServiceMappingRules(authInfo, eventSourceInfo);
+                    if (userServiceMappingRules == null) {
+                        continue;
+                    }
+                    eventProcessorResult = this.kafkaSource.convertRawEventsToBicycleEvents(authInfo, eventSourceInfo, rawEvents, userServiceMappingRules);
                 } catch (Exception exception) {
                     logger.error("Unable to convert raw records to bicycle events for {} ",name, exception);
                 }
