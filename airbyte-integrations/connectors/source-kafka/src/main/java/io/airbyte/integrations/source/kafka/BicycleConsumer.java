@@ -171,8 +171,6 @@ public class BicycleConsumer implements Runnable {
             samplingRate = kafkaSource.getRuntimeConfig().getEventsSamplingRate();
         }
 
-        BackFillConfiguration backfillConfiguration = kafkaSource.getRuntimeConfig() != null ?
-                kafkaSource.getRuntimeConfig().getBackFillConfig() : BackFillConfiguration.getDefaultInstance();
 
         int sampledRecords = 0;
         try {
@@ -190,7 +188,7 @@ public class BicycleConsumer implements Runnable {
                     counter++;
                     long timestamp = record.timestamp();
                     //In case of backfill we need to only consume message that fall in backfill timestamp range
-                    if (!kafkaSource.shouldContinue(backfillConfiguration, timestamp)) {
+                    if (!kafkaSource.shouldContinue(backFillConfiguration, timestamp)) {
                         if (logRateLimiter.tryAcquire()) {
                             logger.info("Records are read but not ignored because of backfill config, " +
                                     "processed till timestamp {}", record.timestamp());
@@ -217,7 +215,7 @@ public class BicycleConsumer implements Runnable {
                 }
 
                 if (recordsList.size() == 0) {
-                    if (backfillConfiguration.getEnableBackFill() && counter > 0) {
+                    if (backFillConfiguration.getEnableBackFill() && counter > 0) {
                         logger.info("No of records read from consumer after sampling {} are {}, " +
                                 "but these might not get processed back fill config is enabled", name, counter);
                     }
@@ -246,7 +244,7 @@ public class BicycleConsumer implements Runnable {
                 } catch (Exception exception) {
                     logger.error("Unable to publish bicycle events for {} ", name, exception);
                 }
-                int delayInSecs = this.kafkaSource.getDelayInProcessing(backfillConfiguration);
+                int delayInSecs = this.kafkaSource.getDelayInProcessing(backFillConfiguration);
                 if (delayInSecs > 0) {
                     logger.info("Connector Id {} going to sleep for {} ms at timestamp {}",
                             eventSourceInfo.getEventSourceId(), delayInSecs, Instant.now());
