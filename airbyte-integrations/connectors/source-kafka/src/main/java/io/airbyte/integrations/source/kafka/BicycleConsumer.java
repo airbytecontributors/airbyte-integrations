@@ -171,7 +171,8 @@ public class BicycleConsumer implements Runnable {
             samplingRate = kafkaSource.getRuntimeConfig().getEventsSamplingRate();
         }
 
-        BackFillConfiguration backfillConfiguration = kafkaSource.getRuntimeConfig().getBackFillConfig();
+        BackFillConfiguration backfillConfiguration = kafkaSource.getRuntimeConfig() != null ?
+                kafkaSource.getRuntimeConfig().getBackFillConfig() : BackFillConfiguration.getDefaultInstance();
 
         int sampledRecords = 0;
         try {
