@@ -34,6 +34,7 @@ import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.config.BlackListedFields;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
+import io.bicycle.integration.common.transformation.DataTransformer;
 import io.bicycle.integration.common.transformation.TransformationImpl;
 import io.bicycle.integration.common.utils.CommonUtil;
 import io.bicycle.integration.common.writer.Writer;
@@ -169,12 +170,15 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             configStoreClient = getConfigClient(bicycleConfig);
             schemaStoreApiClient = getSchemaStoreApiClient();
             entityStoreApiClient = getEntityStoreApiClient();
+            TransformationImpl dataTransformer
+                    = new TransformationImpl(schemaStoreApiClient, entityStoreApiClient);
             this.bicycleEventProcessor =
                     new BicycleEventProcessorImpl(
                             BicycleEventPublisherType.BICYCLE_EVENTS,
                             configStoreClient,
                             schemaStoreApiClient,
-                            entityStoreApiClient
+                            entityStoreApiClient,
+                            dataTransformer
                     );
             EventMappingConfigurations eventMappingConfigurations =
                     new EventMappingConfigurations(
@@ -189,7 +193,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                     );
             logger.info("EventMappingConfiguration:: {}", eventMappingConfigurations);
             this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, systemAuthenticator,
-                    true, new TransformationImpl(), connectorConfigManager);
+                    true, dataTransformer, connectorConfigManager);
         } catch (Throwable e) {
             logger.error("Exception while setting bicycle event process and publisher", e);
         }

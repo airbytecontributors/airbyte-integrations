@@ -17,12 +17,11 @@ configurations.all {
 }
 
 dependencies {
+    implementation("io.micrometer:micrometer-core:1.6.7")
     implementation project(':airbyte-integrations:bases:base-java')
     implementation project(':airbyte-protocol:models')
-//    implementation group: 'com.inception', name: 'auth-impl', version: '0.3.31949'
     implementation group: 'com.inception', name: 'auth-api', version: '0.3.31949'
     implementation group: 'com.inception', name: 'integration-model', version: "${metaPipelineVersion}"
-    implementation("io.micrometer:micrometer-core:1.6.7")
     implementation (group: 'com.inception', name: 'integration-common-api', version: "${metaPipelineVersion}")
     implementation (group: 'com.inception', name: 'integration-common-impl', version: "${metaPipelineVersion}")
 

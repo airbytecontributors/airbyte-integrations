@@ -10,6 +10,7 @@ application {
 }
 
 dependencies {
+    implementation("io.micrometer:micrometer-core:1.6.7")
     implementation project(':airbyte-config:models')
     implementation project(':airbyte-protocol:models')
     implementation project(':airbyte-integrations:bases:base-java')
