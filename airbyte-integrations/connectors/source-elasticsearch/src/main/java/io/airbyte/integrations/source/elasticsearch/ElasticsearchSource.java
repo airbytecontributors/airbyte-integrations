@@ -236,15 +236,18 @@ public class ElasticsearchSource extends BaseEventConnector {
             AirbyteStateMessage airbyteStateMessage = getState(authInfo, connectorId);
             LOGGER.info("Fetching state from elastic search {}", airbyteStateMessage);
             long currentState = System.currentTimeMillis();
-            long now = currentState;
             if (airbyteStateMessage  != null) {
                 JsonNode jsonNode = airbyteStateMessage.getData();
                 if (jsonNode != null && jsonNode.has(STATE)) {
                     currentState = jsonNode.get(STATE).longValue();
+                    //safer side check
+                    if (currentState == 0) {
+                        currentState = System.currentTimeMillis();
+                    }
                 }
             }
             LOGGER.info("Current state from elastic search {}", currentState);
-            long startEpoch = now - dataLateness - pollFrequency;
+            long startEpoch = currentState - dataLateness - pollFrequency;
             startEpoch -= startEpoch % pollFrequency;
             long endEpoch = startEpoch + pollFrequency;
 
@@ -267,6 +270,8 @@ public class ElasticsearchSource extends BaseEventConnector {
                         Thread.sleep(sleepTime);
                     }
                 }
+                //Otherwise authinfo might get expired
+                authInfo = bicycleConfig.getAuthInfo();
             }
             LOGGER.info("Shutting down the Elasticsearch Event Connector manually for connector {}", bicycleConfig.getConnectorId());
         } catch(Throwable exception) {
