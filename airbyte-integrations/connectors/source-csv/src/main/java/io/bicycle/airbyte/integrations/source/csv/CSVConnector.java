@@ -546,6 +546,9 @@ public class CSVConnector extends BaseEventConnector {
                 List<Long> recordsOffset = entry.getValue();
                 for (long recordOffset : recordsOffset) {
                     CSVRecord record = getCsvRecord(recordOffset, accessFile);
+                    if (record == null) {
+                        continue;
+                    }
                     ObjectNode node = mapper.createObjectNode();
                     for (Map.Entry<String, String> e : record.toMap().entrySet()) {
                         String key = e.getKey();
@@ -619,6 +622,9 @@ public class CSVConnector extends BaseEventConnector {
                 if (row != null && !row.isEmpty()) {
                     recordNumber++;
                     CSVRecord record = getCsvRecord(offset, row);
+                    if (record == null) {
+                        continue;
+                    }
                     long timestampInMillisInEpoch = 0;
                     for (Map.Entry<String, String> entry : record.toMap().entrySet()) {
                         String key = entry.getKey();
@@ -697,10 +703,12 @@ public class CSVConnector extends BaseEventConnector {
         }
     }
 
-    @NotNull
     private CSVRecord getCsvRecord(long offset, String row) {
         String[] columns = sanitize(row);
-        if (columns == null || headers.length != columns.length) {
+        if (columns != null && columns.length == 0) {
+            LOGGER.warn("Ignoring the row");
+            return null;
+        } else if (columns == null || headers.length != columns.length) {
             LOGGER.error("Headers and Columns do not match ["+Arrays.asList(headers)
                     +"] ["+Arrays.asList(columns)+"]");
         }
@@ -744,7 +752,8 @@ public class CSVConnector extends BaseEventConnector {
             }
             return values;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to parse the row using csv reader " + row, e);
+            LOGGER.error("Failed to parse the row using csv reader " + row, e);
+            return new String[0];
         }
 
     }
