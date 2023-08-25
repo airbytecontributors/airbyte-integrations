@@ -11,6 +11,7 @@ import com.google.cloud.storage.StorageOptions;
 import com.google.common.base.Charsets;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Lists;
+import com.opencsv.CSVReader;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
@@ -598,7 +599,7 @@ public class CSVConnector extends BaseEventConnector {
         try {
             String headersLine = accessFile.readLine();
             if (headersLine != null && !headersLine.isEmpty()) {
-                headers = sanitize(headersLine.trim().split(SEPARATOR_CHAR));
+                headers = sanitize(headersLine.trim());
                 if (headers == null || headers.length == 0) {
                     throw new IllegalStateException("No headers available for csv");
                 }
@@ -698,7 +699,7 @@ public class CSVConnector extends BaseEventConnector {
 
     @NotNull
     private CSVRecord getCsvRecord(long offset, String row) {
-        String[] columns = sanitize(row.split(SEPARATOR_CHAR));
+        String[] columns = sanitize(row);
         if (columns == null || headers.length != columns.length) {
             LOGGER.error("Headers and Columns do not match ["+Arrays.asList(headers)
                     +"] ["+Arrays.asList(columns)+"]");
@@ -707,7 +708,8 @@ public class CSVConnector extends BaseEventConnector {
         return record;
     }
 
-    private String[] sanitize(String[] values) {
+  /*  private String[] sanitize(String row) {
+        String[] values = new String[0];
         if (values != null) {
             for (int i=0; i < values.length; i++) {
                 String value = values[i];
@@ -721,6 +723,30 @@ public class CSVConnector extends BaseEventConnector {
             }
         }
         return values;
+    }*/
+
+    private static String[] sanitize(String row) {
+
+        try {
+            CSVReader csvReader = new CSVReader(new StringReader(row));
+            String[] values = csvReader.iterator().next();
+            if (values != null) {
+                for (int i=0; i < values.length; i++) {
+                    String value = values[i];
+                    if (value.startsWith("\"") || value.startsWith("\'")) {
+                        value = value.substring(1);
+                    }
+                    if (value.endsWith("\"") || value.endsWith("\'")) {
+                        value = value.substring(0, value.length() - 1);
+                    }
+                    values[i] = value;
+                }
+            }
+            return values;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to parse the row using csv reader " + row, e);
+        }
+
     }
 
     private String[] readRecord(File file, long offset) throws IOException {
