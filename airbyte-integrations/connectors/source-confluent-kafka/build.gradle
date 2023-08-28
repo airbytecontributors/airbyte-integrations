@@ -1,0 +1,45 @@
+plugins {
+    id 'application'
+    id 'airbyte-docker'
+    id 'airbyte-integration-test-java'
+}
+
+application {
+    mainClass = 'io.airbyte.integrations.source.confluent.kafka.KafkaSource'
+    applicationDefaultJvmArgs = ['-XX:+ExitOnOutOfMemoryError', '-XX:MaxRAMPercentage=75.0']
+}
+
+dependencies {
+    implementation("io.micrometer:micrometer-core:1.6.7")
+    implementation project(':airbyte-config:models')
+    implementation project(':airbyte-protocol:models')
+    implementation project(':airbyte-integrations:bases:base-java')
+    implementation group: 'com.inception', name: 'event-model', version: "0.1.0-snapshot.202205191419.c95071d"
+
+    implementation project(':airbyte-integrations:bases:base-bicycle-integration')
+
+    implementation group: 'com.inception', name: 'integration-model', version: "${metaPipelineVersion}"
+    implementation group: 'com.inception', name: 'integration-common-api', version: "${metaPipelineVersion}"
+    implementation group: 'com.inception', name: 'integration-common-impl', version: "${metaPipelineVersion}"
+
+    implementation("com.inception:bicycle-event-publisher:${bicyleEventProcessorVersion}") {
+        exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
+        exclude group: 'org.springframework.kafka', module:'spring-kafka'
+        exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'
+    }
+
+    implementation("com.inception:bicycle-event-publisher:${bicyleEventProcessorVersion}") {
+        exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
+        exclude group: 'org.springframework.kafka', module:'spring-kafka'
+        exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'
+    }
+
+    implementation 'org.apache.kafka:kafka-clients:2.8.0'
+    implementation 'org.apache.kafka:connect-json:2.8.0'
+
+    integrationTestJavaImplementation project(':airbyte-integrations:bases:standard-source-test')
+    integrationTestJavaImplementation project(':airbyte-integrations:connectors:source-confluent-kafka')
+    integrationTestJavaImplementation libs.testcontainers.kafka
+
+    implementation files(project(':airbyte-integrations:bases:base-java').airbyteDocker.outputs)
+}

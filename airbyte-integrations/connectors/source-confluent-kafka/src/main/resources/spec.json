@@ -1,0 +1,339 @@
+{
+  "documentationUrl": "https://docs.airbyte.io/integrations/sources/kafka",
+  "supportsIncremental": true,
+  "supportsNormalization": false,
+  "supportsDBT": false,
+  "supported_source_sync_modes": ["append"],
+  "isCloneEnabled": true,
+  "connectionSpecification": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Confluent Kafka Source Spec",
+    "type": "object",
+    "required": ["bootstrap_servers", "subscription", "protocol", "test_topic"],
+    "additionalProperties": false,
+    "properties": {
+      "bootstrap_servers": {
+        "title": "Bootstrap Servers",
+        "description": "A list of host/port pairs to use for establishing the initial connection to the Kafka cluster. The client will make use of all servers irrespective of which servers are specified here for bootstrapping&mdash;this list only impacts the initial hosts used to discover the full set of servers. This list should be in the form <code>host1:port1,host2:port2,...</code>. Since these servers are just used for the initial connection to discover the full cluster membership (which may change dynamically), this list need not contain the full set of servers (you may want more than one, though, in case a server is down).",
+        "type": "string",
+        "examples": ["kafka-broker1:9092,kafka-broker2:9092"]
+      },
+      "deserializer": {
+        "title" : "Deserializer",
+        "type": "string",
+        "description": "You can choose one of the deserializer to deserialize the kafka messages received",
+        "enum": [
+          "Json",
+          "Avro",
+          "Proto"
+        ],
+        "default": "Json"
+      },
+      "subscription": {
+        "title": "Subscription Method",
+        "type": "object",
+        "description": "You can choose to manually assign a list of partitions, or subscribe to all topics matching specified pattern to get dynamically assigned partitions.",
+        "oneOf": [
+          {
+            "title": "Manually assign a list of partitions",
+            "required": ["subscription_type", "topic_partitions"],
+            "properties": {
+              "subscription_type": {
+                "description": "Manually assign a list of partitions to this consumer. This interface does not allow for incremental assignment and will replace the previous assignment (if there is one).\nIf the given list of topic partitions is empty, it is treated the same as unsubscribe().",
+                "type": "string",
+                "const": "assign",
+                "enum": ["assign"],
+                "default": "assign"
+              },
+              "topic_partitions": {
+                "title": "List of topic:partition Pairs",
+                "type": "string",
+                "examples": ["sample.topic:0, sample.topic:1"]
+              }
+            }
+          },
+          {
+            "title": "Subscribe to all topics matching specified pattern",
+            "required": ["subscription_type", "topic_pattern"],
+            "properties": {
+              "subscription_type": {
+                "description": "The Topic pattern from which the records will be read.",
+                "type": "string",
+                "const": "subscribe",
+                "enum": ["subscribe"],
+                "default": "subscribe"
+              },
+              "topic_pattern": {
+                "title": "Topic Pattern",
+                "type": "string",
+                "examples": ["sample.topic"]
+              }
+            }
+          }
+        ]
+      },
+      "test_topic": {
+        "title": "Test Topic",
+        "description": "The Topic to test in case the Bicycle can consume messages.",
+        "type": "string",
+        "examples": ["test.topic"]
+      },
+      "group_id": {
+        "title": "Group ID",
+        "description": "The Group ID is how you distinguish different consumer groups.",
+        "type": "string",
+        "examples": ["group.id"]
+      },
+      "max_poll_records": {
+        "title": "Max Poll Records",
+        "description": "The maximum number of records returned in a single call to poll(). Note, that max_poll_records does not impact the underlying fetching behavior. The consumer will cache the records from each fetch request and returns them incrementally from each poll.",
+        "type": "integer",
+        "default": 500
+      },
+      "polling_time": {
+        "title": "Polling Time",
+        "description": "Amount of time Kafka connector should try to poll for messages.",
+        "type": "integer",
+        "default": 5000
+      },
+      "protocol": {
+        "title": "Protocol",
+        "type": "object",
+        "description": "The Protocol used to communicate with brokers.",
+        "oneOf": [
+          {
+            "title": "PLAINTEXT",
+            "required": ["security_protocol"],
+            "properties": {
+              "security_protocol": {
+                "type": "string",
+                "enum": ["PLAINTEXT"],
+                "default": "PLAINTEXT"
+              }
+            }
+          },
+          {
+            "title": "SASL PLAINTEXT",
+            "required": [
+              "security_protocol",
+              "sasl_mechanism",
+              "sasl_jaas_config"
+            ],
+            "properties": {
+              "security_protocol": {
+                "type": "string",
+                "enum": ["SASL_PLAINTEXT"],
+                "default": "SASL_PLAINTEXT"
+              },
+              "sasl_mechanism": {
+                "title": "SASL Mechanism",
+                "description": "The SASL mechanism used for client connections. This may be any mechanism for which a security provider is available.",
+                "type": "string",
+                "default": "PLAIN",
+                "enum": ["PLAIN"]
+              },
+              "sasl_jaas_config": {
+                "title": "SASL JAAS Config",
+                "description": "The JAAS login context parameters for SASL connections in the format used by JAAS configuration files.",
+                "type": "string",
+                "default": "",
+                "airbyte_secret": true
+              }
+            }
+          },
+          {
+            "title": "SASL SSL",
+            "required": [
+              "security_protocol",
+              "sasl_mechanism",
+              "sasl_jaas_config"
+            ],
+            "properties": {
+              "security_protocol": {
+                "type": "string",
+                "enum": ["SASL_SSL"],
+                "default": "SASL_SSL"
+              },
+              "sasl_mechanism": {
+                "title": "SASL Mechanism",
+                "description": "The SASL mechanism used for client connections. This may be any mechanism for which a security provider is available.",
+                "type": "string",
+                "default": "GSSAPI",
+                "enum": [
+                  "GSSAPI",
+                  "OAUTHBEARER",
+                  "SCRAM-SHA-256",
+                  "SCRAM-SHA-512",
+                  "PLAIN"
+                ]
+              },
+              "sasl_jaas_config": {
+                "title": "SASL JAAS Config",
+                "description": "The JAAS login context parameters for SASL connections in the format used by JAAS configuration files.",
+                "type": "string",
+                "default": "",
+                "airbyte_secret": true
+              },
+              "ssl_truststore_certificate_content": {
+                "title": "SSL Truststore Certificate Content",
+                "description": "Truststore Certificate for SSL/TLS connection as a base 64 encoded string.",
+                "type": "string",
+                "default": ""
+              },
+              "ssl_truststore_password": {
+                "title": "SSL Truststore Password",
+                "description": "Truststore Password for SSL/TLS connection",
+                "type": "string",
+                "default": "",
+                "airbyte_secret": true
+              }
+            }
+          }
+        ]
+      },
+      "client_id": {
+        "title": "Client ID",
+        "description": "An ID string to pass to the server when making requests. The purpose of this is to be able to track the source of requests beyond just ip/port by allowing a logical application name to be included in server-side request logging.",
+        "type": "string",
+        "examples": ["bicycle-consumer"]
+      },
+      "enable_auto_commit": {
+        "title": "Enable Auto Commit",
+        "description": "If true, the consumer's offset will be periodically committed in the background.",
+        "type": "boolean",
+        "default": false
+      },
+      "auto_commit_interval_ms": {
+        "title": "Auto Commit Interval, ms",
+        "description": "The frequency in milliseconds that the consumer offsets are auto-committed to Kafka if enable.auto.commit is set to true.",
+        "type": "integer",
+        "default": 5000
+      },
+      "client_dns_lookup": {
+        "title": "Client DNS Lookup",
+        "description": "Controls how the client uses DNS lookups. If set to use_all_dns_ips, connect to each returned IP address in sequence until a successful connection is established. After a disconnection, the next IP is used. Once all IPs have been used once, the client resolves the IP(s) from the hostname again. If set to resolve_canonical_bootstrap_servers_only, resolve each bootstrap address into a list of canonical names. After the bootstrap phase, this behaves the same as use_all_dns_ips. If set to default (deprecated), attempt to connect to the first IP address returned by the lookup, even if the lookup returns multiple IP addresses.",
+        "type": "string",
+        "default": "use_all_dns_ips",
+        "enum": [
+          "default",
+          "use_all_dns_ips",
+          "resolve_canonical_bootstrap_servers_only"
+        ]
+      },
+      "retry_backoff_ms": {
+        "title": "Retry Backoff, ms",
+        "description": "The amount of time to wait before attempting to retry a failed request to a given topic partition. This avoids repeatedly sending requests in a tight loop under some failure scenarios.",
+        "type": "integer",
+        "default": 100
+      },
+      "request_timeout_ms": {
+        "title": "Request Timeout, ms",
+        "description": "The configuration controls the maximum amount of time the client will wait for the response of a request. If the response is not received before the timeout elapses the client will resend the request if necessary or fail the request if retries are exhausted.",
+        "type": "integer",
+        "default": 30000
+      },
+      "receive_buffer_bytes": {
+        "title": "Receive Buffer, bytes",
+        "description": "The size of the TCP receive buffer (SO_RCVBUF) to use when reading data. If the value is -1, the OS default will be used.",
+        "type": "integer",
+        "default": 92768
+      },
+      "auto_offset_reset": {
+        "title": "Auto Offset Reset",
+        "description": "What to do when there is no initial offset in Kafka or if the current offset does not exist any more on the server - earliest: automatically reset the offset to the earliest offset, latest: automatically reset the offset to the latest offset, none: throw exception to the consumer if no previous offset is found for the consumer's group, anything else: throw exception to the consumer.",
+        "type": "string",
+        "default": "latest",
+        "enum": ["latest", "earliest", "none"]
+      },
+      "repeated_calls": {
+        "title": "Repeated Calls",
+        "description": "The number of repeated calls to poll() if no messages were received.",
+        "type": "integer",
+        "default": 3
+      },
+      "reset_to_latest": {
+        "title": "Reset to latest",
+        "description": "If true, the consumer's offset will be reset to latest.",
+        "type": "boolean",
+        "default": false
+      },
+      "fetch_min_bytes": {
+        "title": "Minimum Bytes Per Fetch, bytes",
+        "description": "The minimum amount of data the server should return for a fetch request.",
+        "type": "integer",
+        "default": 1048576
+      },
+      "fetch_max_wait_ms": {
+        "title": "Maximum Wait Time Per Fetch, ms",
+        "description": "The maximum amount of time the server will block before answering the fetch request if there isn't sufficient data to immediately satisfy the requirement given by fetch.min.bytes.",
+        "type": "integer",
+        "default": 500
+      },
+      "max_partition_fetch_bytes": {
+        "title": "Max Data per Partition Per Fetch, bytes",
+        "description": "The maximum amount of data per-partition the server will return.",
+        "type": "integer",
+        "default": 8388608
+      },
+      "default_api_timeout_ms": {
+        "title": "Default Api Timeout",
+        "description": "This field Specifies the timeout (in milliseconds) for client APIs .",
+        "type": "integer",
+        "default": 60000
+      },
+      "fetch_max_bytes": {
+        "title": "Maximum Bytes Per Fetch, bytes",
+        "description": "The maximum amount of data the server should return for a fetch request.",
+        "type": "integer",
+        "default": 52428800
+      },
+      "send_buffer_bytes": {
+        "title": "Size of Send Buffer",
+        "description": "The size of the TCP send buffer (SO_SNDBUF) to use when sending data. If the value is -1, the OS default will be used.",
+        "type": "integer",
+        "default": 131072
+      },
+      "schema.registry.url": {
+        "title": "Schema Registry URL",
+        "description": "The URL for Schema Registry.",
+        "type": "string"
+      },
+      "basic.auth.credentials.source": {
+        "title": "Basic Auth Credentials Source",
+        "description": "Basic Auth Credentials Source",
+        "type": "string",
+        "default": "USER_INFO"
+      },
+      "basic.auth.user.info": {
+        "title": "Basic Auth User Info",
+        "description": "Basic Auth User Info",
+        "type": "string",
+        "airbyte_secret": true
+      },
+      "heartbeat.interval.ms": {
+        "title": "Heartbeat Interval, ms",
+        "description": "The expected time between heartbeats to the consumer coordinator when using Kafka's group management facilities.",
+        "type": "integer",
+        "default": 3000
+      },
+      "max.poll.interval.ms": {
+        "title": "Max Poll Interval, ms",
+        "description": "The maximum delay between invocations of poll() when using consumer group management. ",
+        "type": "integer",
+        "default": 300000
+      },
+      "bicycle_consumer_threads": {
+        "title": "Bicycle Consumer Threads",
+        "description": "The number of Kafka Consumer Threads to create.",
+        "type": "integer",
+        "default": 1
+      },
+      "sampling_rate": {
+        "title": "Sampling Rate",
+        "description": "The number of samples of a sound that are taken per second to represent the event",
+        "type": "integer",
+        "default": 100
+      }
+    }
+  }
+}
