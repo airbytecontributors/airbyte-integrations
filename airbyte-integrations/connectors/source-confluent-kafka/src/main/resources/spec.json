@@ -29,6 +29,23 @@
         ],
         "default": "Json"
       },
+      "schema.registry.url": {
+        "title": "Schema Registry URL",
+        "description": "The URL for Schema Registry.",
+        "type": "string"
+      },
+      "basic.auth.credentials.source": {
+        "title": "Basic Auth Credentials Source",
+        "description": "Basic Auth Credentials Source",
+        "type": "string",
+        "default": "USER_INFO"
+      },
+      "basic.auth.user.info": {
+        "title": "Basic Auth User Info",
+        "description": "Basic Auth User Info",
+        "type": "string",
+        "airbyte_secret": true
+      },
       "subscription": {
         "title": "Subscription Method",
         "type": "object",
@@ -292,23 +309,6 @@
         "description": "The size of the TCP send buffer (SO_SNDBUF) to use when sending data. If the value is -1, the OS default will be used.",
         "type": "integer",
         "default": 131072
-      },
-      "schema.registry.url": {
-        "title": "Schema Registry URL",
-        "description": "The URL for Schema Registry.",
-        "type": "string"
-      },
-      "basic.auth.credentials.source": {
-        "title": "Basic Auth Credentials Source",
-        "description": "Basic Auth Credentials Source",
-        "type": "string",
-        "default": "USER_INFO"
-      },
-      "basic.auth.user.info": {
-        "title": "Basic Auth User Info",
-        "description": "Basic Auth User Info",
-        "type": "string",
-        "airbyte_secret": true
       },
       "heartbeat.interval.ms": {
         "title": "Heartbeat Interval, ms",
