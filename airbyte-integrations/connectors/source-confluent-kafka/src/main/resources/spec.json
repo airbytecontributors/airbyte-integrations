@@ -212,6 +212,7 @@
         "title": "Client ID",
         "description": "An ID string to pass to the server when making requests. The purpose of this is to be able to track the source of requests beyond just ip/port by allowing a logical application name to be included in server-side request logging.",
         "type": "string",
+        "default": "cwc|0014U0000304SKfQAM",
         "examples": ["bicycle-consumer"]
       },
       "enable_auto_commit": {
