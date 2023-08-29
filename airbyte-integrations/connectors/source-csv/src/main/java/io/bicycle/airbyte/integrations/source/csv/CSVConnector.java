@@ -515,7 +515,7 @@ public class CSVConnector extends BaseEventConnector {
     private long getWindowStartTimeInMillis(long timeInMillis) {
         long durationInMillis = timeInMillis % csvDataDurationInMillis;
         long startTimeInMillis = timeInMillis - durationInMillis + epochOffsetTimeInMillis;
-        startTimeInMillis = startTimeInMillis < timeInMillis ?
+        startTimeInMillis = startTimeInMillis <= timeInMillis ?
                             startTimeInMillis : startTimeInMillis  - csvDataDurationInMillis;
         return startTimeInMillis;
     }
@@ -616,10 +616,12 @@ public class CSVConnector extends BaseEventConnector {
             long csvStartTimeInMillisInEpoch = Long.MAX_VALUE;
             long csvEndTimeInMillisInEpoch = Long.MIN_VALUE;
             int recordNumber = 0;
+            int numberOfEmptyLines = 0;
             do {
                 long offset = accessFile.getFilePointer();
                 String row = accessFile.readLine();
                 if (row != null && !row.isEmpty()) {
+                    numberOfEmptyLines = 0;
                     recordNumber++;
                     CSVRecord record = getCsvRecord(offset, row);
                     if (record == null) {
@@ -646,8 +648,13 @@ public class CSVConnector extends BaseEventConnector {
                     } else {
                         LOGGER.error("Missing timestamp fields for the record [{}] [{}] [{}]", getTenantId(), getConnectorId(), record.toMap());
                     }
-                    if (recordNumber % 10000 == 0)
+                    if (recordNumber % 10000 == 0) {
                         LOGGER.info("Processing the records [{}] [{}] [{}]", getTenantId(), getConnectorId(), recordNumber);
+                    }
+                } else if (numberOfEmptyLines < 100) {
+                    LOGGER.info("Empty Line");
+                    numberOfEmptyLines++;
+                    continue;
                 } else {
                     break;
                 }
@@ -656,7 +663,7 @@ public class CSVConnector extends BaseEventConnector {
             if (csvStartTimeInMillisInEpoch == Long.MAX_VALUE || csvEndTimeInMillisInEpoch == Long.MIN_VALUE) {
                 throw new IllegalStateException("Could parse csv the start and end times");
             }
-            LOGGER.info("Total Records [{}] [{}] [{}]", getTenantId(), getConnectorId(), records.size());
+            LOGGER.info("Total Records [{}] [{}] [{}]", getTenantId(), getConnectorId(), recordNumber);
             if (csvStartTimeInMillisInEpoch != 0  && csvEndTimeInMillisInEpoch != 0) {
                 long remainder = (csvEndTimeInMillisInEpoch - csvStartTimeInMillisInEpoch) % periodicityInMillis;
                 if (remainder != 0) {
@@ -704,16 +711,23 @@ public class CSVConnector extends BaseEventConnector {
     }
 
     private CSVRecord getCsvRecord(long offset, String row) {
-        String[] columns = sanitize(row);
-        if (columns != null && columns.length == 0) {
-            LOGGER.warn("Ignoring the row");
-            return null;
-        } else if (columns == null || headers.length != columns.length) {
-            LOGGER.error("Headers and Columns do not match ["+Arrays.asList(headers)
-                    +"] ["+Arrays.asList(columns)+"]");
+        try {
+            String[] columns = sanitize(row);
+            if (columns != null && columns.length == 0) {
+                LOGGER.warn("Ignoring the row");
+                return null;
+            } else if (columns == null || headers.length != columns.length) {
+                LOGGER.error("Headers and Columns do not match ["+Arrays.asList(headers)
+                        +"] ["+Arrays.asList(columns)+"]");
+            }
+            CSVRecord record = new CSVRecord(headers, columns, offset);
+            return record;
+        } catch (Throwable e) {
+            LOGGER.error("Failed to parse the row [{}] [{}]. Row will be ignored", offset, row, e);
+            System.out.println("Ignored row ["+offset+"] ["+row+"]");
+            e.printStackTrace();
         }
-        CSVRecord record = new CSVRecord(headers, columns, offset);
-        return record;
+        return null;
     }
 
   /*  private String[] sanitize(String row) {
