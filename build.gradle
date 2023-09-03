@@ -257,6 +257,9 @@ subprojects {
         maven {
             url "https://storage.googleapis.com/inception-artifacts-9h2rf165k/maven-repo"
         }
+        maven {
+            url "https://packages.confluent.io/maven"
+        }
     }
 
     pmd {
