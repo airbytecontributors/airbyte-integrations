@@ -32,8 +32,8 @@ repositories {
     mavenCentral()
 }
 
-ext.bicyleEventProcessorVersion = "0.2.46032"
-ext.metaPipelineVersion = "0.2.45991"
+ext.bicyleEventProcessorVersion = "0.2.47107"
+ext.metaPipelineVersion = "0.2.47105"
 Properties env = new Properties()
 rootProject.file('.env').withInputStream { env.load(it) }
 
@@ -255,7 +255,7 @@ subprojects {
             url "artifactregistry://us-west1-maven.pkg.dev/dev-pipeline-01/maven-repo"
         }
         maven {
-            url "gcs://inception-artifacts-9h2rf165k/maven-repo"
+            url "https://storage.googleapis.com/inception-artifacts-9h2rf165k/maven-repo"
         }
     }
 
