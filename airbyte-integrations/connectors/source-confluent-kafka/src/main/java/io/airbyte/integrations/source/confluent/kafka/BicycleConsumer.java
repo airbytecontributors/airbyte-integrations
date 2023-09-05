@@ -255,7 +255,13 @@ public class BicycleConsumer implements Runnable {
             }
 
         } finally {
-            consumer.close();
+            if (consumer != null) {
+                try {
+                    consumer.close();
+                } catch (Throwable e) {
+                    logger.error("Unable to close consumer succesfully", e);
+                }
+            }
             kafkaSourceConfig.resetConsumer();
         }
     }
@@ -365,7 +371,13 @@ public class BicycleConsumer implements Runnable {
             logger.error("{}, Exception in bicycle consumer {}", traceInfo, name, e);
         } finally {
             logger.warn("{}, Closing the consumer {}", traceInfo, name);
-            consumer.close();
+            if (consumer != null) {
+                try {
+                    consumer.close();
+                } catch (Throwable e) {
+                    logger.error("Unable to close consumer succesfully", e);
+                }
+            }
             kafkaSourceConfig.resetConsumer();
         }
     }
@@ -387,7 +399,11 @@ public class BicycleConsumer implements Runnable {
             return false;
         } finally {
             if (consumer != null) {
-                consumer.close();
+                try {
+                    consumer.close();
+                } catch (Throwable e) {
+                    logger.error("Unable to close consumer succesfully", e);
+                }
             }
         }
     }
