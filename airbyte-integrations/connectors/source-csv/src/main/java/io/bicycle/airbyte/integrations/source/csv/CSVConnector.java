@@ -11,7 +11,6 @@ import com.google.cloud.storage.StorageOptions;
 import com.google.common.base.Charsets;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Lists;
-import com.opencsv.CSVReader;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
@@ -719,6 +718,7 @@ public class CSVConnector extends BaseEventConnector {
             } else if (columns == null || headers.length != columns.length) {
                 LOGGER.error("Headers and Columns do not match ["+Arrays.asList(headers)
                         +"] ["+Arrays.asList(columns)+"]");
+                return null;
             }
             CSVRecord record = new CSVRecord(headers, columns, offset);
             return record;
@@ -750,21 +750,14 @@ public class CSVConnector extends BaseEventConnector {
     private static String[] sanitize(String row) {
 
         try {
-            CSVReader csvReader = new CSVReader(new StringReader(row));
-            String[] values = csvReader.iterator().next();
-            if (values != null) {
-                for (int i=0; i < values.length; i++) {
-                    String value = values[i];
-                    if (value.startsWith("\"") || value.startsWith("\'")) {
-                        value = value.substring(1);
-                    }
-                    if (value.endsWith("\"") || value.endsWith("\'")) {
-                        value = value.substring(0, value.length() - 1);
-                    }
-                    values[i] = value;
-                }
+            CSVParser csvRecords = new CSVParser(new StringReader(row), CSVFormat.DEFAULT.withSkipHeaderRecord());
+            org.apache.commons.csv.CSVRecord next = csvRecords.iterator().next();
+            Iterator<String> iterator = next.iterator();
+            List<String> values = new ArrayList<>();
+            while (iterator.hasNext()) {
+                values.add(iterator.next());
             }
-            return values;
+            return values.toArray(new String[]{});
         } catch (Exception e) {
             LOGGER.error("Failed to parse the row using csv reader " + row, e);
             return new String[0];
