@@ -106,7 +106,11 @@ public class KafkaSource extends BaseEventConnector {
           .withMessage("Could not connect to the Kafka brokers with provided configuration. \n" + e.getMessage());
     } finally {
       if (consumer != null) {
-        consumer.close();
+        try {
+          consumer.close();
+        } catch (Throwable e) {
+          LOGGER.error("Unable to close consumer succesfully", e);
+        }
       }
     }
   }
@@ -121,7 +125,13 @@ public class KafkaSource extends BaseEventConnector {
         .createAirbyteStream(topic, Field.of("value", JsonSchemaType.STRING))
         .withSupportedSyncModes(Lists.newArrayList(SyncMode.FULL_REFRESH, SyncMode.INCREMENTAL)))
         .collect(Collectors.toList());
-    consumer.close();
+    if (consumer != null) {
+      try {
+        consumer.close();
+      } catch (Throwable e) {
+        LOGGER.error("Unable to close consumer succesfully", e);
+      }
+    }
     return new AirbyteCatalog().withStreams(streams);
   }
 
@@ -272,7 +282,13 @@ public class KafkaSource extends BaseEventConnector {
       }
     }
 
-    consumer.close();
+    if (consumer != null) {
+      try {
+        consumer.close();
+      } catch (Throwable e) {
+        LOGGER.error("Unable to close consumer succesfully", e);
+      }
+    }
     final Iterator<ConsumerRecord<String, JsonNode>> iterator = recordsList.iterator();
 
     return AutoCloseableIterators.fromIterator(new AbstractIterator<>() {
