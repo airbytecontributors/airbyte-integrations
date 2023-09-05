@@ -11,7 +11,6 @@ import com.google.cloud.storage.StorageOptions;
 import com.google.common.base.Charsets;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Lists;
-import com.opencsv.CSVReader;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
@@ -515,7 +514,7 @@ public class CSVConnector extends BaseEventConnector {
     private long getWindowStartTimeInMillis(long timeInMillis) {
         long durationInMillis = timeInMillis % csvDataDurationInMillis;
         long startTimeInMillis = timeInMillis - durationInMillis + epochOffsetTimeInMillis;
-        startTimeInMillis = startTimeInMillis < timeInMillis ?
+        startTimeInMillis = startTimeInMillis <= timeInMillis ?
                             startTimeInMillis : startTimeInMillis  - csvDataDurationInMillis;
         return startTimeInMillis;
     }
@@ -616,10 +615,12 @@ public class CSVConnector extends BaseEventConnector {
             long csvStartTimeInMillisInEpoch = Long.MAX_VALUE;
             long csvEndTimeInMillisInEpoch = Long.MIN_VALUE;
             int recordNumber = 0;
+            int numberOfEmptyLines = 0;
             do {
                 long offset = accessFile.getFilePointer();
                 String row = accessFile.readLine();
                 if (row != null && !row.isEmpty()) {
+                    numberOfEmptyLines = 0;
                     recordNumber++;
                     CSVRecord record = getCsvRecord(offset, row);
                     if (record == null) {
@@ -646,8 +647,13 @@ public class CSVConnector extends BaseEventConnector {
                     } else {
                         LOGGER.error("Missing timestamp fields for the record [{}] [{}] [{}]", getTenantId(), getConnectorId(), record.toMap());
                     }
-                    if (recordNumber % 10000 == 0)
+                    if (recordNumber % 10000 == 0) {
                         LOGGER.info("Processing the records [{}] [{}] [{}]", getTenantId(), getConnectorId(), recordNumber);
+                    }
+                } else if (numberOfEmptyLines < 100) {
+                    LOGGER.info("Empty Line");
+                    numberOfEmptyLines++;
+                    continue;
                 } else {
                     break;
                 }
@@ -656,7 +662,7 @@ public class CSVConnector extends BaseEventConnector {
             if (csvStartTimeInMillisInEpoch == Long.MAX_VALUE || csvEndTimeInMillisInEpoch == Long.MIN_VALUE) {
                 throw new IllegalStateException("Could parse csv the start and end times");
             }
-            LOGGER.info("Total Records [{}] [{}] [{}]", getTenantId(), getConnectorId(), records.size());
+            LOGGER.info("Total Records [{}] [{}] [{}]", getTenantId(), getConnectorId(), recordNumber);
             if (csvStartTimeInMillisInEpoch != 0  && csvEndTimeInMillisInEpoch != 0) {
                 long remainder = (csvEndTimeInMillisInEpoch - csvStartTimeInMillisInEpoch) % periodicityInMillis;
                 if (remainder != 0) {
@@ -704,16 +710,24 @@ public class CSVConnector extends BaseEventConnector {
     }
 
     private CSVRecord getCsvRecord(long offset, String row) {
-        String[] columns = sanitize(row);
-        if (columns != null && columns.length == 0) {
-            LOGGER.warn("Ignoring the row");
-            return null;
-        } else if (columns == null || headers.length != columns.length) {
-            LOGGER.error("Headers and Columns do not match ["+Arrays.asList(headers)
-                    +"] ["+Arrays.asList(columns)+"]");
+        try {
+            String[] columns = sanitize(row);
+            if (columns != null && columns.length == 0) {
+                LOGGER.warn("Ignoring the row");
+                return null;
+            } else if (columns == null || headers.length != columns.length) {
+                LOGGER.error("Headers and Columns do not match ["+Arrays.asList(headers)
+                        +"] ["+Arrays.asList(columns)+"]");
+                return null;
+            }
+            CSVRecord record = new CSVRecord(headers, columns, offset);
+            return record;
+        } catch (Throwable e) {
+            LOGGER.error("Failed to parse the row [{}] [{}]. Row will be ignored", offset, row, e);
+            System.out.println("Ignored row ["+offset+"] ["+row+"]");
+            e.printStackTrace();
         }
-        CSVRecord record = new CSVRecord(headers, columns, offset);
-        return record;
+        return null;
     }
 
   /*  private String[] sanitize(String row) {
@@ -736,21 +750,14 @@ public class CSVConnector extends BaseEventConnector {
     private static String[] sanitize(String row) {
 
         try {
-            CSVReader csvReader = new CSVReader(new StringReader(row));
-            String[] values = csvReader.iterator().next();
-            if (values != null) {
-                for (int i=0; i < values.length; i++) {
-                    String value = values[i];
-                    if (value.startsWith("\"") || value.startsWith("\'")) {
-                        value = value.substring(1);
-                    }
-                    if (value.endsWith("\"") || value.endsWith("\'")) {
-                        value = value.substring(0, value.length() - 1);
-                    }
-                    values[i] = value;
-                }
+            CSVParser csvRecords = new CSVParser(new StringReader(row), CSVFormat.DEFAULT.withSkipHeaderRecord());
+            org.apache.commons.csv.CSVRecord next = csvRecords.iterator().next();
+            Iterator<String> iterator = next.iterator();
+            List<String> values = new ArrayList<>();
+            while (iterator.hasNext()) {
+                values.add(iterator.next());
             }
-            return values;
+            return values.toArray(new String[]{});
         } catch (Exception e) {
             LOGGER.error("Failed to parse the row using csv reader " + row, e);
             return new String[0];
