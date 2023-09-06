@@ -229,7 +229,7 @@ public class KafkaSource extends BaseEventConnector {
           printed = true;
         }
       }
-      JsonRawEvent jsonRawEvent = new JsonRawEvent(jsonNode);
+      JsonRawEvent jsonRawEvent = createJsonRawEvent(jsonNode);
       rawEvents.add(jsonRawEvent);
     }
     if (rawEvents.size() == 0) {

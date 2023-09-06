@@ -563,7 +563,7 @@ public class CSVConnector extends BaseEventConnector {
                         node.put(key, value);
 
                     }
-                    JsonRawEvent jsonRawEvent = new JsonRawEvent(node);
+                    JsonRawEvent jsonRawEvent = createJsonRawEvent(node);
                     rawEvents.add(jsonRawEvent);
                 }
             }

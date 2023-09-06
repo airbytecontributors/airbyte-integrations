@@ -34,7 +34,6 @@ import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.config.BlackListedFields;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
-import io.bicycle.integration.common.transformation.DataTransformer;
 import io.bicycle.integration.common.transformation.TransformationImpl;
 import io.bicycle.integration.common.utils.CommonUtil;
 import io.bicycle.integration.common.utils.MetricUtilWrapper;
@@ -75,6 +74,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private EntityStoreApiClient entityStoreApiClient;
     private BicycleEventProcessor bicycleEventProcessor;
     protected BicycleEventPublisher bicycleEventPublisher;
+    protected TransformationImpl dataTransformer;
     protected BicycleConfig bicycleConfig;
     protected SystemAuthenticator systemAuthenticator;
     protected EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier;
@@ -171,7 +171,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             configStoreClient = getConfigClient(bicycleConfig);
             schemaStoreApiClient = getSchemaStoreApiClient(bicycleConfig);
             entityStoreApiClient = getEntityStoreApiClient(bicycleConfig);
-            TransformationImpl dataTransformer
+            dataTransformer
                     = new TransformationImpl(schemaStoreApiClient, entityStoreApiClient, configStoreClient,
                     new MetricUtilWrapper());
             this.bicycleEventProcessor =
@@ -199,6 +199,10 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         } catch (Throwable e) {
             logger.error("Exception while setting bicycle event process and publisher", e);
         }
+    }
+
+    protected JsonRawEvent createJsonRawEvent(JsonNode jsonNode) {
+        return new JsonRawEvent(jsonNode, dataTransformer);
     }
 
     static ConfigStoreClient getConfigClient(BicycleConfig bicycleConfig) {

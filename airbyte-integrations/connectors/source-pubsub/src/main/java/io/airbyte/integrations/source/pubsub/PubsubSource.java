@@ -113,7 +113,7 @@ public class PubsubSource extends BaseEventConnector {
                 }
             }
 
-            JsonRawEvent jsonRawEvent = new JsonRawEvent(jsonNode);
+            JsonRawEvent jsonRawEvent = createJsonRawEvent(jsonNode);
             rawEvents.add(jsonRawEvent);
         }
         return rawEvents;
