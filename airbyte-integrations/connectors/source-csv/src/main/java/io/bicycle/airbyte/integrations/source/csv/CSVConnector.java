@@ -226,19 +226,6 @@ public class CSVConnector extends BaseEventConnector {
             LOGGER.info("Initialized State [{}]  [{}] [{}]", state, getTenantId(), getConnectorId());
         }
 
-        Map<String, Object> additionalProperties = catalog.getAdditionalProperties();
-        String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
-        String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
-        String uniqueIdentifier = UUID.randomUUID().toString();
-        String token = additionalProperties.containsKey("bicycleToken") ? additionalProperties.get("bicycleToken").toString() : "";
-        String connectorId = additionalProperties.containsKey("bicycleConnectorId") ? additionalProperties.get("bicycleConnectorId").toString() : "";
-        String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";;
-        String isOnPrem = additionalProperties.get("isOnPrem").toString();
-        boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
-
-        BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL, token, connectorId,uniqueIdentifier, tenantId, systemAuthenticator, isOnPremDeployment);
-        setBicycleEventProcessorAndPublisher(bicycleConfig);
-
         try {
             LOGGER.info("Starting Read v5 [{}]  [{}]  [{}]", getTenantId(), getConnectorId(), runCount);
             this.csvUrl = getCsvUrl(config);

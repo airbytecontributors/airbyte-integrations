@@ -37,6 +37,7 @@ import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.integration.common.transformation.DataTransformer;
 import io.bicycle.integration.common.transformation.TransformationImpl;
 import io.bicycle.integration.common.utils.CommonUtil;
+import io.bicycle.integration.common.utils.MetricUtilWrapper;
 import io.bicycle.integration.common.writer.Writer;
 import io.bicycle.integration.common.writer.WriterFactory;
 import io.bicycle.integration.connector.ProcessRawEventsResult;
@@ -168,10 +169,11 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             this.bicycleConfig = bicycleConfig;
             AuthInfo authInfo = bicycleConfig.getAuthInfo();
             configStoreClient = getConfigClient(bicycleConfig);
-            schemaStoreApiClient = getSchemaStoreApiClient();
-            entityStoreApiClient = getEntityStoreApiClient();
+            schemaStoreApiClient = getSchemaStoreApiClient(bicycleConfig);
+            entityStoreApiClient = getEntityStoreApiClient(bicycleConfig);
             TransformationImpl dataTransformer
-                    = new TransformationImpl(schemaStoreApiClient, entityStoreApiClient);
+                    = new TransformationImpl(schemaStoreApiClient, entityStoreApiClient, configStoreClient,
+                    new MetricUtilWrapper());
             this.bicycleEventProcessor =
                     new BicycleEventProcessorImpl(
                             BicycleEventPublisherType.BICYCLE_EVENTS,
@@ -220,12 +222,22 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         };
     }
 
-    private static SchemaStoreApiClient getSchemaStoreApiClient() {
-        return null;
+    private static SchemaStoreApiClient getSchemaStoreApiClient(BicycleConfig bicycleConfig) {
+        return new SchemaStoreApiClient(new GenericApiClient(), new ServiceLocator() {
+            @Override
+            public String getBaseUri() {
+                return bicycleConfig.getServerURL();
+            }
+        });
     }
 
-    private static EntityStoreApiClient getEntityStoreApiClient() {
-        return null;
+    private static EntityStoreApiClient getEntityStoreApiClient(BicycleConfig bicycleConfig) {
+        return new EntityStoreApiClient(new GenericApiClient(), new ServiceLocator() {
+            @Override
+            public String getBaseUri() {
+                return bicycleConfig.getServerURL();
+            }
+        });
     }
 
     public abstract void stopEventConnector();
