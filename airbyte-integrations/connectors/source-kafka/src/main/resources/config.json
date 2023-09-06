@@ -1,0 +1,42 @@
+{
+  "bootstrap_servers" : "pkc-3w22w.us-central1.gcp.confluent.cloud:9092",
+  "deserializer" : "Proto",
+  "schema.registry.url" : "https://psrc-k0w8v.us-central1.gcp.confluent.cloud",
+  "basic.auth.credentials.source" : "USER_INFO",
+  "subscription" : {
+    "subscription_type" : "subscribe",
+    "topic_pattern" : "test-proto"
+  },
+  "test_topic" : "test-proto",
+  "group_id" : "test-proto-1",
+  "max_poll_records" : 500,
+  "polling_time" : 5000,
+  "protocol" : {
+    "security_protocol" : "SASL_SSL",
+    "sasl_mechanism" : "PLAIN",
+    "ssl_truststore_certificate_content" : "",
+    "sasl_jaas_config" : "org.apache.kafka.common.security.plain.PlainLoginModule   required username='ZR2UH3EQEZNBBKAZ'   password='CdEqdBrN7xNLprdFgs07+msDRrU0joJp/KHK9AnobHXckqFj4UzXsUzyXV8Rqx3x';",
+    "ssl_truststore_password" : ""
+  },
+  "client_id" : "test-proto-1",
+  "enable_auto_commit" : false,
+  "auto_commit_interval_ms" : 5000,
+  "client_dns_lookup" : "use_all_dns_ips",
+  "retry_backoff_ms" : 100,
+  "request_timeout_ms" : 30000,
+  "receive_buffer_bytes" : 92768,
+  "auto_offset_reset" : "latest",
+  "repeated_calls" : 3,
+  "reset_to_latest" : false,
+  "fetch_min_bytes" : 1048576,
+  "fetch_max_wait_ms" : 500,
+  "max_partition_fetch_bytes" : 8388608,
+  "default_api_timeout_ms" : 60000,
+  "fetch_max_bytes" : 52428800,
+  "send_buffer_bytes" : 131072,
+  "heartbeat.interval.ms" : 3000,
+  "max.poll.interval.ms" : 300000,
+  "bicycle_consumer_threads" : 1,
+  "sampling_rate" : 100,
+  "basic.auth.user.info" : "F373I7MPIBBAKRGH:2u8RI/TN43FrMjRs3+BAj/WRuZy465FTuK7fi3rYPjuy/Q18fystPzmzdHHs6Wwv"
+}

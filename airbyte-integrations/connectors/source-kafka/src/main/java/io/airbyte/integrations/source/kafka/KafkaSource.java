@@ -12,6 +12,7 @@ import com.google.common.collect.Lists;
 import com.inception.schema.types.PropertyValue;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
+import com.inception.server.auth.model.BearerTokenAuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
@@ -170,13 +171,13 @@ public class KafkaSource extends BaseEventConnector {
     setBicycleEventProcessorAndPublisher(bicycleConfig);
 
     eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
-    MetricAsEventsGenerator metricAsEventsGenerator = new KafkaMetricAsEventsGenerator(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher,this);
-    AuthInfo authInfo = bicycleConfig.getAuthInfo();
+   // MetricAsEventsGenerator metricAsEventsGenerator = new KafkaMetricAsEventsGenerator(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher,this);
+    AuthInfo authInfo = new BearerTokenAuthInfo("eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJST0xFIjoiQVBJIiwic3ViIjoic3VtaXQtdGVzdCIsIk9SR19JRCI6IjY0IiwiaXNzIjoic3VtaXRAYmljeWNsZS5pbyIsImlhdCI6MTY0NDk0MTQxMywiVEVOQU5UIjoiZW10LWU5ZTRlZjZjLTYzYzQtNDkzMC1iMzMxLTJkZjNhZjFlNzg4ZSIsImp0aSI6IjBkZjU4ZmFkLTk0NzMtNDQ4OS1iNzMifQ.t8F2oEwEFej1xU2LknY2pLsbgUW3x5YED8trN9QYzDU");
     try {
-      ses.scheduleAtFixedRate(metricAsEventsGenerator, 60,
-              runtimeConfig != null ? runtimeConfig.getSourceMetricPollingIntervalInSecs() : 300, TimeUnit.SECONDS);
-      eventConnectorJobStatusNotifier.setNumberOfThreadsRunning(new AtomicInteger(numberOfConsumers));
-      eventConnectorJobStatusNotifier.setScheduledExecutorService(ses);
+     // ses.scheduleAtFixedRate(metricAsEventsGenerator, 60,
+     //         runtimeConfig != null ? runtimeConfig.getSourceMetricPollingIntervalInSecs() : 300, TimeUnit.SECONDS);
+     // eventConnectorJobStatusNotifier.setNumberOfThreadsRunning(new AtomicInteger(numberOfConsumers));
+     // eventConnectorJobStatusNotifier.setScheduledExecutorService(ses);
       for (int i = 0; i < numberOfConsumers; i++) {
         Map<String, Long> totalRecordsRead = new HashMap<>();
         String consumerThreadId = UUID.randomUUID().toString();

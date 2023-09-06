@@ -174,7 +174,7 @@ public class BicycleConsumer implements Runnable {
 
         int sampledRecords = 0;
         try {
-            while (!this.kafkaSource.getStopConnectorBoolean().get()) {
+            while (true) {
                 final List<ConsumerRecord<String, JsonNode>> recordsList = new ArrayList<>();
                 final ConsumerRecords<String, JsonNode> consumerRecords =
                         consumer.poll(Duration.of(5000, ChronoUnit.MILLIS));

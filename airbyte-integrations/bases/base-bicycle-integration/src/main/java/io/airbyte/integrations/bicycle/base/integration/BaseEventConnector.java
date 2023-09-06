@@ -630,11 +630,11 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         String isOnPrem = additionalProperties.get("isOnPrem").toString();
         boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
         BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL, token, connectorId, uniqueIdentifier, tenantId,
-                systemAuthenticator, isOnPremDeployment);
-        runtimeConfig = this.getConnectorConfigManager().getRuntimeConfig(bicycleConfig.getAuthInfo(), connectorId);
+                systemAuthenticator, isOnPremDeployment, true);
+        /*runtimeConfig = this.getConnectorConfigManager().getRuntimeConfig(bicycleConfig.getAuthInfo(), connectorId);
         if (runtimeConfig != null && connectorConfigManager.isDefaultConfig(runtimeConfig)) {
             runtimeConfig = null;
-        }
+        }*/
         return bicycleConfig;
     }
 
