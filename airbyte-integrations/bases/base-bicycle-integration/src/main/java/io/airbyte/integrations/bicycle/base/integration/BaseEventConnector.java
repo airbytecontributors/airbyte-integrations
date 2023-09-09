@@ -544,6 +544,21 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         }
     }
 
+    protected JsonNode getStateAsJsonNode(AuthInfo authInfo, String streamId) {
+        try {
+            String state = connectionServiceClient.getReadStateConfigById(authInfo, streamId);
+            return objectMapper.readTree(state);
+        } catch (Throwable e) {
+            logger.error("Unable to get state as json node for stream {} {}", streamId, e);
+        }
+
+        return null;
+    }
+
+    protected void setState(JsonNode state) {
+        this.state = state;
+    }
+
     protected AirbyteStateMessage getState(AuthInfo authInfo, String streamId) {
 
         try {

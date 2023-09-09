@@ -218,6 +218,7 @@ public class CSVConnector extends BaseEventConnector {
         if (shutdown) {
             return null;
         }
+        state = getStateAsJsonNode(getAuthInfo(), getConnectorId());
         if (state == null) {
             LOGGER.info("Initialized State is null [{}] [{}]", getTenantId(), getConnectorId());
         } else if(state.isEmpty()) {
