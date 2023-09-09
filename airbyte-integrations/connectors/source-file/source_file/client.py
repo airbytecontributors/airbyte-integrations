@@ -218,7 +218,7 @@ class Client:
 
     reader_class = URLFile
 
-    def __init__(self, dataset_name: str, url: str, provider: dict, format: str = None, reader_options: str = None):
+    def __init__(self, dataset_name: str, url: str, provider: dict, data_source: dict, format: str = None, reader_options: str = None):
         self._dataset_name = dataset_name
         self._url = url
         self._provider = provider

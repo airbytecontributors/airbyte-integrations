@@ -1,12 +1,18 @@
 {
   "documentationUrl": "https://docs.airbyte.io/integrations/sources/file",
-
   "connectionSpecification": {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "File Source Spec",
     "type": "object",
     "additionalProperties": false,
-    "required": ["datasetName", "format", "url", "provider", "timeHeader", "timeFormat"],
+    "required": [
+      "datasetName",
+      "format",
+      "url",
+      "provider",
+      "timeHeader",
+      "timeFormat"
+    ],
     "properties": {
       "datasetName": {
         "type": "string",
@@ -15,7 +21,9 @@
       },
       "format": {
         "type": "string",
-        "enum": ["csv"],
+        "enum": [
+          "csv"
+        ],
         "default": "csv",
         "title": "File Format",
         "description": "The Format of the file which should be replicated (Warning: some formats may be experimental, please refer to the docs)."
@@ -29,11 +37,13 @@
         "type": "object",
         "title": "Storage Provider",
         "description": "The storage Provider or Location of the file(s) which should be replicated.",
-        "default": "Public Web",
+        "default": "HTTPS: Public Web",
         "oneOf": [
           {
             "title": "HTTPS: Public Web",
-            "required": ["storage"],
+            "required": [
+              "storage"
+            ],
             "properties": {
               "storage": {
                 "type": "string",
@@ -79,7 +89,10 @@
       },
       "backfill": {
         "type": "string",
-        "enum": ["true", "false"],
+        "enum": [
+          "true",
+          "false"
+        ],
         "default": "false",
         "title": "Backfill",
         "description": "Backfill Data"
@@ -96,7 +109,10 @@
       },
       "replay": {
         "type": "string",
-        "enum": ["true", "false"],
+        "enum": [
+          "true",
+          "false"
+        ],
         "default": "true",
         "title": "Replay",
         "description": "Replay Data"
