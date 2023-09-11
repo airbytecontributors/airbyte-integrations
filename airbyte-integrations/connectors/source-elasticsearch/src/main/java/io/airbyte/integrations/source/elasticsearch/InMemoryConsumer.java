@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -32,7 +33,7 @@ public class InMemoryConsumer {
     private static final int MAX_QUEUE_SIZE = 10;
 
     // Define the blocking queue
-    private static BlockingQueue<JsonNodesWithEpoch> queue;
+    private static LinkedBlockingDeque<JsonNodesWithEpoch> queue;
 
     // Define the thread pool executor with 2 threads
     ScheduledThreadPoolExecutor executor ;
@@ -55,7 +56,7 @@ public class InMemoryConsumer {
         for (int i = 0; i < numberOfConsumers; i++) {
             scheduledFutures.add(executor.schedule(consumer, 1, TimeUnit.SECONDS));
         }
-        queue = new ArrayBlockingQueue<>(MAX_QUEUE_SIZE * numberOfConsumers);
+        queue = new LinkedBlockingDeque(MAX_QUEUE_SIZE * numberOfConsumers);
     }
 
     public void rescheduleIfStopped() {
@@ -102,10 +103,11 @@ public class InMemoryConsumer {
                         boolean result =
                                 elasticsearchSource.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
                         if (!result) {
-                            LOGGER.warn("Events not published successfully for stream Id {}",
-                                    eventSourceInfo.getEventSourceId());
+                            LOGGER.warn("{} Events not published successfully for stream Id {}",
+                                    jsonNodesWithEpoch.getJsonNodes().size(), eventSourceInfo.getEventSourceId());
                             metrics.put(ELASTIC_LAG, System.currentTimeMillis() - endEpoch);
                             elasticMetricsGenerator.addMetrics(metrics);
+                            queue.offerFirst(jsonNodesWithEpoch);
                             continue;
                         }
                         JsonNode toBeSavedState = elasticsearchSource.getUpdatedState(STATE,
@@ -116,8 +118,8 @@ public class InMemoryConsumer {
                         metrics.put(TOTAL_EVENTS_PROCESSED_METRIC, totalRecordsProcessed);
                         metrics.put(ELASTIC_LAG, System.currentTimeMillis() - endEpoch);
                         elasticMetricsGenerator.addMetrics(metrics);
-                        LOGGER.info("New events published for endpoch {} with scrollId {} and size :{}", endEpoch,
-                                scrollId, size);
+                        LOGGER.info("{} New events published for endpoch {} with scrollId {} and size :{}",
+                                jsonNodesWithEpoch.getJsonNodes().size(), endEpoch, scrollId, size);
                     } catch (Exception exception) {
                         LOGGER.error("Unable to publish bicycle events", exception);
                     }
