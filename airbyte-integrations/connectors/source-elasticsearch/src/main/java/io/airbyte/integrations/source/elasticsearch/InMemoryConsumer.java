@@ -93,6 +93,9 @@ public class InMemoryConsumer {
                     String scrollId = jsonNodesWithEpoch.getScrollId();
                     long size = jsonNodesWithEpoch.getJsonNodes().size();
                     LOGGER.info("Reading records of size {} from queue ", size);
+                    if (size == 0) {
+                        continue;
+                    }
                     AuthInfo authInfo = bicycleConfig.getAuthInfo();
                     List<RawEvent> rawEvents =
                             elasticsearchSource.convertRecordsToRawEvents(jsonNodesWithEpoch.getJsonNodes());

@@ -125,7 +125,7 @@ public class ElasticsearchConnector {
                 if (isPreview && previewJsonNodes.size() >= 100) {
                     LOG.info("Received 100 records for preview");
                     break;
-                } else if (!isPreview) {
+                } else if (!isPreview && jsonNodes.size() > 0) {
                     inMemoryConsumer.addEventsToQueue(endEpoch, scrollId, jsonNodes);
                 }
                 currentPageSize = hits.size();
