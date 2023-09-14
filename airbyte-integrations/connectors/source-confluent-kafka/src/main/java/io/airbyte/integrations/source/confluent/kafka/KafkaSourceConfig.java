@@ -163,11 +163,14 @@ public class KafkaSourceConfig {
       case SASL_PLAINTEXT:
         String apiKey = protocolConfig.get("api_key").asText();
         String apiSecret = protocolConfig.get("api_secret").asText();
-        String jaasConfigString = String.format("org.apache.kafka.common.security.plain.PlainLoginModule   " +
-                "required username=%s   password='%s';", apiKey, apiSecret);
+        String saslMechanism = protocolConfig.get("sasl_mechanism").asText();
+
+        String jaasConfigString = String.format("%s   " +
+                "required username=%s   password='%s';", getLoginModule(saslMechanism), apiKey, apiSecret);
+
         LOGGER.info("Jaas config string is {}", jaasConfigString);
         builder.put(SaslConfigs.SASL_JAAS_CONFIG, jaasConfigString);
-        builder.put(SaslConfigs.SASL_MECHANISM, protocolConfig.get("sasl_mechanism").asText());
+        builder.put(SaslConfigs.SASL_MECHANISM, saslMechanism);
         addTruststoreRelatedConfig(builder, protocolConfig);
         break;
       default:
@@ -175,6 +178,25 @@ public class KafkaSourceConfig {
     }
 
     return builder.build();
+  }
+
+  private String getLoginModule(String saslMechanism) {
+
+    if (StringUtils.isEmpty(saslMechanism)) {
+      return null;
+    } else if ("PLAIN".equals(saslMechanism)) {
+      return "org.apache.kafka.common.security.plain.PlainLoginModule";
+    } else if ("GSSAPI".equals(saslMechanism)) {
+      return "com.sun.security.auth.module.Krb5LoginModule";
+    } else if ("OAUTHBEARER".equals(saslMechanism)) {
+      return "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule";
+    } else if ("SCRAM-SHA-256".equals(saslMechanism)) {
+      return "org.apache.kafka.common.security.scram.ScramLoginModule";
+    } else if ("SCRAM-SHA-512".equals(saslMechanism)) {
+      return "org.apache.kafka.common.security.scram.ScramLoginModule";
+    }
+
+    return null;
   }
 
   private void addTruststoreRelatedConfig(ImmutableMap.Builder<String, Object> builder, JsonNode protocolConfig) {
