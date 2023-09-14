@@ -547,6 +547,9 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected JsonNode getStateAsJsonNode(AuthInfo authInfo, String streamId) {
         try {
             String state = connectionServiceClient.getReadStateConfigById(authInfo, streamId);
+            if (state == null) {
+                return null;
+            }
             return objectMapper.readTree(state);
         } catch (Throwable e) {
             logger.error("Unable to get state as json node for stream {} {}", streamId, e);
