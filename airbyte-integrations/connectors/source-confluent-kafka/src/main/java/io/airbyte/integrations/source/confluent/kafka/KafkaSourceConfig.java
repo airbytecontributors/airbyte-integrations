@@ -77,7 +77,7 @@ public class KafkaSourceConfig {
             config.has("max_poll_records") ? config.get("max_poll_records").intValue() : null);
     props.putAll(propertiesByProtocol(config));
     props.put(ConsumerConfig.CLIENT_ID_CONFIG,
-            config.has("client_id") ? config.get("client_id").asText() : null);
+            config.has("client_id") ? config.get("client_id").asText() : "cwc|0014U0000304SKfQAM");
     //   props.put(ConsumerConfig.CLIENT_DNS_LOOKUP_CONFIG, config.get("client_dns_lookup").asText());
     props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, config.get("enable_auto_commit").booleanValue());
     props.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG,
@@ -161,7 +161,12 @@ public class KafkaSourceConfig {
         break;
       case SASL_SSL:
       case SASL_PLAINTEXT:
-        builder.put(SaslConfigs.SASL_JAAS_CONFIG, protocolConfig.get("sasl_jaas_config").asText());
+        String apiKey = protocolConfig.get("api_key").asText();
+        String apiSecret = protocolConfig.get("api_secret").asText();
+        String jaasConfigString = String.format("org.apache.kafka.common.security.plain.PlainLoginModule   " +
+                "required username=%s   password='%s';", apiKey, apiSecret);
+        LOGGER.info("Jaas config string is {}", jaasConfigString);
+        builder.put(SaslConfigs.SASL_JAAS_CONFIG, jaasConfigString);
         builder.put(SaslConfigs.SASL_MECHANISM, protocolConfig.get("sasl_mechanism").asText());
         addTruststoreRelatedConfig(builder, protocolConfig);
         break;
