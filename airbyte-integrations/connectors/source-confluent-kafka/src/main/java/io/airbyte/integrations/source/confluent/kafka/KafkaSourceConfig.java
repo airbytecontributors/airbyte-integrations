@@ -77,7 +77,7 @@ public class KafkaSourceConfig {
             config.has("max_poll_records") ? config.get("max_poll_records").intValue() : null);
     props.putAll(propertiesByProtocol(config));
     props.put(ConsumerConfig.CLIENT_ID_CONFIG,
-            config.has("client_id") ? config.get("client_id").asText() : null);
+            config.has("client_id") ? config.get("client_id").asText() : "cwc|0014U0000304SKfQAM");
     //   props.put(ConsumerConfig.CLIENT_DNS_LOOKUP_CONFIG, config.get("client_dns_lookup").asText());
     props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, config.get("enable_auto_commit").booleanValue());
     props.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG,
@@ -161,8 +161,16 @@ public class KafkaSourceConfig {
         break;
       case SASL_SSL:
       case SASL_PLAINTEXT:
-        builder.put(SaslConfigs.SASL_JAAS_CONFIG, protocolConfig.get("sasl_jaas_config").asText());
-        builder.put(SaslConfigs.SASL_MECHANISM, protocolConfig.get("sasl_mechanism").asText());
+        String apiKey = protocolConfig.get("api_key").asText();
+        String apiSecret = protocolConfig.get("api_secret").asText();
+        String saslMechanism = protocolConfig.get("sasl_mechanism").asText();
+
+        String jaasConfigString = String.format("%s   " +
+                "required username=%s   password='%s';", getLoginModule(saslMechanism), apiKey, apiSecret);
+
+        LOGGER.info("Jaas config string is {}", jaasConfigString);
+        builder.put(SaslConfigs.SASL_JAAS_CONFIG, jaasConfigString);
+        builder.put(SaslConfigs.SASL_MECHANISM, saslMechanism);
         addTruststoreRelatedConfig(builder, protocolConfig);
         break;
       default:
@@ -170,6 +178,25 @@ public class KafkaSourceConfig {
     }
 
     return builder.build();
+  }
+
+  private String getLoginModule(String saslMechanism) {
+
+    if (StringUtils.isEmpty(saslMechanism)) {
+      return null;
+    } else if ("PLAIN".equals(saslMechanism)) {
+      return "org.apache.kafka.common.security.plain.PlainLoginModule";
+    } else if ("GSSAPI".equals(saslMechanism)) {
+      return "com.sun.security.auth.module.Krb5LoginModule";
+    } else if ("OAUTHBEARER".equals(saslMechanism)) {
+      return "org.apache.kafka.common.security.oauthbearer.OAuthBearerLoginModule";
+    } else if ("SCRAM-SHA-256".equals(saslMechanism)) {
+      return "org.apache.kafka.common.security.scram.ScramLoginModule";
+    } else if ("SCRAM-SHA-512".equals(saslMechanism)) {
+      return "org.apache.kafka.common.security.scram.ScramLoginModule";
+    }
+
+    return null;
   }
 
   private void addTruststoreRelatedConfig(ImmutableMap.Builder<String, Object> builder, JsonNode protocolConfig) {
