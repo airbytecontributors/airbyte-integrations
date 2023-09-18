@@ -79,7 +79,8 @@ public class KafkaSourceConfig {
     props.put(ConsumerConfig.CLIENT_ID_CONFIG,
             config.has("client_id") ? config.get("client_id").asText() : "cwc|0014U0000304SKfQAM");
     //   props.put(ConsumerConfig.CLIENT_DNS_LOOKUP_CONFIG, config.get("client_dns_lookup").asText());
-    props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, config.get("enable_auto_commit").booleanValue());
+    props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, config.has("enable_auto_commit") ?
+            config.get("enable_auto_commit").booleanValue(): true);
     props.put(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG,
             config.has("auto_commit_interval_ms") ? config.get("auto_commit_interval_ms").intValue() : null);
     props.put(ConsumerConfig.RETRY_BACKOFF_MS_CONFIG,

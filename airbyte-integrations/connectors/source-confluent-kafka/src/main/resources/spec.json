@@ -119,6 +119,7 @@
         "title": "Protocol",
         "type": "object",
         "description": "The Protocol used to communicate with brokers.",
+        "default": "SASL PLAINTEXT",
         "oneOf": [
           {
             "title": "PLAINTEXT",
@@ -186,7 +187,7 @@
                 "title": "SASL Mechanism",
                 "description": "The SASL mechanism used for client connections. This may be any mechanism for which a security provider is available.",
                 "type": "string",
-                "default": "GSSAPI",
+                "default": "PLAIN",
                 "enum": [
                   "GSSAPI",
                   "OAUTHBEARER",
