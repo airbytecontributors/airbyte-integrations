@@ -40,9 +40,15 @@
         "type": "string",
         "default": "USER_INFO"
       },
-      "basic.auth.user.info": {
-        "title": "Basic Auth User Info",
-        "description": "Basic Auth User Info",
+      "basic.auth.user.info.key": {
+        "title": "Schema Registry API Key",
+        "description": "API key for schema registry",
+        "type": "string",
+        "airbyte_secret": true
+      },
+      "basic.auth.user.info.secret": {
+        "title": "Schema Registry API Secret",
+        "description": "API secret for schema Registry",
         "type": "string",
         "airbyte_secret": true
       },
@@ -133,43 +139,6 @@
             }
           },
           {
-            "title": "SASL PLAINTEXT",
-            "required": [
-              "security_protocol",
-              "sasl_mechanism",
-              "api_key",
-              "api_secret"
-            ],
-            "properties": {
-              "security_protocol": {
-                "type": "string",
-                "enum": ["SASL_PLAINTEXT"],
-                "default": "SASL_PLAINTEXT"
-              },
-              "sasl_mechanism": {
-                "title": "SASL Mechanism",
-                "description": "The SASL mechanism used for client connections. This may be any mechanism for which a security provider is available.",
-                "type": "string",
-                "default": "PLAIN",
-                "enum": ["PLAIN"]
-              },
-              "api_key": {
-                "title": "API Key",
-                "description": "Specify user name to connect to kafka.",
-                "type": "string",
-                "default": "",
-                "airbyte_secret": true
-              },
-              "api_secret": {
-                "title": "API Secret",
-                "description": "Specify password to connect to kafka.",
-                "type": "string",
-                "default": "",
-                "airbyte_secret": true
-              }
-            }
-          },
-          {
             "title": "SASL SSL",
             "required": [
               "security_protocol",
@@ -206,19 +175,6 @@
               "api_secret": {
                 "title": "API Secret",
                 "description": "Specify password to connect to kafka.",
-                "type": "string",
-                "default": "",
-                "airbyte_secret": true
-              },
-              "ssl_truststore_certificate_content": {
-                "title": "SSL Truststore Certificate Content",
-                "description": "Truststore Certificate for SSL/TLS connection as a base 64 encoded string.",
-                "type": "string",
-                "default": ""
-              },
-              "ssl_truststore_password": {
-                "title": "SSL Truststore Password",
-                "description": "Truststore Password for SSL/TLS connection",
                 "type": "string",
                 "default": "",
                 "airbyte_secret": true
