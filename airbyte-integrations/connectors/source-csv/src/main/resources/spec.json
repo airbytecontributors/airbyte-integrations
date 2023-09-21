@@ -121,6 +121,12 @@
         "type": "string",
         "title": "Periodicity",
         "description": "Periodicity of simulating the load. (In secs)"
+      },
+      "sleepTime": {
+        "type": "integer",
+        "title": "Sleep(ms)",
+        "description": "Sleep time while simulating the load between ingestion requests. (In millis)",
+        "default": 2000
       }
     }
   }

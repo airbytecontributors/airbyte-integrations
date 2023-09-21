@@ -17,11 +17,9 @@ import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
-import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.*;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
-import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
@@ -89,7 +87,7 @@ public class CSVConnector extends BaseEventConnector {
     private String backfillEndTimestamp;
 
     private long periodicityInMillis = 60000;
-    private long backfillSleepTimeInMillis = 2000;
+    private long sleepTimeInMillis = 2000;
 
     private boolean publishEventsEnabled = true;
 
@@ -252,9 +250,7 @@ public class CSVConnector extends BaseEventConnector {
             boolean backfill = config.get("backfill") != null ? config.get("backfill").asBoolean() : false;
             boolean replay = config.get("replay") != null ? config.get("replay").asBoolean() : true;
 
-            this.backfillSleepTimeInMillis
-                    = additionalProperties != null && additionalProperties.get("backfillSleepTimeInMillis") != null
-                    ? Long.parseLong(additionalProperties.get("backfillSleepTimeInMillis").toString()) : 2000;
+            this.sleepTimeInMillis = config.get("sleepTime") != null ? config.get("sleepTime").asLong() : 2000L;
 
             Map<Long, Map<Long, List<Long>>> bucketVsRecords
                     = readFile(config, csvUrl, timestampHeaderField, getUTCTimesupplier());
@@ -321,7 +317,7 @@ public class CSVConnector extends BaseEventConnector {
             long bucketNumber = getBucketNumber(currentTimeInMillis);
             process(bucketVsRecords, previousBucketNumber, previousBucketStartTimeMillis,
                         bucketNumber, startTimeInMillis,
-                        currentTimeInMillis, 2000L);
+                        currentTimeInMillis, sleepTimeInMillis);
             if (previousBucketNumber != bucketNumber) {
                 previousBucketNumber = bucketNumber;
                 previousBucketStartTimeMillis = startTimeInMillis;
@@ -371,7 +367,7 @@ public class CSVConnector extends BaseEventConnector {
                 long bucketNumber = getBucketNumber(timeInMillis);
                 process(bucketVsRecords, previousBucketNumber, previousBucketStartTimeMillis,
                             bucketNumber, startTimeInMillis,
-                            timeInMillis, backfillSleepTimeInMillis);
+                            timeInMillis, sleepTimeInMillis);
 
                 if (previousBucketNumber != bucketNumber) {
                     previousBucketNumber = bucketNumber;
