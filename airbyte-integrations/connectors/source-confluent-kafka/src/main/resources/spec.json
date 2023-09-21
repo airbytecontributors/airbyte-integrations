@@ -125,7 +125,7 @@
         "title": "Protocol",
         "type": "object",
         "description": "The Protocol used to communicate with brokers.",
-        "default": "SASL PLAINTEXT",
+        "default": "SASL SSL",
         "oneOf": [
           {
             "title": "PLAINTEXT",
