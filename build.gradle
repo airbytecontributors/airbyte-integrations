@@ -33,7 +33,7 @@ repositories {
 }
 
 ext.bicyleEventProcessorVersion = "0.2.47446"
-ext.metaPipelineVersion = "0.2.47926"
+ext.metaPipelineVersion = "0.2.48104"
 Properties env = new Properties()
 rootProject.file('.env').withInputStream { env.load(it) }
 
