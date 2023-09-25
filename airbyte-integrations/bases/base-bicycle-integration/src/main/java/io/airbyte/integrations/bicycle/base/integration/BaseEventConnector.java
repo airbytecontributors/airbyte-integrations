@@ -450,10 +450,10 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         this.config = config;
         this.catalog = catalog;
         this.additionalProperties = catalog.getAdditionalProperties();
-        this.state = getStateAsJsonNode(getAuthInfo(), getConnectorId());
         BicycleConfig bicycleConfig = getBicycleConfig();
         setBicycleEventProcessorAndPublisher(bicycleConfig);
         getConnectionServiceClient();
+        this.state = getStateAsJsonNode(getAuthInfo(), getConnectorId());
         return doRead(config, catalog, state);
     }
 
