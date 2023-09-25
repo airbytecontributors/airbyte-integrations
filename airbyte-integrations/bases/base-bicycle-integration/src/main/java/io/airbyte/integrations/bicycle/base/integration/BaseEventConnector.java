@@ -84,6 +84,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected String ENV_TENANT_ID_KEY = "TENANT_ID";
     private static final String CONNECTORS_WITH_WAIT_ENABLED = "CONNECTORS_WITH_WAIT_ENABLED";
     private static final String CONNECTORS_WAIT_TIME_IN_MILLIS = "CONNECTORS_WAIT_TIME_IN_MILLIS";
+    private static final int MAX_RETRY_COUNT = 3;
 
     protected List<String> listOfConnectorsWithSleepEnabled = new ArrayList<>();
 
@@ -584,11 +585,25 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             AirbyteStateMessage airbyteMessage = new AirbyteStateMessage();
             airbyteMessage.setData(jsonNode);
             String airbyteMessageAsString = objectMapper.writeValueAsString(airbyteMessage);
-            connectionServiceClient.upsertReadStateConfig(authInfo, streamId, airbyteMessageAsString);
-            logger.info("Successfully set state for stream {}", streamId);
-
-            return true;
-        }catch (Throwable e) {
+            int counter = 0;
+            boolean success = false;
+            Exception ex = null;
+            while (counter < MAX_RETRY_COUNT) {
+                try {
+                    connectionServiceClient.upsertReadStateConfig(authInfo, streamId, airbyteMessageAsString);
+                    logger.info("Successfully set state for stream {}", streamId);
+                    success = true;
+                    break;
+                } catch (Exception e) {
+                    ex = e;
+                    counter++;
+                }
+            }
+            if (!success) {
+                logger.error("Unable to set state for streamId " + streamId, ex);
+            }
+            return success;
+        } catch (Throwable e) {
             logger.error("Unable to set state for streamId " + streamId, e);
         }
 

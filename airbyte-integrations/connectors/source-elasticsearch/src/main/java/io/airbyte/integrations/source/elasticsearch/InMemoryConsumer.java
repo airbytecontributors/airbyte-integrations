@@ -71,8 +71,8 @@ public class InMemoryConsumer {
         scheduledFutures = newList;
     }
 
-    public void addEventsToQueue(long endEpoch, String scrollId, List<JsonNode> jsonNodes) {
-        JsonNodesWithEpoch jsonNodesWithEpoch = new JsonNodesWithEpoch(endEpoch, scrollId, jsonNodes);
+    public void addEventsToQueue(long startEpoch, long endEpoch, String scrollId, List<JsonNode> jsonNodes) {
+        JsonNodesWithEpoch jsonNodesWithEpoch = new JsonNodesWithEpoch(startEpoch, endEpoch, scrollId, jsonNodes);
         try {
             queue.offer(jsonNodesWithEpoch, 10, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
@@ -87,12 +87,14 @@ public class InMemoryConsumer {
             try {
 
                 JsonNodesWithEpoch jsonNodesWithEpoch = queue.take();
+                long endEpoch = jsonNodesWithEpoch.getEndEpoch();
+                long startEpoch = jsonNodesWithEpoch.getStartEpoch();
+                String scrollId = jsonNodesWithEpoch.getScrollId();
+                long size = jsonNodesWithEpoch.getJsonNodes().size();
 
                 try {
-                    long endEpoch = jsonNodesWithEpoch.getEndEpoch();
-                    String scrollId = jsonNodesWithEpoch.getScrollId();
-                    long size = jsonNodesWithEpoch.getJsonNodes().size();
-                    LOGGER.info("Reading records of size {} from queue ", size);
+                    LOGGER.info("MissingEventsDebugging: Reading records of size {} from queue " +
+                                    "for startTime {} and endTime {}", size, startEpoch, endEpoch);
                     if (size == 0) {
                         continue;
                     }
@@ -102,12 +104,16 @@ public class InMemoryConsumer {
                     EventProcessorResult eventProcessorResult =
                             elasticsearchSource.convertRawEventsToBicycleEvents(authInfo, eventSourceInfo, rawEvents);
                     totalRecordsProcessed += jsonNodesWithEpoch.getJsonNodes().size();
+                    LOGGER.info("MissingEventsDebugging: Converted to bicycle events records of size {} " +
+                            "for startTime {} and endTime {}", size, startEpoch, endEpoch);
                     try {
                         boolean result =
                                 elasticsearchSource.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
                         if (!result) {
-                            LOGGER.warn("{} Events not published successfully for stream Id {}",
-                                    jsonNodesWithEpoch.getJsonNodes().size(), eventSourceInfo.getEventSourceId());
+                            LOGGER.warn("MissingEventsDebugging: {} Events not published successfully for stream Id {} " +
+                                            "with startTime {} and endTime {}",
+                                    jsonNodesWithEpoch.getJsonNodes().size(), eventSourceInfo.getEventSourceId(),
+                                    startEpoch, endEpoch);
                             metrics.put(ELASTIC_LAG, System.currentTimeMillis() - endEpoch);
                             elasticMetricsGenerator.addMetrics(metrics);
                             queue.offerFirst(jsonNodesWithEpoch);
@@ -121,13 +127,19 @@ public class InMemoryConsumer {
                         metrics.put(TOTAL_EVENTS_PROCESSED_METRIC, totalRecordsProcessed);
                         metrics.put(ELASTIC_LAG, System.currentTimeMillis() - endEpoch);
                         elasticMetricsGenerator.addMetrics(metrics);
-                        LOGGER.info("{} New events published for endpoch {} with scrollId {} and size :{}",
-                                jsonNodesWithEpoch.getJsonNodes().size(), endEpoch, scrollId, size);
+                        LOGGER.info("MissingEventsDebugging: {} New events published for startTime {} and endTime {}",
+                                jsonNodesWithEpoch.getJsonNodes().size(), startEpoch, endEpoch);
                     } catch (Exception exception) {
-                        LOGGER.error("Unable to publish bicycle events", exception);
+                        LOGGER.error("MissingEventsDebugging: Unable to publish bicycle events for stream Id {} " +
+                                "with startTime {} and endTime {} because of {}", eventSourceInfo.getEventSourceId(),
+                                startEpoch, endEpoch, exception);
+                        queue.offerFirst(jsonNodesWithEpoch);
                     }
                 } catch (Exception exception) {
-                    LOGGER.error("Unable to convert raw records to bicycle events", exception);
+                    LOGGER.error("MissingEventsDebugging: Unable to convert raw records to bicycle events for stream Id {} " +
+                                    "with startTime {} and endTime {} because of {}", eventSourceInfo.getEventSourceId(),
+                            startEpoch, endEpoch, exception);
+                   // queue.offerFirst(jsonNodesWithEpoch);
                 }
 
             } catch (Exception e) {
@@ -137,11 +149,13 @@ public class InMemoryConsumer {
     };
 
     private static class JsonNodesWithEpoch {
+        private long startEpoch;
         private long endEpoch;
         private String scrollId;
         private List<JsonNode> jsonNodes;
 
-        public JsonNodesWithEpoch(long endEpoch, String scrollId, List<JsonNode> jsonNodes) {
+        public JsonNodesWithEpoch(long startEpoch, long endEpoch, String scrollId, List<JsonNode> jsonNodes) {
+            this.startEpoch = startEpoch;
             this.endEpoch = endEpoch;
             this.scrollId = scrollId;
             this.jsonNodes = jsonNodes;
@@ -157,6 +171,9 @@ public class InMemoryConsumer {
 
         public List<JsonNode> getJsonNodes() {
             return jsonNodes;
+        }
+        public long getStartEpoch() {
+            return startEpoch;
         }
     }
 }

@@ -93,6 +93,8 @@ public class ElasticsearchConnector {
         long currentPageSize = 0;
         String scrollId = null;
         List<JsonNode> previewJsonNodes = new ArrayList<>();
+        int totalHits = 0;
+        int totalRecords = 0;
         try {
             do {
                 List<JsonNode> jsonNodes = new ArrayList<>();
@@ -126,9 +128,11 @@ public class ElasticsearchConnector {
                     LOG.info("Received 100 records for preview");
                     break;
                 } else if (!isPreview && jsonNodes.size() > 0) {
-                    inMemoryConsumer.addEventsToQueue(endEpoch, scrollId, jsonNodes);
+                    inMemoryConsumer.addEventsToQueue(startEpoch, endEpoch, scrollId, jsonNodes);
                 }
                 currentPageSize = hits.size();
+                totalHits += currentPageSize;
+                totalRecords += jsonNodes.size();
                 LOG.info("Records size {}", jsonNodes.size());
                 LOG.info("hits.size() = {}", currentPageSize);
                 request = new Request("POST", "/_search/scroll");
@@ -143,6 +147,8 @@ public class ElasticsearchConnector {
                 requestEntity = new StringEntity("{\"scroll_id\" : \"" + scrollId + "\"}");
                 JsonNode deleteResponse = executeRequestAsJsonNode(restClient, request, requestEntity);
                 boolean succeeded = deleteResponse.get("succeeded").asBoolean();
+                LOG.info("MissingEventsDebugging: No of events read and hits from ES from startTime {} to endTime {} are {} and {}",
+                        startEpoch, endEpoch, totalRecords, totalHits);
                 LOG.info("Delete scroll succeeded = {}", succeeded);
             }
         }
