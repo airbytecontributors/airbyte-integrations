@@ -147,7 +147,8 @@ public class KafkaSource extends BaseEventConnector {
   }
 
   @Override
-  public AutoCloseableIterator<AirbyteMessage> read(final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state) {
+  public AutoCloseableIterator<AirbyteMessage> doRead(
+          final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state) {
     int numberOfConsumers = getNumberOfConsumers(config);
     int threadPoolSize = getThreadPoolSize(numberOfConsumers);
     stopConnectorBoolean.set(false);

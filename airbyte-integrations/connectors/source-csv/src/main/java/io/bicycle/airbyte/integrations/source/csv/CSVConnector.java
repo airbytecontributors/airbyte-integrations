@@ -210,8 +210,8 @@ public class CSVConnector extends BaseEventConnector {
         return new AirbyteCatalog().withStreams(streams);
     }
 
-    public AutoCloseableIterator<AirbyteMessage> doRead(JsonNode config, ConfiguredAirbyteCatalog catalog,
-                                                      JsonNode state) throws Exception{
+    public AutoCloseableIterator<AirbyteMessage> doRead(
+            JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state){
         LOGGER.info("Inside do read command : v1");
         int runCount = 1;
         if (shutdown) {

@@ -149,7 +149,8 @@ public class ElasticsearchSource extends BaseEventConnector {
 */    }
 
     @Override
-    public AutoCloseableIterator<AirbyteMessage> read(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws IOException {
+    public AutoCloseableIterator<AirbyteMessage> doRead(
+            JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws IOException {
         try {
             super.read(config, catalog, state);
         } catch (Exception exception) {

@@ -244,7 +244,8 @@ public class PubsubSource extends BaseEventConnector {
 
 
     @Override
-    public AutoCloseableIterator<AirbyteMessage> read(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws Exception {
+    public AutoCloseableIterator<AirbyteMessage> doRead(
+            JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state){
 
         int numberOfConsumers = getNumberOfConsumers(config);
         int threadPoolSize = getThreadPoolSize(numberOfConsumers);

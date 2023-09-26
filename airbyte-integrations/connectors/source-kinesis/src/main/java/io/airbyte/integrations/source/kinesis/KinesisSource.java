@@ -105,7 +105,8 @@ public class KinesisSource extends BaseEventConnector {
     }
 
     @Override
-    public AutoCloseableIterator<AirbyteMessage> read(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws Exception {
+    public AutoCloseableIterator<AirbyteMessage> doRead(
+            JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) {
 
         int numberOfConsumers =config.has("consumer_threads") ? config.get("consumer_threads").asInt(): 1;
         int threadPoolSize = numberOfConsumers + 3;

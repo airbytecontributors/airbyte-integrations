@@ -159,19 +159,28 @@ public class ElasticsearchConnector {
 
     private JsonNode executeRequestAsJsonNode(RestClient restClient, Request request, StringEntity requestEntity)
             throws IOException {
-        if (requestEntity != null) {
-            requestEntity.setContentType("application/json");
-            request.setEntity(requestEntity);
+        int retry = 3;
+        while (retry > 0) {
+            try {
+                if (requestEntity != null) {
+                    requestEntity.setContentType("application/json");
+                    request.setEntity(requestEntity);
+                }
+                Response response = restClient.performRequest(request);
+                int statusCode = response.getStatusLine().getStatusCode();
+                String responseBody = EntityUtils.toString(response.getEntity());
+                LOG.info("statusCode = {}", statusCode);
+                // TODO assert status 200
+                LOG.debug("responseBody = {}", responseBody);
+                JsonNode jsonNode = objectMapper.readTree(responseBody);
+                return jsonNode;
+            } catch (Exception e) {
+                LOG.error("Error while trying to search for elasticsearch records for connectorId {}",
+                        bicycleConfig != null ? bicycleConfig.getConnectorId() : null, e);
+                retry-=1;
+            }
         }
-        Response response = restClient.performRequest(request);
-        int statusCode = response.getStatusLine().getStatusCode();
-        Header[] headers = response.getHeaders();
-        String responseBody = EntityUtils.toString(response.getEntity());
-        LOG.info("statusCode = {}", statusCode);
-        // TODO assert status 200
-        LOG.debug("responseBody = {}", responseBody);
-        JsonNode jsonNode = objectMapper.readTree(responseBody);
-        return jsonNode;
+        return null;
     }
 
     private JsonObject executeRequest(RestClient restClient, Request request, StringEntity requestEntity) {
@@ -184,7 +193,6 @@ public class ElasticsearchConnector {
                 }
                 Response response = restClient.performRequest(request);
                 int statusCode = response.getStatusLine().getStatusCode();
-                Header[] headers = response.getHeaders();
                 String responseBody = EntityUtils.toString(response.getEntity());
                 LOG.info("statusCode = {}", statusCode);
                 // TODO assert status 200

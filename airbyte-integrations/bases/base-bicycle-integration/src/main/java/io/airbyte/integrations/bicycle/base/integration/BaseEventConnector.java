@@ -448,20 +448,29 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     public AutoCloseableIterator<AirbyteMessage> read(JsonNode config, ConfiguredAirbyteCatalog catalog,
                                                       JsonNode state)  throws Exception {
-        this.config = config;
-        this.catalog = catalog;
-        this.additionalProperties = catalog.getAdditionalProperties();
-        BicycleConfig bicycleConfig = getBicycleConfig();
-        setBicycleEventProcessorAndPublisher(bicycleConfig);
-        getConnectionServiceClient();
-        this.state = getStateAsJsonNode(getAuthInfo(), getConnectorId());
-        return doRead(config, catalog, state);
-    }
-
-    public AutoCloseableIterator<AirbyteMessage> doRead(JsonNode config, ConfiguredAirbyteCatalog catalog,
-                                                      JsonNode state) throws Exception {
+        int retry = 3;
+        while (retry > 0) {
+            try {
+                this.config = config;
+                this.catalog = catalog;
+                this.additionalProperties = catalog.getAdditionalProperties();
+                BicycleConfig bicycleConfig = getBicycleConfig();
+                setBicycleEventProcessorAndPublisher(bicycleConfig);
+                getConnectionServiceClient();
+                this.state = getStateAsJsonNode(getAuthInfo(), getConnectorId());
+                return doRead(config, catalog, state);
+            } catch (Exception e) {
+                logger.error("{}, Error while trying to perform read, connector read will be retried, retries " +
+                        "remaining {}", bicycleConfig != null ? bicycleConfig.getConnectorId() : null, retry, e);
+                retry -= 1;
+            }
+        }
         return null;
     }
+
+    public abstract AutoCloseableIterator<AirbyteMessage> doRead(final JsonNode config,
+                                                                 final ConfiguredAirbyteCatalog catalog,
+                                                                 final JsonNode state) throws Exception;
 
     protected String getEventSourceType() {
         return additionalProperties.containsKey("bicycleEventSourceType") ?
