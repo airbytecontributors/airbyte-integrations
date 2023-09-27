@@ -150,7 +150,7 @@ public class ElasticsearchSource extends BaseEventConnector {
 
     @Override
     public AutoCloseableIterator<AirbyteMessage> doRead(
-            JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws IOException {
+            JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws Exception {
         final ConnectorConfiguration configObject = convertConfig(config);
         final ElasticsearchConnection connection = new ElasticsearchConnection(configObject);
 
@@ -178,7 +178,7 @@ public class ElasticsearchSource extends BaseEventConnector {
         super.stopEventConnector("Shutting down the Elasticsearch Event Connector manually", JobExecutionStatus.success);
     }
 
-    private void readEvent(final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state, final ElasticsearchConnection connection) throws IOException {
+    private void readEvent(final JsonNode config, final ConfiguredAirbyteCatalog catalog, final JsonNode state, final ElasticsearchConnection connection) throws Exception {
         Map<String, Object> additionalProperties = catalog.getAdditionalProperties();
         stopConnectorBoolean.set(false);
         String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
@@ -270,9 +270,6 @@ public class ElasticsearchSource extends BaseEventConnector {
                 authInfo = bicycleConfig.getAuthInfo();
             }
             LOGGER.info("Shutting down the Elasticsearch Event Connector manually for connector {}", bicycleConfig.getConnectorId());
-        } catch(Throwable exception) {
-            LOGGER.error("Exception while trying to fetch records from Elasticsearch", exception);
-            this.stopEventConnector("Shutting down the ElasticSearch Event Connector due to Exception",JobExecutionStatus.failure);
         } finally {
             ses.shutdown();
             LOGGER.info("Closing server connection.");

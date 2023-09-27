@@ -464,12 +464,13 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                 getConnectionServiceClient();
                 this.state = getStateAsJsonNode(getAuthInfo(), getConnectorId());
                 return doRead(config, catalog, state);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 logger.error("{}, Error while trying to perform read, connector read will be retried, retries " +
                         "remaining {}", bicycleConfig != null ? bicycleConfig.getConnectorId() : null, retry, e);
                 retry -= 1;
             }
         }
+        this.stopEventConnector("Shutting down the event Connector after 3 retries", JobExecutionStatus.failure);
         return null;
     }
 

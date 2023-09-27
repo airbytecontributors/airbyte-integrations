@@ -84,7 +84,7 @@ public class ElasticsearchConnector {
     }
 
     public List<JsonNode> search(RestClient restClient, long startEpoch, long endEpoch, String queryLine,
-                                 int pageSize, boolean isPreview) throws IOException {
+                                 int pageSize, boolean isPreview) throws Exception {
 
         String scrollDuration = DEFAULT_SCROLL_DURATION;
         Request request = new Request("POST", "/_search?scroll=" + scrollDuration);
@@ -158,8 +158,9 @@ public class ElasticsearchConnector {
     }
 
     private JsonNode executeRequestAsJsonNode(RestClient restClient, Request request, StringEntity requestEntity)
-            throws IOException {
+            throws Exception {
         int retry = 3;
+        Exception exception = null;
         while (retry > 0) {
             try {
                 if (requestEntity != null) {
@@ -178,13 +179,15 @@ public class ElasticsearchConnector {
                 LOG.error("Error while trying to search for elasticsearch records for connectorId {}",
                         bicycleConfig != null ? bicycleConfig.getConnectorId() : null, e);
                 retry-=1;
+                exception = e;
             }
         }
-        return null;
+        throw exception;
     }
 
-    private JsonObject executeRequest(RestClient restClient, Request request, StringEntity requestEntity) {
+    private JsonObject executeRequest(RestClient restClient, Request request, StringEntity requestEntity) throws Exception {
         int retry = 3;
+        Exception exception = null;
         while (retry > 0) {
             try {
                 if (requestEntity != null) {
@@ -203,9 +206,10 @@ public class ElasticsearchConnector {
                 LOG.error("Error while trying to search for elasticsearch records for connectorId {}",
                         bicycleConfig != null ? bicycleConfig.getConnectorId() : null, e);
                 retry-=1;
+                exception = e;
             }
         }
-        return null;
+        throw exception;
     }
 
     private String getSearchRequest(long startEpoch, long endEpoch, String queryLine, int pageSize) {

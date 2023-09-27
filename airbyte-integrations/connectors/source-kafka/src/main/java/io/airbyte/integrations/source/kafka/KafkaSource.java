@@ -187,8 +187,8 @@ public class KafkaSource extends BaseEventConnector {
       }
       eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Kafka Event Connector started Successfully", connectorId, getTotalRecordsConsumed(),authInfo);
     } catch (Exception exception) {
-      this.stopEventConnector("Shutting down the kafka Event Connector due to exception",JobExecutionStatus.failure);
-      LOGGER.error("Shutting down the Kafka Event Connector for connector {}", bicycleConfig.getConnectorId() ,exception);
+      LOGGER.error("Exception in Kafka Event Connector for connector {}", bicycleConfig.getConnectorId() ,exception);
+      throw exception;
     }
     return null;
   }
