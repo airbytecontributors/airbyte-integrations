@@ -145,10 +145,10 @@ public class ElasticsearchConnector {
             if (scrollId != null) {
                 request = new Request("DELETE", "/_search/scroll");
                 requestEntity = new StringEntity("{\"scroll_id\" : \"" + scrollId + "\"}");
-                JsonNode deleteResponse = executeRequestAsJsonNode(restClient, request, requestEntity);
-                boolean succeeded = deleteResponse.get("succeeded").asBoolean();
                 LOG.info("MissingEventsDebugging: No of events read and hits from ES from startTime {} to endTime {} are {} and {}",
                         startEpoch, endEpoch, totalRecords, totalHits);
+                JsonNode deleteResponse = executeRequestAsJsonNode(restClient, request, requestEntity);
+                boolean succeeded = deleteResponse.get("succeeded").asBoolean();
                 LOG.info("Delete scroll succeeded = {}", succeeded);
             }
         }
