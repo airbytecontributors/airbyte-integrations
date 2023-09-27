@@ -11,6 +11,7 @@ import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.AirbyteStream;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
+import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,8 +30,9 @@ public class CommonPushConnector extends BaseEventConnector {
 
 
     public CommonPushConnector(SystemAuthenticator systemAuthenticator,
-                               EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier) {
-        super(systemAuthenticator, eventConnectorJobStatusNotifier);
+                               EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
+                               ConnectorConfigManager connectorConfigManager) {
+        super(systemAuthenticator, eventConnectorJobStatusNotifier, connectorConfigManager);
     }
 
     protected int getTotalRecordsConsumed() {
@@ -67,8 +69,8 @@ public class CommonPushConnector extends BaseEventConnector {
 
     }
 
-    public AutoCloseableIterator<AirbyteMessage> doRead(JsonNode config, ConfiguredAirbyteCatalog catalog,
-                                                        JsonNode state) throws Exception{
+    public AutoCloseableIterator<AirbyteMessage> doRead(
+            JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) {
         return  null;
     }
 
