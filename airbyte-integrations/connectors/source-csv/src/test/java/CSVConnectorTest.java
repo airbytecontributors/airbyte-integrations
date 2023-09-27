@@ -7,7 +7,6 @@ import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusN
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.airbyte.integrations.source.csv.CSVConnector;
 import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
-import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -78,15 +77,15 @@ public class CSVConnectorTest {
     }
 
     @Test
-    public void testReadFile() throws Exception {
-        csvConnector.read(config, catalog, null);
+    public void testReadFile() {
+        csvConnector.doRead(config, catalog, null);
         Assertions.assertTrue(true);
     }
 
     @Test
-    public void testPublishEvents() throws Exception {
+    public void testPublishEvents() {
         try {
-            csvConnector.read(config, catalog, new ObjectMapper().createObjectNode());
+            csvConnector.doRead(config, catalog, new ObjectMapper().createObjectNode());
             Assertions.assertTrue(true);
         } catch (Exception e) {
             e.printStackTrace();

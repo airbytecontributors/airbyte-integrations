@@ -151,11 +151,6 @@ public class ElasticsearchSource extends BaseEventConnector {
     @Override
     public AutoCloseableIterator<AirbyteMessage> doRead(
             JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws IOException {
-        try {
-            super.read(config, catalog, state);
-        } catch (Exception exception) {
-            LOGGER.error("Unable to call super read", exception);
-        }
         final ConnectorConfiguration configObject = convertConfig(config);
         final ElasticsearchConnection connection = new ElasticsearchConnection(configObject);
 

@@ -18,6 +18,7 @@ import com.inception.server.configstore.client.ConfigStoreAPIClient;
 import com.inception.server.configstore.client.ConfigStoreClient;
 import com.inception.server.entitystore.client.EntityStoreApiClient;
 import com.inception.server.scheduler.api.JobExecutionStatus;
+import com.inception.traces.web.TraceQueryClient;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.BaseConnector;
 import io.airbyte.integrations.base.Source;
@@ -174,7 +175,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             entityStoreApiClient = getEntityStoreApiClient(bicycleConfig);
             dataTransformer
                     = new TransformationImpl(schemaStoreApiClient, entityStoreApiClient, configStoreClient,
-                    new MetricUtilWrapper());
+                    getTraceQueryClient(bicycleConfig), new MetricUtilWrapper());
             this.bicycleEventProcessor =
                     new BicycleEventProcessorImpl(
                             BicycleEventPublisherType.BICYCLE_EVENTS,
@@ -234,6 +235,10 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                 return bicycleConfig.getServerURL();
             }
         });
+    }
+
+    private static TraceQueryClient getTraceQueryClient(BicycleConfig bicycleConfig) {
+        return new TraceQueryClient(bicycleConfig.getTraceQueryUrl());
     }
 
     private static EntityStoreApiClient getEntityStoreApiClient(BicycleConfig bicycleConfig) {
