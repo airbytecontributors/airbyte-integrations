@@ -50,7 +50,7 @@ public class PubsubMetricAsEventsGenerator extends MetricAsEventsGenerator {
         projectSubscriptionName = pubsubSourceConfig.getProjectSubscriptionName(subscriptionId);
         try {
             metricServiceClient = MetricServiceClient.create(MetricServiceSettings.newBuilder().setCredentialsProvider(gcpCredentials).build());
-        } catch (IOException e) {
+        } catch (Exception e) {
             logger.error("Unable to create Metric Service Client for pubsub connector with connector Id {}", bicycleConfig.getConnectorId(), e);
         }
     }
