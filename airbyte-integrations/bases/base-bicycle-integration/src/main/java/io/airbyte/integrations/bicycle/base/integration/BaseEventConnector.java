@@ -494,7 +494,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         String connectorId = getConnectorId();
         String uniqueIdentifier = UUID.randomUUID().toString();
         String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";
-        String isOnPrem = additionalProperties.get("isOnPrem").toString();
+        String isOnPrem = additionalProperties.containsKey("isOnPrem") ? additionalProperties.get("isOnPrem").toString() : "false";
+       // String isOnPrem = additionalProperties.get("isOnPrem").toString();
         boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
         return new BicycleConfig(serverURL, metricStoreURL, token, connectorId, uniqueIdentifier, tenantId,
                 systemAuthenticator, isOnPremDeployment);
