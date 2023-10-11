@@ -20,7 +20,9 @@ import org.slf4j.LoggerFactory;
 
 public class MetricAsEventsGenerator implements Runnable {
 
-    private static final String TENANT_ID = "tenantId";
+    private static final String TENANT_ID = "tenant";
+
+    private static final String SOURCE_TYPE = "sourceType";
     protected static final String UNIQUE_IDENTIFIER = "identifier";
     protected static final String CONNECTOR_ID = "connectorId";
     protected static final String METRIC_NAME_SEPARATOR = "_";
@@ -47,6 +49,7 @@ public class MetricAsEventsGenerator implements Runnable {
         this.bicycleEventsHelper = new BicycleEventsHelper();
         this.eventSourceInfo = eventSourceInfo;
         globalTags.put(TENANT_ID, bicycleConfig.getTenantId());
+        globalTags.put(SOURCE_TYPE, eventConnector.getEventSourceType());
         globalTags.put(CONNECTOR_ID, eventSourceInfo.getEventSourceId());
     }
 

@@ -10,6 +10,7 @@ import com.google.cloud.pubsub.v1.TopicAdminClient;
 import com.google.cloud.pubsub.v1.TopicAdminSettings;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Lists;
+import com.google.protobuf.util.Timestamps;
 import com.google.pubsub.v1.*;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
@@ -105,7 +106,8 @@ public class PubsubSource extends BaseEventConnector {
                 for (Map.Entry<String, String> customAttributeEntry : customAttributesMap.entrySet()) {
                     objectNode.put(customAttributeEntry.getKey(), customAttributeEntry.getValue());
                 }
-                objectNode.put(PARTITION_TIMESTAMP, pubsubMessage.getPublishTime().getNanos());
+                objectNode.put(PARTITION_TIMESTAMP, Timestamps.toMillis(pubsubMessage.getPublishTime()));
+                objectNode.put(CommonConstants.CONNECTOR_IN_TIMESTAMP, System.currentTimeMillis());
             } catch (Exception e) {
                 if (!printed) {
                     LOGGER.error("Error while adding record metadata {}", e);

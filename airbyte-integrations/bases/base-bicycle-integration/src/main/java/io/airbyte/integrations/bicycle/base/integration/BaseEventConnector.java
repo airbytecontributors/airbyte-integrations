@@ -494,7 +494,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         String connectorId = getConnectorId();
         String uniqueIdentifier = UUID.randomUUID().toString();
         String tenantId = additionalProperties.containsKey("bicycleTenantId") ? additionalProperties.get("bicycleTenantId").toString() : "tenantId";
-        String isOnPrem = additionalProperties.get("isOnPrem").toString();
+        String isOnPrem = additionalProperties.containsKey("isOnPrem") ? additionalProperties.get("isOnPrem").toString() : "false";
+       // String isOnPrem = additionalProperties.get("isOnPrem").toString();
         boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
         return new BicycleConfig(serverURL, metricStoreURL, token, connectorId, uniqueIdentifier, tenantId,
                 systemAuthenticator, isOnPremDeployment);
@@ -593,6 +594,18 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return null;
     }
 
+    protected String getStateAsString(AuthInfo authInfo, String streamId) {
+
+        try {
+            String state = connectionServiceClient.getReadStateConfigById(authInfo, streamId);
+            return state;
+        }catch (Throwable e) {
+            logger.error("Unable to get state for streamId " + streamId, e);
+        }
+
+        return null;
+    }
+
     public boolean setState(AuthInfo authInfo, String streamId, JsonNode jsonNode) {
 
         try {
@@ -600,6 +613,36 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             AirbyteStateMessage airbyteMessage = new AirbyteStateMessage();
             airbyteMessage.setData(jsonNode);
             String airbyteMessageAsString = objectMapper.writeValueAsString(airbyteMessage);
+            int counter = 0;
+            boolean success = false;
+            Exception ex = null;
+            while (counter < MAX_RETRY_COUNT) {
+                try {
+                    connectionServiceClient.upsertReadStateConfig(authInfo, streamId, airbyteMessageAsString);
+                    logger.info("Successfully set state for stream {}", streamId);
+                    success = true;
+                    break;
+                } catch (Exception e) {
+                    ex = e;
+                    counter++;
+                }
+            }
+            if (!success) {
+                logger.error("Unable to set state for streamId " + streamId, ex);
+            }
+            return success;
+        } catch (Throwable e) {
+            logger.error("Unable to set state for streamId " + streamId, e);
+        }
+
+        return false;
+    }
+
+    public boolean setStateAsString(AuthInfo authInfo, String streamId, JsonNode jsonNode) {
+
+        try {
+            logger.info("Setting state for stream {} {}", streamId, jsonNode);
+            String airbyteMessageAsString = objectMapper.writeValueAsString(jsonNode);
             int counter = 0;
             boolean success = false;
             Exception ex = null;

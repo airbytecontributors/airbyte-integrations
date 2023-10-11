@@ -1,5 +1,8 @@
 package io.airbyte.integrations.source.pubsub;
 
+import ai.apptuit.metrics.client.TagEncodedMetricName;
+import ai.apptuit.ml.utils.MetricUtils;
+import com.codahale.metrics.Timer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.cloud.pubsub.v1.SubscriptionAdminClient;
 import com.google.pubsub.v1.PullRequest;
@@ -23,9 +26,18 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import static io.bicycle.integration.common.constants.EventConstants.SOURCE_ID;
+import static io.bicycle.integration.common.constants.EventConstants.THREAD_ID;
 /**
  */
 public class BicycleConsumer implements Runnable {
+
+    public static final TagEncodedMetricName PUB_SUB_CYCLE_TIME = TagEncodedMetricName
+            .decode("pubsub_consumer_cycle_time");
+
+    public static final TagEncodedMetricName PULL_PUSH_CYCLE_TIME = TagEncodedMetricName
+            .decode("pubsub_pull_push_cycle_time");
+
 
     private static final Logger logger = LoggerFactory.getLogger(BicycleConsumer.class.getName());
     private final PubsubSourceConfig pubsubSourceConfig;
@@ -121,11 +133,23 @@ public class BicycleConsumer implements Runnable {
 
         int sampledRecords = 0;
         while (!this.pubsubSource.getStopConnectorBoolean().get()) {
+            Timer.Context consumerCycleTimer = MetricUtils.getMetricRegistry().timer(
+                    PUB_SUB_CYCLE_TIME
+                            .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
+                            .withTags(THREAD_ID, name).toString()
+                            .toString()
+            ).time();
             List<ReceivedMessage> recordsList;
             PullRequest pullRequest = pubsubSourceConfig.getPullRequest(subscriptionId);
             PullResponse pullResponse =
                     consumer.pull(pullRequest);
             Instant pullResponseTime = Instant.now();
+            Timer.Context pullPushResponseTimer = MetricUtils.getMetricRegistry().timer(
+                    PULL_PUSH_CYCLE_TIME
+                            .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
+                            .withTags(THREAD_ID, name).toString()
+                            .toString()
+            ).time();
             int counter = 0;
             logger.debug("No of records actually read by consumer {} are {}", name, pullResponse.getReceivedMessagesCount());
             sampledRecords = getNumberOfRecordsToBeReturnedBasedOnSamplingRate(pullResponse.getReceivedMessagesCount(), samplingRate);
@@ -176,12 +200,16 @@ public class BicycleConsumer implements Runnable {
 
             try {
                 this.pubsubSource.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
+                pullPushResponseTimer.stop();
                 Instant publishedEventsTime = Instant.now();
+
                 Long timeBetweenPullAndPublish = publishedEventsTime.getEpochSecond() - pullResponseTime.getEpochSecond();
+                logger.info("Time between pull and publish in seconds {}", timeBetweenPullAndPublish);
 //                if (timeBetweenPullAndPublish > 8) {
 //                    consumer.modifyAckDeadline(pubsubSourceConfig.getProjectSubscriptionName(subscriptionId).toString(),
 //                            messageAcks, timeBetweenPullAndPublish.intValue() + 5);
 //                }
+                consumerCycleTimer.stop();
                 consumer.acknowledge(pubsubSourceConfig.getProjectSubscriptionName(subscriptionId).toString(), messageAcks);
             } catch (Exception exception) {
                 logger.error("Unable to publish bicycle events for {} ", name, exception);

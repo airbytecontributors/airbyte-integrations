@@ -1,0 +1,54 @@
+plugins {
+    id 'application'
+    id 'airbyte-docker'
+    id 'airbyte-integration-test-java'
+}
+
+application {
+    mainClass = 'io.airbyte.integrations.source.event.bigquery.BigQuerySource'
+    applicationDefaultJvmArgs = ['-XX:+ExitOnOutOfMemoryError', '-XX:MaxRAMPercentage=75.0']
+}
+
+dependencies {
+    implementation 'com.google.cloud:google-cloud-bigquery:1.133.1'
+    implementation 'org.apache.commons:commons-lang3:3.11'
+    implementation group: 'com.github.jsqlparser', name: 'jsqlparser', version: '4.5'
+
+    implementation("io.micrometer:micrometer-core:1.6.7")
+
+    implementation project(':airbyte-integrations:bases:base-bicycle-integration')
+
+    implementation group: 'com.inception', name: 'integration-model', version: "${metaPipelineVersion}"
+    implementation group: 'com.inception', name: 'integration-common-api', version: "${metaPipelineVersion}"
+    implementation group: 'com.inception', name: 'integration-common-impl', version: "${metaPipelineVersion}"
+
+    implementation("com.inception:bicycle-event-publisher:${bicyleEventProcessorVersion}") {
+        exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
+        exclude group: 'org.springframework.kafka', module:'spring-kafka'
+        exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'
+    }
+
+    implementation("com.inception:bicycle-event-publisher:${bicyleEventProcessorVersion}") {
+        exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
+        exclude group: 'org.springframework.kafka', module:'spring-kafka'
+        exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'
+    }
+
+    implementation project(':airbyte-db:lib')
+    implementation project(':airbyte-integrations:bases:base-java')
+    implementation project(':airbyte-protocol:models')
+    implementation project(':airbyte-integrations:connectors:source-jdbc')
+    implementation project(':airbyte-integrations:connectors:source-relational-db')
+
+    testImplementation 'org.mockito:mockito-core:3.7.7'
+
+    testImplementation testFixtures(project(':airbyte-integrations:connectors:source-jdbc'))
+
+    testImplementation 'org.apache.commons:commons-lang3:3.11'
+
+    integrationTestJavaImplementation project(':airbyte-integrations:connectors:source-event-bigquery')
+    integrationTestJavaImplementation project(':airbyte-integrations:bases:standard-source-test')
+
+    implementation files(project(':airbyte-integrations:bases:base-java').airbyteDocker.outputs)
+    integrationTestJavaImplementation files(project(':airbyte-integrations:bases:base-java').airbyteDocker.outputs)
+}
