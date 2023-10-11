@@ -140,9 +140,9 @@ public class BigQueryEventSource extends BaseEventConnector {
         //ScheduledExecutorService ses = Executors.newScheduledThreadPool(1);
 
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
-      /*  if (authInfo == null) {
+        if (authInfo == null) {
             authInfo = new DevAuthInfo();
-        }*/
+        }
         try {
 
            /* ElasticMetricsGenerator elasticMetricsGenerator = new ElasticMetricsGenerator(bicycleConfig,
@@ -168,10 +168,10 @@ public class BigQueryEventSource extends BaseEventConnector {
             while (!this.getStopConnectorBoolean().get()) {
 
                 //TODO: need to remove
-              /*  if (authInfo == null) {
+                if (authInfo == null) {
                     authInfo = new DevAuthInfo();
                 }
-*/
+
                 List<JsonNode> jsonEvents = new ArrayList<>();
                 List<UserServiceMappingRule> userServiceMappingRules =
                         this.getUserServiceMappingRules(authInfo, eventSourceInfo);
@@ -188,7 +188,6 @@ public class BigQueryEventSource extends BaseEventConnector {
 
                 while (iterator.hasNext()) {
                     AirbyteMessage message = iterator.next();
-                    JsonNode jsonNode = message.getRecord().getData();
                     final boolean isState = message.getType() == AirbyteMessage.Type.STATE;
                     if (isState) {
                         AirbyteStateMessage currentState = message.getState();
@@ -196,11 +195,17 @@ public class BigQueryEventSource extends BaseEventConnector {
                         LOGGER.info("Found state message {}", currentStateAsString);
                         updatedState = Jsons.deserialize(currentStateAsString);
                         isStateFound = true;
+                        continue;
                     }
-                    if (dataFormatter != null) {
-                        jsonNode = dataFormatter.formatEvent(jsonNode);
+                    if (message.getRecord() != null) {
+                        JsonNode jsonNode = message.getRecord().getData();
+                        if (dataFormatter != null) {
+                            jsonNode = dataFormatter.formatEvent(jsonNode);
+                        }
+                        jsonEvents.add(jsonNode);
+                    } else {
+                        LOGGER.warn("Message is not of type record but {}", message.getType());
                     }
-                    jsonEvents.add(jsonNode);
                 }
 
                 if (!isStateFound && dataFormatter != null) {
@@ -306,7 +311,7 @@ public class BigQueryEventSource extends BaseEventConnector {
 
         @Override
         public String getToken() {
-            return "";
+            return "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJST0xFIjoiQVBJIiwic3ViIjoiZXZlbnQtZGVtby1hcHAtMiIsIk9SR19JRCI6IjgwIiwiaXNzIjoiamF5YUBiaWN5Y2xlLmlvIiwiaWF0IjoxNjYzNTgyNjgwLCJURU5BTlQiOiJldnQtZmJiOTY3YWQtMjVmMi00ZWVlLWIyZTUtZjUyYjA0N2JlMmVmIiwianRpIjoiZTQxMDhhNDMtYjVmNC00ZmRkLTg5NiJ9.wC6lMnpMvlNMvvyI_TPP4vzHRgPQstu0IUSpkD5aIPg";
         }
 
         @Override
