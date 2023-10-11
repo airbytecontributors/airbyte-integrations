@@ -20,7 +20,7 @@ public class BigQueryLiveTest {
 
     public static void main(String[] args) throws Exception {
 
-        BigQueryEventConnector bigQueryEventConnector = new BigQueryEventConnector(Mockito.mock(SystemAuthenticator.class),
+        BigQueryEventSource bigQueryEventSource = new BigQueryEventSource(Mockito.mock(SystemAuthenticator.class),
                 Mockito.mock(EventConnectorJobStatusNotifier.class), null);
 
 
@@ -29,7 +29,7 @@ public class BigQueryLiveTest {
         JsonNode config = objectMapper.readValue(configString, JsonNode.class);
         String catalogString = readFileAsString("catalog.json");
         ConfiguredAirbyteCatalog catalog = objectMapper.readValue(catalogString, ConfiguredAirbyteCatalog.class);
-        bigQueryEventConnector.read(config, catalog, null);
+        bigQueryEventSource.read(config, catalog, null);
 
     }
 

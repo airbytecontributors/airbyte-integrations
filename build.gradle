@@ -32,7 +32,7 @@ repositories {
     mavenCentral()
 }
 
-ext.bicyleEventProcessorVersion = "0.2.47446"
+ext.bicyleEventProcessorVersion = "0.2.49186"
 ext.metaPipelineVersion = "0.2.48590"
 Properties env = new Properties()
 rootProject.file('.env').withInputStream { env.load(it) }
@@ -259,6 +259,14 @@ subprojects {
         }
         maven {
             url "https://packages.confluent.io/maven"
+        }
+    }
+
+    configurations.all {
+        resolutionStrategy {
+            force "com.google.protobuf:protobuf-java:3.19.1"
+            force "com.google.cloud:google-cloud-bigquery:1.133.1"
+            force "com.google.api-client:google-api-client:1.33.2"
         }
     }
 

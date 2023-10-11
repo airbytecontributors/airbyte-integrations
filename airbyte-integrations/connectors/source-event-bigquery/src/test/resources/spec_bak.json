@@ -40,10 +40,59 @@
         "type" : "string",
         "description" : "You can choose one of the data format so that we deserialize data accordingly",
         "enum" : [
-          "None",
           "GoogleAnalytics4"
         ],
         "default" : "GoogleAnalytics4"
+      },
+      "sync_mode" : {
+        "title" : "Sync Mode",
+        "type" : "object",
+        "default" : "",
+        "description" : "This is to choose whether to do full sync everytime or incremental sync",
+        "oneOf" : [
+          {
+            "title" : "Full Refresh",
+            "required" : [
+              "sync_type"
+            ],
+            "properties" : {
+              "type" : {
+                "description" : "",
+                "type" : "string",
+                "title" : "Sync Type",
+                "const" : "full_refresh",
+                "enum" : [
+                  "full_refresh"
+                ],
+                "default" : "full_refresh"
+              }
+            }
+          },
+          {
+            "title" : "Incremental",
+            "required" : [
+              "sync_type",
+              "cursor_field"
+            ],
+            "properties" : {
+              "cursor_field" : {
+                "title" : "Cursor Field",
+                "description" : "The field name that could be used as cursor to do incremental fetch",
+                "type" : "string"
+              },
+              "sync_type" : {
+                "description" : "",
+                "type" : "string",
+                "title" : "Type",
+                "const" : "incremental",
+                "enum" : [
+                  "incremental"
+                ],
+                "default" : "incremental"
+              }
+            }
+          }
+        ]
       },
       "sql_query" : {
         "type" : "string",

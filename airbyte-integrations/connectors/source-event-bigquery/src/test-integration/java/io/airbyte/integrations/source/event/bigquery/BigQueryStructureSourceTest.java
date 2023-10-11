@@ -9,15 +9,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.inception.server.auth.api.SystemAuthenticator;
-import io.airbyte.commons.util.MoreIterators;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
-import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.CatalogHelpers;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.Field;
 import io.airbyte.protocol.models.JsonSchemaType;
 import java.sql.SQLException;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -48,10 +45,10 @@ public class BigQueryStructureSourceTest extends AbstractBigQuerySourceTest {
   @Test
   public void testReadSuccess() throws Exception {
 
-    BigQueryEventConnector bigQueryEventConnector = new BigQueryEventConnector(Mockito.mock(SystemAuthenticator.class),
+    BigQueryEventSource bigQueryEventSource = new BigQueryEventSource(Mockito.mock(SystemAuthenticator.class),
             Mockito.mock(EventConnectorJobStatusNotifier.class), null);
 
-    bigQueryEventConnector.read(config, getConfiguredCatalog(), null);
+    bigQueryEventSource.read(config, getConfiguredCatalog(), null);
 
   //  final List<AirbyteMessage> actualMessages = MoreIterators.toList(new BigQuerySource().read(config, getConfiguredCatalog(), null));
 
