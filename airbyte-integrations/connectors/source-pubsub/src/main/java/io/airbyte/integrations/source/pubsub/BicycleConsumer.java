@@ -204,6 +204,7 @@ public class BicycleConsumer implements Runnable {
                 Instant publishedEventsTime = Instant.now();
 
                 Long timeBetweenPullAndPublish = publishedEventsTime.getEpochSecond() - pullResponseTime.getEpochSecond();
+                logger.info("Time between pull and publish in seconds {}", timeBetweenPullAndPublish);
 //                if (timeBetweenPullAndPublish > 8) {
 //                    consumer.modifyAckDeadline(pubsubSourceConfig.getProjectSubscriptionName(subscriptionId).toString(),
 //                            messageAcks, timeBetweenPullAndPublish.intValue() + 5);
