@@ -169,7 +169,7 @@ public class BigQueryEventSource extends BaseEventConnector {
         //ScheduledExecutorService ses = Executors.newScheduledThreadPool(1);
 
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
-    /*    if (authInfo == null) {
+        /*if (authInfo == null) {
             authInfo = new DevAuthInfo();
         }*/
 
@@ -198,10 +198,10 @@ public class BigQueryEventSource extends BaseEventConnector {
             while (!this.getStopConnectorBoolean().get()) {
 
                 //TODO: need to remove
-            /*    if (authInfo == null) {
+              /*  if (authInfo == null) {
                     authInfo = new DevAuthInfo();
-                }
-*/
+                }*/
+
                 List<JsonNode> jsonEvents = new ArrayList<>();
                 List<UserServiceMappingRule> userServiceMappingRules =
                         this.getUserServiceMappingRules(authInfo, eventSourceInfo);
@@ -221,7 +221,7 @@ public class BigQueryEventSource extends BaseEventConnector {
                     final boolean isState = message.getType() == AirbyteMessage.Type.STATE;
                     if (isState) {
                         AirbyteStateMessage currentState = message.getState();
-                        String currentStateAsString = objectMapper.writeValueAsString(currentState);
+                        String currentStateAsString = objectMapper.writeValueAsString(currentState.getData());
                         LOGGER.info("Found state message {}", currentStateAsString);
                         updatedState = Jsons.deserialize(currentStateAsString);
                         isStateFound = true;

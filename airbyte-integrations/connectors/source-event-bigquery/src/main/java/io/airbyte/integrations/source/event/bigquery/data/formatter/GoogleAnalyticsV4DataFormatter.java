@@ -1,6 +1,7 @@
 package io.airbyte.integrations.source.event.bigquery.data.formatter;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
@@ -16,11 +17,13 @@ import org.slf4j.LoggerFactory;
  */
 public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
     private static final Logger logger = LoggerFactory.getLogger(GoogleAnalyticsV4DataFormatter.class.getName());
+    private static final String EVENT_PARAMS_ATTRIBUTE = "event_params";
+    private static final ObjectMapper objectMapper = new ObjectMapper();
     @Override
     public JsonNode formatEvent(JsonNode jsonNode) {
 
         try {
-            ArrayNode eventParams = (ArrayNode) jsonNode.get("event_params");
+            ArrayNode eventParams = (ArrayNode) jsonNode.get(EVENT_PARAMS_ATTRIBUTE);
             for (int i = 0; i < eventParams.size(); i++) {
                 JsonNode node = eventParams.get(i);
                 updateNodeValue(node);
@@ -34,41 +37,36 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
 
     private static JsonNode updateNodeValue(JsonNode jsonNode) {
 
-        JsonNode valueNode = jsonNode.get("value");
-        String dataType = null;
-        JsonNode actualNode = null;
+        ArrayNode eventParams = (ArrayNode) jsonNode.get(EVENT_PARAMS_ATTRIBUTE);
+        JsonNode outputNode = objectMapper.createObjectNode();
 
-        for (JsonNode node : valueNode) {
-            if (!node.isNull()) {
-                if (node.isInt()) {
-                    dataType = "int";
-                    actualNode = node;
-                    break;
-                } else if (node.isFloat()) {
-                    dataType = "float";
-                    actualNode = node;
-                    break;
-                } else if (node.isFloat()) {
-                    dataType = "float";
-                    actualNode = node;
-                    break;
-                } else if (node.isLong()) {
-                    dataType = "long";
-                    actualNode = node;
-                    break;
-                } else if (node.isTextual()) {
-                    dataType = "string";
-                    actualNode = node;
-                    break;
-                }
+        for (int i = 0; i < eventParams.size(); i++) {
+            JsonNode node = eventParams.get(i);
+            String key = node.get("key").asText();
+            JsonNode valueNode = node.get("value");
+
+            // get non-null value
+            String stringValue = valueNode.has("string_value") ? valueNode.get("string_value").asText(null) : null;
+            Integer intValue = valueNode.has("int_value") ? valueNode.get("int_value").asInt(Integer.MIN_VALUE) : null;
+            Float floatValue = valueNode.has("float_value") ? valueNode.get("float_value").floatValue() : null;
+            Double doubleValue = valueNode.has("double_value") ? valueNode.get("double_value").doubleValue() : null;
+            Long longValue = valueNode.has("long_value") ? valueNode.get("long_value").longValue() : null;
+
+            if (stringValue != null) {
+                ((ObjectNode) outputNode).put(key, stringValue);
+            } else if(intValue != null) {
+                ((ObjectNode) outputNode).put(key, intValue);
+            } else if(floatValue != null) {
+                ((ObjectNode) outputNode).put(key, floatValue);
+            } else if(doubleValue != null) {
+                ((ObjectNode) outputNode).put(key, doubleValue);
+            } else if(longValue != null) {
+                ((ObjectNode) outputNode).put(key, longValue);
             }
+
         }
 
-        if (dataType != null && actualNode != null) {
-            ((ObjectNode) jsonNode).remove("value");
-            ((ObjectNode) jsonNode).put("dataType", dataType);
-            ((ObjectNode) jsonNode).set("value", actualNode);
-        }
+        ((ObjectNode)jsonNode).put(EVENT_PARAMS_ATTRIBUTE, outputNode);
 
         return jsonNode;
     }
