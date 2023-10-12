@@ -27,6 +27,8 @@ import org.slf4j.LoggerFactory;
 public abstract class BicycleAbstractRelationalDbSource<DataType, Database extends SqlDatabase> extends
         AbstractDbSource<DataType, Database> implements Source {
 
+  protected String cursorField;
+
   private static final Logger LOGGER = LoggerFactory.getLogger(BicycleAbstractRelationalDbSource.class);
 
   @Override
@@ -40,9 +42,16 @@ public abstract class BicycleAbstractRelationalDbSource<DataType, Database exten
       return queryTable(database, sqlQuery);
     }
     LOGGER.info("Queueing query for table: {}", tableName);
-    return queryTable(database, String.format("SELECT %s FROM %s limit 1000",
-            enquoteIdentifierList(columnNames),
-            getFullTableName(schemaName, tableName)));
+    if (!StringUtils.isEmpty(cursorField)) {
+      return queryTable(database, String.format("SELECT %s FROM %s ORDER BY %s limit 1000",
+              enquoteIdentifierList(columnNames),
+              getFullTableName(schemaName, tableName), cursorField));
+    } else {
+      return queryTable(database, String.format("SELECT %s FROM %s limit 1000",
+              enquoteIdentifierList(columnNames),
+              getFullTableName(schemaName, tableName)));
+    }
+
   }
 
   protected String getIdentifierWithQuoting(final String identifier) {

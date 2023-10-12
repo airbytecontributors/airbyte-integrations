@@ -161,13 +161,14 @@ public class BigQueryEventSource extends BaseEventConnector {
             dataFormatter.updateSyncMode(catalog);
         }
 
+        bicycleBigQueryWrapper  = new BicycleBigQueryWrapper(getCursorField(catalog, dataFormatter));
         //ScheduledExecutorService ses = Executors.newScheduledThreadPool(1);
 
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
-      /*  if (authInfo == null) {
+       /* if (authInfo == null) {
             authInfo = new DevAuthInfo();
-        }*/
-
+        }
+*/
         try {
 
            /* ElasticMetricsGenerator elasticMetricsGenerator = new ElasticMetricsGenerator(bicycleConfig,
@@ -195,8 +196,8 @@ public class BigQueryEventSource extends BaseEventConnector {
                 //TODO: need to remove
                /* if (authInfo == null) {
                     authInfo = new DevAuthInfo();
-                }*/
-
+                }
+*/
                 List<JsonNode> jsonEvents = new ArrayList<>();
                 List<UserServiceMappingRule> userServiceMappingRules =
                         this.getUserServiceMappingRules(authInfo, eventSourceInfo);
@@ -280,6 +281,20 @@ public class BigQueryEventSource extends BaseEventConnector {
         return null;
     }
 
+    private String getCursorField(ConfiguredAirbyteCatalog catalog, DataFormatter dataFormatter) {
+
+        if (dataFormatter != null) {
+            return dataFormatter.getCursorFieldName();
+        }
+
+        List<String> cursorFields = catalog.getStreams().get(0).getCursorField();
+        if (cursorFields.size() > 0) {
+            return cursorFields.get(0);
+        }
+
+        return null;
+    }
+
     @Override
     public AirbyteConnectionStatus check(JsonNode config) throws Exception {
         return bicycleBigQueryWrapper.check(config);
@@ -300,7 +315,10 @@ public class BigQueryEventSource extends BaseEventConnector {
 
         try {
             if (!StringUtils.isEmpty(dataFormatterType) && !dataFormatterType.equals("None")) {
-                return DataFormatterFactory.getDataFormatter(DataFormatterType.valueOf(dataFormatterType));
+                DataFormatter dataFormatter =
+                        DataFormatterFactory.getDataFormatter(DataFormatterType.valueOf(dataFormatterType));
+                LOGGER.info("Data formatter returned is {}", dataFormatter);
+                return dataFormatter;
             }
         } catch (Exception e) {
             LOGGER.error("Unable to initialize data formatter for dataformatter type {} {}", dataFormatterType, e);

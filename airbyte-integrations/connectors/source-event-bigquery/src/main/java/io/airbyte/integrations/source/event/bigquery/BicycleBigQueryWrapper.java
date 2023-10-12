@@ -53,13 +53,11 @@ public class BicycleBigQueryWrapper extends BicycleAbstractRelationalDbSource<St
 
   private JsonNode dbConfig;
   private final BigQuerySourceOperations sourceOperations = new BigQuerySourceOperations();
-  private final boolean isPreview;
 
   public BicycleBigQueryWrapper() {
-    isPreview = false;
   }
-  public BicycleBigQueryWrapper(boolean isPreview) {
-    this.isPreview = isPreview;
+  public BicycleBigQueryWrapper(String cursorField) {
+    this.cursorField = cursorField;
   }
 
   @Override
@@ -185,10 +183,10 @@ public class BicycleBigQueryWrapper extends BicycleAbstractRelationalDbSource<St
         LOGGER.error("Unable to parse Sql query");
       }
     }
-    return queryTableWithParams(database, String.format("SELECT %s FROM %s WHERE %s > ? limit 1000",
+    return queryTableWithParams(database, String.format("SELECT %s FROM %s WHERE %s > ? ORDER BY %s limit 1000",
         enquoteIdentifierList(columnNames),
         getFullTableName(schemaName, tableName),
-        cursorField),
+        cursorField, cursorField),
         sourceOperations.getQueryParameter(cursorFieldType, cursor));
   }
 
