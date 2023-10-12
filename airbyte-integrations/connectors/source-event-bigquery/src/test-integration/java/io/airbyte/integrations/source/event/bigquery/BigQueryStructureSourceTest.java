@@ -4,7 +4,7 @@
 
 package io.airbyte.integrations.source.event.bigquery;
 
-import static io.airbyte.integrations.source.event.bigquery.BigQuerySource.CONFIG_DATASET_ID;
+import static io.airbyte.integrations.source.event.bigquery.BicycleBigQueryWrapper.CONFIG_DATASET_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -18,7 +18,7 @@ import java.sql.SQLException;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-public class BigQueryStructureSourceTest extends AbstractBigQuerySourceTest {
+public class BigQueryStructureSourceTest extends AbstractBicycleBigQueryWrapperTest {
 
   @Override
   protected void createTable(String datasetId) throws SQLException {

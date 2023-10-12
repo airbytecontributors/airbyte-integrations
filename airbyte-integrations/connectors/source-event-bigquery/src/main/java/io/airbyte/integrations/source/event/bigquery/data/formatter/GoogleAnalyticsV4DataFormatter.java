@@ -24,49 +24,40 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
 
         try {
             ArrayNode eventParams = (ArrayNode) jsonNode.get(EVENT_PARAMS_ATTRIBUTE);
+            JsonNode outputNode = objectMapper.createObjectNode();
+
             for (int i = 0; i < eventParams.size(); i++) {
                 JsonNode node = eventParams.get(i);
-                updateNodeValue(node);
+                String key = node.get("key").asText();
+                JsonNode valueNode = node.get("value");
+
+                // get non-null value
+                String stringValue = valueNode.has("string_value") ? valueNode.get("string_value").asText(null) : null;
+                Integer intValue = valueNode.has("int_value") ? valueNode.get("int_value").asInt(Integer.MIN_VALUE) : null;
+                Float floatValue = valueNode.has("float_value") ? valueNode.get("float_value").floatValue() : null;
+                Double doubleValue = valueNode.has("double_value") ? valueNode.get("double_value").doubleValue() : null;
+                Long longValue = valueNode.has("long_value") ? valueNode.get("long_value").longValue() : null;
+
+                if (stringValue != null) {
+                    ((ObjectNode) outputNode).put(key, stringValue);
+                } else if(intValue != null) {
+                    ((ObjectNode) outputNode).put(key, intValue);
+                } else if(floatValue != null) {
+                    ((ObjectNode) outputNode).put(key, floatValue);
+                } else if(doubleValue != null) {
+                    ((ObjectNode) outputNode).put(key, doubleValue);
+                } else if(longValue != null) {
+                    ((ObjectNode) outputNode).put(key, longValue);
+                }
+
             }
+
+            ((ObjectNode)jsonNode).put(EVENT_PARAMS_ATTRIBUTE, outputNode);
+
+            return jsonNode;
         } catch (Exception e) {
             logger.error("Unable to format event_params for google analytics v4", e);
         }
-
-        return jsonNode;
-    }
-
-    private static JsonNode updateNodeValue(JsonNode jsonNode) {
-
-        ArrayNode eventParams = (ArrayNode) jsonNode.get(EVENT_PARAMS_ATTRIBUTE);
-        JsonNode outputNode = objectMapper.createObjectNode();
-
-        for (int i = 0; i < eventParams.size(); i++) {
-            JsonNode node = eventParams.get(i);
-            String key = node.get("key").asText();
-            JsonNode valueNode = node.get("value");
-
-            // get non-null value
-            String stringValue = valueNode.has("string_value") ? valueNode.get("string_value").asText(null) : null;
-            Integer intValue = valueNode.has("int_value") ? valueNode.get("int_value").asInt(Integer.MIN_VALUE) : null;
-            Float floatValue = valueNode.has("float_value") ? valueNode.get("float_value").floatValue() : null;
-            Double doubleValue = valueNode.has("double_value") ? valueNode.get("double_value").doubleValue() : null;
-            Long longValue = valueNode.has("long_value") ? valueNode.get("long_value").longValue() : null;
-
-            if (stringValue != null) {
-                ((ObjectNode) outputNode).put(key, stringValue);
-            } else if(intValue != null) {
-                ((ObjectNode) outputNode).put(key, intValue);
-            } else if(floatValue != null) {
-                ((ObjectNode) outputNode).put(key, floatValue);
-            } else if(doubleValue != null) {
-                ((ObjectNode) outputNode).put(key, doubleValue);
-            } else if(longValue != null) {
-                ((ObjectNode) outputNode).put(key, longValue);
-            }
-
-        }
-
-        ((ObjectNode)jsonNode).put(EVENT_PARAMS_ATTRIBUTE, outputNode);
 
         return jsonNode;
     }

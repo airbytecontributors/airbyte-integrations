@@ -1,6 +1,5 @@
 package io.airbyte.integrations.source.event.bigquery;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -9,7 +8,6 @@ import com.inception.server.auth.api.AuthorizeUser;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.auth.model.AuthType;
-import com.inception.server.auth.model.BearerTokenAuthInfo;
 import com.inception.server.auth.model.Principal;
 import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.json.Jsons;
@@ -27,19 +25,16 @@ import io.airbyte.integrations.source.relationaldb.models.DbStreamState;
 import io.airbyte.protocol.models.AirbyteCatalog;
 import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteMessage;
-import io.airbyte.protocol.models.AirbyteRecordMessage;
 import io.airbyte.protocol.models.AirbyteStateMessage;
 import io.airbyte.protocol.models.AirbyteStreamState;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.ConfiguredAirbyteStream;
-import io.airbyte.protocol.models.SyncMode;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -56,7 +51,7 @@ import org.slf4j.LoggerFactory;
 public class BigQueryEventSource extends BaseEventConnector {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BigQueryEventSource.class);
-    private BigQuerySource bigQuerySource = new BigQuerySource();
+    private BicycleBigQueryWrapper bicycleBigQueryWrapper = new BicycleBigQueryWrapper();
     private AtomicBoolean stopConnectorBoolean = new AtomicBoolean(false);
     private final io.bicycle.integration.common.kafka.processing.CommonUtils commonUtils =
             new io.bicycle.integration.common.kafka.processing.CommonUtils();
@@ -116,7 +111,7 @@ public class BigQueryEventSource extends BaseEventConnector {
                 LOGGER.info("Updated sync mode for preview");
             }
 
-            AutoCloseableIterator<AirbyteMessage> messagesIterator = bigQuerySource.read(config, catalog, state);
+            AutoCloseableIterator<AirbyteMessage> messagesIterator = bicycleBigQueryWrapper.read(config, catalog, state);
 
             if (dataFormatter != null) {
                 return AutoCloseableIterators.fromIterator(new AbstractIterator<>() {
@@ -169,7 +164,7 @@ public class BigQueryEventSource extends BaseEventConnector {
         //ScheduledExecutorService ses = Executors.newScheduledThreadPool(1);
 
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
-        /*if (authInfo == null) {
+      /*  if (authInfo == null) {
             authInfo = new DevAuthInfo();
         }*/
 
@@ -198,7 +193,7 @@ public class BigQueryEventSource extends BaseEventConnector {
             while (!this.getStopConnectorBoolean().get()) {
 
                 //TODO: need to remove
-              /*  if (authInfo == null) {
+               /* if (authInfo == null) {
                     authInfo = new DevAuthInfo();
                 }*/
 
@@ -213,7 +208,7 @@ public class BigQueryEventSource extends BaseEventConnector {
                 }
                 LOGGER.info("Successfully downloaded the rules with size {} for connector {}",
                         userServiceMappingRules.size(), connectorId);
-                AutoCloseableIterator<AirbyteMessage> iterator = bigQuerySource.read(config, catalog, state);
+                AutoCloseableIterator<AirbyteMessage> iterator = bicycleBigQueryWrapper.read(config, catalog, state);
                 boolean isStateFound = false;
 
                 while (iterator.hasNext()) {
@@ -287,12 +282,12 @@ public class BigQueryEventSource extends BaseEventConnector {
 
     @Override
     public AirbyteConnectionStatus check(JsonNode config) throws Exception {
-        return bigQuerySource.check(config);
+        return bicycleBigQueryWrapper.check(config);
     }
 
     @Override
     public AirbyteCatalog discover(JsonNode config) throws Exception {
-        return bigQuerySource.discover(config);
+        return bicycleBigQueryWrapper.discover(config);
     }
 
     protected AtomicBoolean getStopConnectorBoolean() {

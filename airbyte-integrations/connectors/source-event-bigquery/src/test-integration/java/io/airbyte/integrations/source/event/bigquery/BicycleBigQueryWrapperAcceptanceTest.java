@@ -4,7 +4,7 @@
 
 package io.airbyte.integrations.source.event.bigquery;
 
-import static io.airbyte.integrations.source.event.bigquery.BigQuerySource.*;
+import static io.airbyte.integrations.source.event.bigquery.BicycleBigQueryWrapper.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.cloud.bigquery.Dataset;
@@ -23,7 +23,7 @@ import java.nio.file.Path;
 import java.sql.SQLException;
 import java.util.HashMap;
 
-public class BigQuerySourceAcceptanceTest extends SourceAcceptanceTest {
+public class BicycleBigQueryWrapperAcceptanceTest extends SourceAcceptanceTest {
 
   private static final Path CREDENTIALS_PATH = Path.of("secrets/credentials.json");
   private static final String STREAM_NAME = "id_and_name";

@@ -4,9 +4,9 @@
 
 package io.airbyte.integrations.source.event.bigquery;
 
-import static io.airbyte.integrations.source.event.bigquery.BigQuerySource.CONFIG_CREDS;
-import static io.airbyte.integrations.source.event.bigquery.BigQuerySource.CONFIG_DATASET_ID;
-import static io.airbyte.integrations.source.event.bigquery.BigQuerySource.CONFIG_PROJECT_ID;
+import static io.airbyte.integrations.source.event.bigquery.BicycleBigQueryWrapper.CONFIG_CREDS;
+import static io.airbyte.integrations.source.event.bigquery.BicycleBigQueryWrapper.CONFIG_DATASET_ID;
+import static io.airbyte.integrations.source.event.bigquery.BicycleBigQueryWrapper.CONFIG_PROJECT_ID;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.cloud.bigquery.Dataset;
@@ -27,7 +27,7 @@ import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
 
 @TestInstance(Lifecycle.PER_CLASS)
-public class BigQuerySourceDatatypeTest extends AbstractSourceDatabaseTypeTest {
+public class BicycleBigQueryWrapperDatatypeTest extends AbstractSourceDatabaseTypeTest {
 
   private static final Path CREDENTIALS_PATH = Path.of("secrets/credentials.json");
   private static final String CREATE_SQL_PATTERN = "CREATE TABLE %1$s(%2$s NUMERIC(29), %3$s %4$s)";

@@ -18,7 +18,6 @@ import io.airbyte.db.bigquery.BigQueryDatabase;
 import io.airbyte.db.bigquery.BigQuerySourceOperations;
 import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.base.Source;
-import io.airbyte.integrations.source.relationaldb.AbstractRelationalDbSource;
 import io.airbyte.integrations.source.relationaldb.TableInfo;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.CommonField;
@@ -36,16 +35,15 @@ import java.util.stream.Stream;
 import net.sf.jsqlparser.JSQLParserException;
 import net.sf.jsqlparser.expression.Expression;
 import net.sf.jsqlparser.parser.CCJSqlParserUtil;
-import net.sf.jsqlparser.statement.Statement;
 import net.sf.jsqlparser.statement.select.PlainSelect;
 import net.sf.jsqlparser.statement.select.Select;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class BigQuerySource extends AbstractRelationalDbSource<StandardSQLTypeName, BigQueryDatabase> implements Source {
+public class BicycleBigQueryWrapper extends BicycleAbstractRelationalDbSource<StandardSQLTypeName, BigQueryDatabase> implements Source {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(BigQuerySource.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(BicycleBigQueryWrapper.class);
   private static final String QUOTE = "`";
 
   public static final String CONFIG_DATASET_ID = "dataset_id";
@@ -57,10 +55,10 @@ public class BigQuerySource extends AbstractRelationalDbSource<StandardSQLTypeNa
   private final BigQuerySourceOperations sourceOperations = new BigQuerySourceOperations();
   private final boolean isPreview;
 
-  public BigQuerySource() {
+  public BicycleBigQueryWrapper() {
     isPreview = false;
   }
-  public BigQuerySource(boolean isPreview) {
+  public BicycleBigQueryWrapper(boolean isPreview) {
     this.isPreview = isPreview;
   }
 
@@ -187,7 +185,7 @@ public class BigQuerySource extends AbstractRelationalDbSource<StandardSQLTypeNa
         LOGGER.error("Unable to parse Sql query");
       }
     }
-    return queryTableWithParams(database, String.format("SELECT %s FROM %s WHERE %s > ?",
+    return queryTableWithParams(database, String.format("SELECT %s FROM %s WHERE %s > ? limit 1000",
         enquoteIdentifierList(columnNames),
         getFullTableName(schemaName, tableName),
         cursorField),
@@ -217,10 +215,10 @@ public class BigQuerySource extends AbstractRelationalDbSource<StandardSQLTypeNa
   }
 
   public static void main(final String[] args) throws Exception {
-    final Source source = new BigQuerySource();
-    LOGGER.info("starting source: {}", BigQuerySource.class);
+    final Source source = new BicycleBigQueryWrapper();
+    LOGGER.info("starting source: {}", BicycleBigQueryWrapper.class);
     new IntegrationRunner(source).run(args);
-    LOGGER.info("completed source: {}", BigQuerySource.class);
+    LOGGER.info("completed source: {}", BicycleBigQueryWrapper.class);
   }
 
   @Override

@@ -3,7 +3,9 @@ package io.airbyte.integrations.source.event.bigquery;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.inception.server.auth.api.SystemAuthenticator;
+import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
+import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.event.processor.api.BicycleEventProcessor;
 import java.io.File;
@@ -28,8 +30,16 @@ public class BigQueryLiveTest {
         String configString = readFileAsString("config.json");
         JsonNode config = objectMapper.readValue(configString, JsonNode.class);
         String catalogString = readFileAsString("catalog.json");
+
+        String stateString = readFileAsString("state.json");
+        JsonNode state = objectMapper.readValue(stateString, JsonNode.class);
+
         ConfiguredAirbyteCatalog catalog = objectMapper.readValue(catalogString, ConfiguredAirbyteCatalog.class);
         bigQueryEventSource.read(config, catalog, null);
+
+        /*AutoCloseableIterator<AirbyteMessage> iterator =
+                bigQueryEventSource.preview(config, catalog, state);
+        System.out.println(iterator.hasNext() ? iterator.next() : "null");*/
 
     }
 

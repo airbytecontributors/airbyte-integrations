@@ -4,7 +4,7 @@
 
 package io.airbyte.integrations.source.event.bigquery;
 
-import static io.airbyte.integrations.source.event.bigquery.BigQuerySource.CONFIG_DATASET_ID;
+import static io.airbyte.integrations.source.event.bigquery.BicycleBigQueryWrapper.CONFIG_DATASET_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -18,7 +18,7 @@ import java.sql.SQLException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-public class BigQuerySourceEscapeColumnNameTest extends AbstractBigQuerySourceTest {
+public class BicycleBigQueryWrapperEscapeColumnNameTest extends AbstractBicycleBigQueryWrapperTest {
 
   @Override
   public void createTable(String datasetId) throws SQLException {
@@ -29,7 +29,7 @@ public class BigQuerySourceEscapeColumnNameTest extends AbstractBigQuerySourceTe
 
   @Test
   public void testReadSuccess() throws Exception {
-    final List<AirbyteMessage> actualMessages = MoreIterators.toList(new BigQuerySource().read(config, getConfiguredCatalog(), null));
+    final List<AirbyteMessage> actualMessages = MoreIterators.toList(new BicycleBigQueryWrapper().read(config, getConfiguredCatalog(), null));
     assertNotNull(actualMessages);
     assertEquals(1, actualMessages.size());
 
