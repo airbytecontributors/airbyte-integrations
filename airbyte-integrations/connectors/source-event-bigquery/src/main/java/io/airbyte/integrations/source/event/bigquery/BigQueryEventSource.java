@@ -1,8 +1,10 @@
 package io.airbyte.integrations.source.event.bigquery;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.collect.AbstractIterator;
 import com.inception.server.auth.api.AuthorizeUser;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
@@ -12,6 +14,7 @@ import com.inception.server.auth.model.Principal;
 import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.commons.util.AutoCloseableIterator;
+import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.CommonConstants;
 import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
@@ -24,6 +27,7 @@ import io.airbyte.integrations.source.relationaldb.models.DbStreamState;
 import io.airbyte.protocol.models.AirbyteCatalog;
 import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteMessage;
+import io.airbyte.protocol.models.AirbyteRecordMessage;
 import io.airbyte.protocol.models.AirbyteStateMessage;
 import io.airbyte.protocol.models.AirbyteStreamState;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
@@ -35,6 +39,7 @@ import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -95,9 +100,6 @@ public class BigQueryEventSource extends BaseEventConnector {
             rawEvents.add(jsonRawEvent);
         }
 
-        if (rawEvents.size() == 0) {
-            return null;
-        }
         return rawEvents;
     }
 
@@ -107,8 +109,35 @@ public class BigQueryEventSource extends BaseEventConnector {
             throws InterruptedException, ExecutionException {
 
         try {
-            // BigQuerySource bigQuerySource1 = new BigQuerySource();
-            return bigQuerySource.read(config, catalog, state);
+            DataFormatter dataFormatter = getDataFormatter(config);
+            LOGGER.info("State information for preview {}", state);
+            if (dataFormatter != null && state != null) {
+                dataFormatter.updateSyncMode(catalog);
+                LOGGER.info("Updated sync mode for preview");
+            }
+
+            AutoCloseableIterator<AirbyteMessage> messagesIterator = bigQuerySource.read(config, catalog, state);
+
+            if (dataFormatter != null) {
+                return AutoCloseableIterators.fromIterator(new AbstractIterator<>() {
+                    @Override
+                    protected AirbyteMessage computeNext() {
+                        if (messagesIterator.hasNext()) {
+                            AirbyteMessage message = messagesIterator.next();
+                            if (message.getType().equals(AirbyteMessage.Type.RECORD) && message.getRecord() != null) {
+                                JsonNode jsonNode = message.getRecord().getData();
+                                jsonNode = dataFormatter.formatEvent(jsonNode);
+                                message.getRecord().setData(jsonNode);
+                            }
+                            return message;
+                        }
+                        return endOfData();
+                    }
+                });
+            } else {
+                return messagesIterator;
+            }
+
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -140,9 +169,10 @@ public class BigQueryEventSource extends BaseEventConnector {
         //ScheduledExecutorService ses = Executors.newScheduledThreadPool(1);
 
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
-        if (authInfo == null) {
+    /*    if (authInfo == null) {
             authInfo = new DevAuthInfo();
-        }
+        }*/
+
         try {
 
            /* ElasticMetricsGenerator elasticMetricsGenerator = new ElasticMetricsGenerator(bicycleConfig,
@@ -168,10 +198,10 @@ public class BigQueryEventSource extends BaseEventConnector {
             while (!this.getStopConnectorBoolean().get()) {
 
                 //TODO: need to remove
-                if (authInfo == null) {
+            /*    if (authInfo == null) {
                     authInfo = new DevAuthInfo();
                 }
-
+*/
                 List<JsonNode> jsonEvents = new ArrayList<>();
                 List<UserServiceMappingRule> userServiceMappingRules =
                         this.getUserServiceMappingRules(authInfo, eventSourceInfo);
@@ -208,6 +238,11 @@ public class BigQueryEventSource extends BaseEventConnector {
                     }
                 }
 
+                LOGGER.info("Read {} messages for connector Id {}", jsonEvents.size(), connectorId);
+                if (jsonEvents.size() == 0) {
+                    continue;
+                }
+
                 if (!isStateFound && dataFormatter != null) {
                     AirbyteStateMessage currentState = createStateMessage(catalog, dataFormatter.getCursorFieldName(),
                             dataFormatter.getCursorFieldValue(jsonEvents));
@@ -216,8 +251,8 @@ public class BigQueryEventSource extends BaseEventConnector {
                     updatedState = Jsons.deserialize(currentStateAsString);
                 }
 
-                LOGGER.info("Read {} messages for connector Id {}", jsonEvents.size(), connectorId);
                 EventProcessorResult eventProcessorResult = null;
+
                 try {
                     List<RawEvent> rawEvents = this.convertRecordsToRawEvents(jsonEvents);
                     eventProcessorResult = this.convertRawEventsToBicycleEvents(authInfo, eventSourceInfo,
