@@ -1,5 +1,6 @@
 package io.airbyte.integrations.source.event.bigquery;
 
+import static io.bicycle.integration.common.constants.EventConstants.SOURCE_ID;
 import ai.apptuit.metrics.client.TagEncodedMetricName;
 import ai.apptuit.ml.utils.MetricUtils;
 import com.codahale.metrics.Timer;
@@ -16,7 +17,6 @@ import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.CommonConstants;
 import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
-import io.airbyte.integrations.bicycle.base.integration.DevAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatter;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatterFactory;
@@ -48,8 +48,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import static io.bicycle.integration.common.constants.EventConstants.SOURCE_ID;
-import static io.bicycle.integration.common.constants.EventConstants.THREAD_ID;
 
 /**
  * @author sumitmaheshwari
@@ -185,10 +183,10 @@ public class BigQueryEventSource extends BaseEventConnector {
         ScheduledExecutorService ses = Executors.newScheduledThreadPool(1);
 
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
-      /*  if (authInfo == null) {
+     /*   if (authInfo == null) {
             authInfo = new DevAuthInfo();
-        }*/
-
+        }
+*/
         try {
 
             try {
@@ -228,7 +226,7 @@ public class BigQueryEventSource extends BaseEventConnector {
                 ).time();
 
                 //TODO: need to remove
-              /*  if (authInfo == null) {
+               /* if (authInfo == null) {
                     authInfo = new DevAuthInfo();
                 }*/
 
