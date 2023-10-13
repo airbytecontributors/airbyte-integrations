@@ -228,7 +228,7 @@ public class BigQueryEventSource extends BaseEventConnector {
                 ).time();
 
                 //TODO: need to remove
-               /* if (authInfo == null) {
+              /*  if (authInfo == null) {
                     authInfo = new DevAuthInfo();
                 }*/
 
