@@ -1,15 +1,22 @@
 package io.airbyte.integrations.source.event.bigquery;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.google.auth.oauth2.AccessToken;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryOptions;
 import com.google.cloud.bigquery.FieldValueList;
 import com.google.cloud.bigquery.QueryJobConfiguration;
+import com.google.cloud.bigquery.Table;
+import com.google.cloud.bigquery.TableId;
 import com.google.cloud.bigquery.TableResult;
 import io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator;
 import io.bicycle.event.publisher.api.BicycleEventPublisher;
 import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
+import java.io.ByteArrayInputStream;
+import java.math.BigInteger;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -33,31 +40,37 @@ public class BigQueryEventSourceMetricGenerator extends MetricAsEventsGenerator 
             String datasetName = bigQueryEventSourceConfig.getDatasetId();
             String tableName = bigQueryEventSourceConfig.getStreamName();
 
-            // Initialize the BigQuery client
-            BigQuery bigquery = BigQueryOptions.getDefaultInstance().getService();
+            BigQuery bigquery = createAuthorizedClient(bigQueryEventSourceConfig.getCredentialsJson());
 
-            // Construct the SQL query to count records in the table
-            String query = "SELECT COUNT(*) AS record_count FROM `" + projectId + "." + datasetName + "." + tableName + "`";
+            TableId tableId = TableId.of(projectId, datasetName, tableName);
 
-            // Create a query configuration
-            QueryJobConfiguration.Builder queryConfigBuilder = QueryJobConfiguration.newBuilder(query)
-                    .setPriority(QueryJobConfiguration.Priority.BATCH)
-                    .setDefaultDataset(datasetName);
+            // Get the table metadata
+            Table table = bigquery.getTable(tableId);
 
-            // Run the query
-            TableResult result = bigquery.query(queryConfigBuilder.build());
-
-            // Extract the record count
-            for (FieldValueList row : result.iterateAll()) {
-                long recordCount = row.get("record_count").getLongValue();
-                 return recordCount;
-            }
+            // Retrieve the row count from the table metadata
+            BigInteger rowCount = table.getNumRows();
+            return rowCount.longValue();
         } catch (Exception e) {
             LOGGER.error("Unable to get row count for big query for connector {} because of {}",
                     eventSourceInfo.getEventSourceId(), e);
         }
 
         return -1;
+    }
+
+    public static BigQuery createAuthorizedClient(String credentialJson) {
+        try {
+            // Create a CredentialsProvider using the environment variable
+            ServiceAccountCredentials serviceAccountCredentials =
+                    ServiceAccountCredentials.fromStream(new ByteArrayInputStream(credentialJson.getBytes()));
+
+            return BigQueryOptions.newBuilder()
+                    .setCredentials(serviceAccountCredentials)
+                    .build().getService();
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Error creating authorized BigQuery client: " + e.getMessage());
+        }
     }
 
     @Override
