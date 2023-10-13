@@ -1,23 +1,18 @@
 package io.airbyte.integrations.source.event.bigquery;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.google.auth.oauth2.AccessToken;
-import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryOptions;
-import com.google.cloud.bigquery.FieldValueList;
-import com.google.cloud.bigquery.QueryJobConfiguration;
 import com.google.cloud.bigquery.Table;
 import com.google.cloud.bigquery.TableId;
-import com.google.cloud.bigquery.TableResult;
 import io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator;
 import io.bicycle.event.publisher.api.BicycleEventPublisher;
 import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import java.io.ByteArrayInputStream;
 import java.math.BigInteger;
-import java.util.Collections;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -62,7 +57,8 @@ public class BigQueryEventSourceMetricGenerator extends MetricAsEventsGenerator 
         try {
             // Create a CredentialsProvider using the environment variable
             ServiceAccountCredentials serviceAccountCredentials =
-                    ServiceAccountCredentials.fromStream(new ByteArrayInputStream(credentialJson.getBytes()));
+                    ServiceAccountCredentials.fromStream(new ByteArrayInputStream(credentialJson.
+                            getBytes(Charset.defaultCharset())));
 
             return BigQueryOptions.newBuilder()
                     .setCredentials(serviceAccountCredentials)
