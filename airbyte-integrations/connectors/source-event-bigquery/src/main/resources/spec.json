@@ -49,6 +49,17 @@
         "type" : "string",
         "description" : "SQL Query for big query, This can be provided if we want to fetch selective data",
         "title" : "SQL Query"
+      },
+      "cursor_default_value" : {
+        "type" : "string",
+        "description" : "Default value for cursor field. Read will start from this cursor field",
+        "title" : "Default Cursor Field Value"
+      },
+      "fetch_rows_limit" : {
+        "type" : "integer",
+        "description" : "Default value for number of rows that should be read in one query",
+        "title" : "Fetch Rows Limit",
+        "default" : 1000
       }
     }
   }

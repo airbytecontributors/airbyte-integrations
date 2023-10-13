@@ -23,9 +23,9 @@ public class BigQueryEventSourceMetricGenerator extends MetricAsEventsGenerator 
     private static final Logger LOGGER = LoggerFactory.getLogger(BigQueryEventSourceMetricGenerator.class);
     private final BigQueryEventSourceConfig bigQueryEventSourceConfig;
     public BigQueryEventSourceMetricGenerator(BicycleConfig bicycleConfig, EventSourceInfo eventSourceInfo, JsonNode config, BicycleEventPublisher bicycleEventPublisher,
-                                              BigQueryEventSource bigQueryEventSource, String streamName) {
+                                              BigQueryEventSource bigQueryEventSource, BigQueryEventSourceConfig bigQueryEventSourceConfig) {
         super(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher, bigQueryEventSource);
-        bigQueryEventSourceConfig = new BigQueryEventSourceConfig(config, streamName);
+        this.bigQueryEventSourceConfig = bigQueryEventSourceConfig;
     }
 
     private long getNumberOfRowsMetric() {

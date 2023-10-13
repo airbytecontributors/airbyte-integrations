@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 public abstract class BicycleAbstractRelationalDbSource<DataType, Database extends SqlDatabase> extends
         AbstractDbSource<DataType, Database> implements Source {
 
-  protected String cursorField;
+  protected BigQueryEventSourceConfig bigQueryEventSourceConfig;
 
   private static final Logger LOGGER = LoggerFactory.getLogger(BicycleAbstractRelationalDbSource.class);
 
@@ -42,7 +42,11 @@ public abstract class BicycleAbstractRelationalDbSource<DataType, Database exten
       return queryTable(database, sqlQuery);
     }
     LOGGER.info("Queueing query for table: {}", tableName);
-    if (!StringUtils.isEmpty(cursorField)) {
+
+    return queryTable(database, getQuery(enquoteIdentifierList(columnNames),
+            getFullTableName(schemaName, tableName)));
+
+   /* if (!StringUtils.isEmpty(cursorField)) {
       return queryTable(database, String.format("SELECT %s FROM %s ORDER BY %s limit 1000",
               enquoteIdentifierList(columnNames),
               getFullTableName(schemaName, tableName), cursorField));
@@ -50,8 +54,41 @@ public abstract class BicycleAbstractRelationalDbSource<DataType, Database exten
       return queryTable(database, String.format("SELECT %s FROM %s limit 1000",
               enquoteIdentifierList(columnNames),
               getFullTableName(schemaName, tableName)));
+    }*/
+  }
+
+  protected String getQuery(String identifierList, String fullTableName) {
+
+    String cursorField = bigQueryEventSourceConfig.getCursorField();
+    int limit = bigQueryEventSourceConfig.getDefaultLimit();
+    String defaultCursorFieldValue = bigQueryEventSourceConfig.getDefaultCursorValue();
+    String query;
+
+    if (!StringUtils.isEmpty(cursorField)) {
+      if (!StringUtils.isEmpty(defaultCursorFieldValue)) {
+        query = String.format("SELECT %s FROM %s where %s >= %s ORDER BY %s limit %d ",
+                identifierList,
+                fullTableName,
+                cursorField,
+                defaultCursorFieldValue,
+                cursorField,
+                limit);
+      } else {
+        query = String.format("SELECT %s FROM %s ORDER BY %s limit %d",
+                identifierList,
+                fullTableName,
+                cursorField,
+                limit);
+      }
+    } else {
+      query = String.format("SELECT %s FROM %s",
+              identifierList,
+              fullTableName);
     }
 
+    LOGGER.info("Query created for full refresh {}", query);
+
+    return query;
   }
 
   protected String getIdentifierWithQuoting(final String identifier) {

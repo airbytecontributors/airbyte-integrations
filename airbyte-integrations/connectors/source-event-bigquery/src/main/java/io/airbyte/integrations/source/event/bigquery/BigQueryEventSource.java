@@ -17,6 +17,7 @@ import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.CommonConstants;
 import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
+import io.airbyte.integrations.bicycle.base.integration.DevAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatter;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatterFactory;
@@ -178,22 +179,26 @@ public class BigQueryEventSource extends BaseEventConnector {
         if (dataFormatter != null) {
             dataFormatter.updateSyncMode(catalog);
         }
+        String cursorField = getCursorField(catalog, dataFormatter);
 
-        bicycleBigQueryWrapper = new BicycleBigQueryWrapper(getCursorField(catalog, dataFormatter));
+        BigQueryEventSourceConfig bigQueryEventSourceConfig = new BigQueryEventSourceConfig(config,
+                catalog.getStreams().get(0).getStream().getName(), cursorField);
+
+        bicycleBigQueryWrapper = new BicycleBigQueryWrapper(bigQueryEventSourceConfig);
         ScheduledExecutorService ses = Executors.newScheduledThreadPool(1);
 
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
-     /*   if (authInfo == null) {
+       /* if (authInfo == null) {
             authInfo = new DevAuthInfo();
-        }
-*/
+        }*/
+
         try {
 
             try {
                 BigQueryEventSourceMetricGenerator elasticMetricsGenerator =
                         new BigQueryEventSourceMetricGenerator(bicycleConfig,
                                 eventSourceInfo, config, bicycleEventPublisher, this,
-                                catalog.getStreams().get(0).getStream().getName());
+                                bigQueryEventSourceConfig);
                 ses.scheduleAtFixedRate(elasticMetricsGenerator, 60, 30, TimeUnit.SECONDS);
                 LOGGER.info("Successfully started BigQueryEventSourceMetricGenerator");
             } catch (Exception e) {
@@ -226,7 +231,7 @@ public class BigQueryEventSource extends BaseEventConnector {
                 ).time();
 
                 //TODO: need to remove
-               /* if (authInfo == null) {
+              /*  if (authInfo == null) {
                     authInfo = new DevAuthInfo();
                 }*/
 
