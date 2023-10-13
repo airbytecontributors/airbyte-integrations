@@ -8,10 +8,9 @@
     "required": [
       "datasetName",
       "format",
-      "url",
-      "provider",
       "timeHeader",
-      "timeFormat"
+      "timeFormat",
+      "data_source"
     ],
     "properties": {
       "datasetName": {
@@ -127,6 +126,92 @@
         "title": "Sleep(ms)",
         "description": "Sleep time while simulating the load between ingestion requests. (In millis)",
         "default": 2000
+      },
+      "data_source": {
+        "type": "object",
+        "title": "Data Source",
+        "description": "The data source (URL or file)",
+        "default": "URL",
+        "oneOf": [
+          {
+            "title": "URL",
+            "required": [
+              "source_type",
+              "URL",
+              "provider"
+            ],
+            "properties": {
+              "source_type": {
+                "type": "string",
+                "const": "URL"
+              },
+              "URL": {
+                "type": "string",
+                "title": "URL",
+                "description": "The URL path to access the file which should be replicated."
+              },
+              "provider": {
+                "type": "object",
+                "title": "Storage Provider",
+                "description": "The storage Provider or Location of the file(s) which should be replicated.",
+                "default": "HTTPS: Public Web",
+                "oneOf": [
+                  {
+                    "title": "HTTPS: Public Web",
+                    "required": [
+                      "storage"
+                    ],
+                    "properties": {
+                      "storage": {
+                        "type": "string",
+                        "const": "HTTPS"
+                      }
+                    }
+                  },
+                  {
+                    "title": "GCS: Google Cloud Storage",
+                    "required": [
+                      "storage",
+                      "service_account_json"
+                    ],
+                    "properties": {
+                      "storage": {
+                        "type": "string",
+                        "title": "Storage",
+                        "const": "GCS"
+                      },
+                      "service_account_json": {
+                        "type": "string",
+                        "title": "Service Account JSON",
+                        "description": "In order to access private Buckets stored on Google Cloud, this connector would need a service account json credentials with the proper permissions as described <a href=\"https://cloud.google.com/iam/docs/service-accounts\" target=\"_blank\">here</a>. Please generate the credentials.json file and copy/paste its content to this field (expecting JSON formats). If accessing publicly available data, this field is not necessary."
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "title": "Upload",
+            "required": [
+              "source_type",
+              "upload_id"
+            ],
+            "properties": {
+              "source_type": {
+                "type": "string",
+                "const": "Upload"
+              },
+              "upload_id": {
+                "type": "string",
+                "subtype": "file",
+                "namespace": "integration",
+                "title": "Data",
+                "description": "Select a file containing data to be processed"
+              }
+            }
+          }
+        ]
       }
     }
   }
