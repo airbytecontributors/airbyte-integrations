@@ -69,7 +69,7 @@ public class BigQueryEventSourceMetricGenerator extends MetricAsEventsGenerator 
             attributes.put(CONNECTOR_ID, eventSourceInfo.getEventSourceId());
 
             long numberOfRowsMetric = getNumberOfRowsMetric();
-            metricsMap.put(getTagEncodedMetricName(TABLE_ROWS_METRIC, Collections.EMPTY_MAP), numberOfRowsMetric);
+            metricsMap.put(getTagEncodedMetricName(TABLE_ROWS_METRIC, new HashMap<>()), numberOfRowsMetric);
             attributes.put(TABLE_ROWS_METRIC, String.valueOf(numberOfRowsMetric));
 
             int totalRecordsConsumed = ((BigQueryEventSource)eventConnector).getTotalRecordsConsumed();
