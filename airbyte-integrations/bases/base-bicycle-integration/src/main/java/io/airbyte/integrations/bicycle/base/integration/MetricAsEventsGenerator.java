@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory;
 
 public class MetricAsEventsGenerator implements Runnable {
 
+    protected final Logger logger = LoggerFactory.getLogger(MetricAsEventsGenerator.class.getName());
     private static final String TENANT_ID = "tenant";
 
     private static final String SOURCE_TYPE = "sourceType";
@@ -29,8 +30,8 @@ public class MetricAsEventsGenerator implements Runnable {
     protected static final String EVENTS_PROCESSED_METRIC = "events_processed";
     public static final String TOTAL_EVENTS_PROCESSED_METRIC = "total_events_processed";
     protected static final String TOTAL_BYTES_PROCESSED_METRIC = "total_bytes_processed";
-    protected final Logger logger = LoggerFactory.getLogger(MetricAsEventsGenerator.class.getName());
     protected final Map<String, String> globalTags = new HashMap<>();
+
     protected BicycleConfig bicycleConfig;
     private JsonNode config;
     protected BicycleEventPublisher bicycleEventPublisher;

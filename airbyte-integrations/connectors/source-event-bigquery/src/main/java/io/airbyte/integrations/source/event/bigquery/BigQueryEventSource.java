@@ -1,14 +1,14 @@
 package io.airbyte.integrations.source.event.bigquery;
 
+import ai.apptuit.metrics.client.TagEncodedMetricName;
+import ai.apptuit.ml.utils.MetricUtils;
+import com.codahale.metrics.Timer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.AbstractIterator;
-import com.inception.server.auth.api.AuthorizeUser;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
-import com.inception.server.auth.model.AuthType;
-import com.inception.server.auth.model.Principal;
 import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.json.Jsons;
 import io.airbyte.commons.util.AutoCloseableIterator;
@@ -16,6 +16,7 @@ import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.CommonConstants;
 import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
+import io.airbyte.integrations.bicycle.base.integration.DevAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatter;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatterFactory;
@@ -39,10 +40,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import static io.bicycle.integration.common.constants.EventConstants.SOURCE_ID;
+import static io.bicycle.integration.common.constants.EventConstants.THREAD_ID;
 
 /**
  * @author sumitmaheshwari
@@ -51,8 +58,20 @@ import org.slf4j.LoggerFactory;
 public class BigQueryEventSource extends BaseEventConnector {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BigQueryEventSource.class);
+    public static final TagEncodedMetricName BIGQUERY_CYCLE_TIME = TagEncodedMetricName
+            .decode("connector_cycle");
+
+    public static final TagEncodedMetricName BIGQUERY_PULL_RECORDS_TIME = TagEncodedMetricName
+            .decode("connector_pull_records");
+
+    public static final TagEncodedMetricName BIGQUERY_PROCESS_RECORDS_TIME = TagEncodedMetricName
+            .decode("connector_process_records");
+
+    public static final TagEncodedMetricName BIGQUERY_PUBLISH_RECORDS_TIME = TagEncodedMetricName
+            .decode("connector_publish_records");
     private BicycleBigQueryWrapper bicycleBigQueryWrapper = new BicycleBigQueryWrapper();
     private AtomicBoolean stopConnectorBoolean = new AtomicBoolean(false);
+    private AtomicLong totalRecordsProcessed = new AtomicLong(0);
     private final io.bicycle.integration.common.kafka.processing.CommonUtils commonUtils =
             new io.bicycle.integration.common.kafka.processing.CommonUtils();
 
@@ -65,7 +84,7 @@ public class BigQueryEventSource extends BaseEventConnector {
 
     @Override
     protected int getTotalRecordsConsumed() {
-        return 0;
+        return totalRecordsProcessed.intValue();
     }
 
     @Override
@@ -111,7 +130,8 @@ public class BigQueryEventSource extends BaseEventConnector {
                 LOGGER.info("Updated sync mode for preview");
             }
 
-            AutoCloseableIterator<AirbyteMessage> messagesIterator = bicycleBigQueryWrapper.read(config, catalog, state);
+            AutoCloseableIterator<AirbyteMessage> messagesIterator =
+                    bicycleBigQueryWrapper.read(config, catalog, state);
 
             if (dataFormatter != null) {
                 return AutoCloseableIterators.fromIterator(new AbstractIterator<>() {
@@ -161,19 +181,27 @@ public class BigQueryEventSource extends BaseEventConnector {
             dataFormatter.updateSyncMode(catalog);
         }
 
-        bicycleBigQueryWrapper  = new BicycleBigQueryWrapper(getCursorField(catalog, dataFormatter));
-        //ScheduledExecutorService ses = Executors.newScheduledThreadPool(1);
+        bicycleBigQueryWrapper = new BicycleBigQueryWrapper(getCursorField(catalog, dataFormatter));
+        ScheduledExecutorService ses = Executors.newScheduledThreadPool(1);
 
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
-       /* if (authInfo == null) {
+      /*  if (authInfo == null) {
             authInfo = new DevAuthInfo();
-        }
-*/
+        }*/
+
         try {
 
-           /* ElasticMetricsGenerator elasticMetricsGenerator = new ElasticMetricsGenerator(bicycleConfig,
-                    eventSourceInfo, config, bicycleEventPublisher, this);
-            ses.scheduleAtFixedRate(elasticMetricsGenerator, 60, 30, TimeUnit.SECONDS);*/
+            try {
+                BigQueryEventSourceMetricGenerator elasticMetricsGenerator =
+                        new BigQueryEventSourceMetricGenerator(bicycleConfig,
+                                eventSourceInfo, config, bicycleEventPublisher, this,
+                                catalog.getStreams().get(0).getStream().getName());
+                ses.scheduleAtFixedRate(elasticMetricsGenerator, 60, 30, TimeUnit.SECONDS);
+                LOGGER.info("Successfully started BigQueryEventSourceMetricGenerator");
+            } catch (Exception e) {
+                LOGGER.error("Unable to start BigQueryEventSourceMetricGenerator", e);
+            }
+
             try {
                 eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,
                         "Big Query Event Connector started Successfully", connectorId, 0, authInfo);
@@ -193,11 +221,17 @@ public class BigQueryEventSource extends BaseEventConnector {
 
             while (!this.getStopConnectorBoolean().get()) {
 
+                Timer.Context consumerCycleTimer = MetricUtils.getMetricRegistry().timer(
+                        BIGQUERY_CYCLE_TIME
+                                .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
+                                .toString()
+                ).time();
+
                 //TODO: need to remove
                /* if (authInfo == null) {
                     authInfo = new DevAuthInfo();
-                }
-*/
+                }*/
+
                 List<JsonNode> jsonEvents = new ArrayList<>();
                 List<UserServiceMappingRule> userServiceMappingRules =
                         this.getUserServiceMappingRules(authInfo, eventSourceInfo);
@@ -209,7 +243,17 @@ public class BigQueryEventSource extends BaseEventConnector {
                 }
                 LOGGER.info("Successfully downloaded the rules with size {} for connector {}",
                         userServiceMappingRules.size(), connectorId);
+
+                Timer.Context getRecordsTimer = MetricUtils.getMetricRegistry().timer(
+                        BIGQUERY_PULL_RECORDS_TIME
+                                .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
+                                .toString()
+                ).time();
+
                 AutoCloseableIterator<AirbyteMessage> iterator = bicycleBigQueryWrapper.read(config, catalog, state);
+
+                getRecordsTimer.stop();
+
                 boolean isStateFound = false;
 
                 while (iterator.hasNext()) {
@@ -250,9 +294,15 @@ public class BigQueryEventSource extends BaseEventConnector {
                 EventProcessorResult eventProcessorResult = null;
 
                 try {
+                    Timer.Context processRecordsTimer = MetricUtils.getMetricRegistry().timer(
+                            BIGQUERY_PROCESS_RECORDS_TIME
+                                    .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
+                                    .toString()
+                    ).time();
                     List<RawEvent> rawEvents = this.convertRecordsToRawEvents(jsonEvents);
                     eventProcessorResult = this.convertRawEventsToBicycleEvents(authInfo, eventSourceInfo,
                             rawEvents, userServiceMappingRules);
+                    processRecordsTimer.stop();
                 } catch (Exception exception) {
                     LOGGER.error("Unable to convert raw records to bicycle events for {} ", connectorId, exception);
                     throw exception;
@@ -260,11 +310,18 @@ public class BigQueryEventSource extends BaseEventConnector {
                 LOGGER.info("Successfully converted messages to raw events for connector Id {}", connectorId);
 
                 try {
+                    Timer.Context publishRecordsTimer = MetricUtils.getMetricRegistry().timer(
+                            BIGQUERY_PUBLISH_RECORDS_TIME
+                                    .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
+                                    .toString()
+                    ).time();
                     boolean success = this.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
+                    publishRecordsTimer.stop();
                     if (success) {
                         setStateAsString(authInfo, connectorId, updatedState);
                         state = updatedState;
                         LOGGER.info("Successfully published messages for connector Id {}", connectorId);
+                        totalRecordsProcessed.addAndGet(jsonEvents.size());
                     }
                 } catch (Exception exception) {
                     LOGGER.error("Unable to publish bicycle events for {} {} ", connectorId, exception);
@@ -272,9 +329,10 @@ public class BigQueryEventSource extends BaseEventConnector {
                 }
 
                 authInfo = bicycleConfig.getAuthInfo();
+                consumerCycleTimer.stop();
             }
         } finally {
-            //  ses.shutdown();
+            ses.shutdown();
             LOGGER.info("Closed server connection for big query");
         }
 
@@ -348,44 +406,6 @@ public class BigQueryEventSource extends BaseEventConnector {
         dbState.getStreams().add(dbStreamState);
 
         return new AirbyteStateMessage().withData(Jsons.jsonNode(dbState));
-    }
-
-    private static class DevAuthInfo implements AuthInfo {
-
-        @Override
-        public Principal getPrincipal() {
-            return null;
-        }
-
-        @Override
-        public String getToken() {
-            return "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJST0xFIjoiQVBJIiwic3ViIjoiZXZlbnQtZGVtby1hcHAtMiIsIk9SR19JRCI6IjgwIiwiaXNzIjoiamF5YUBiaWN5Y2xlLmlvIiwiaWF0IjoxNjYzNTgyNjgwLCJURU5BTlQiOiJldnQtZmJiOTY3YWQtMjVmMi00ZWVlLWIyZTUtZjUyYjA0N2JlMmVmIiwianRpIjoiZTQxMDhhNDMtYjVmNC00ZmRkLTg5NiJ9.wC6lMnpMvlNMvvyI_TPP4vzHRgPQstu0IUSpkD5aIPg";
-        }
-
-        @Override
-        public String getTenantCode() {
-            return null;
-        }
-
-        @Override
-        public String getTenantId() {
-            return "evt-fbb967ad-25f2-4eee-b2e5-f52b047be2ef";
-        }
-
-        @Override
-        public String getAccountId() {
-            return null;
-        }
-
-        @Override
-        public AuthType getAuthType() {
-            return AuthType.BEARER;
-        }
-
-        @Override
-        public String[] getRoles() {
-            return new String[] {AuthorizeUser.READ_WRITE};
-        }
     }
 
 }
