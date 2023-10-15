@@ -222,8 +222,12 @@ public class BicycleConsumer implements Runnable {
         }
     }
 
-    private void modifyAckDeadline(SubscriptionAdminClient consumer, String subscription,  List<String> messageAcks) {
-        consumer.modifyAckDeadline(subscription, messageAcks, 30);
+    private void modifyAckDeadline(SubscriptionAdminClient consumer, String subscription, List<String> messageAcks) {
+        try {
+            consumer.modifyAckDeadline(subscription, messageAcks, 30);
+        } catch (Exception e) {
+            logger.error("Unable to modify ack deadline for subscription {} {}", subscription e);
+        }
     }
 
     public void syncData(BicycleConfig bicycleConfig,
