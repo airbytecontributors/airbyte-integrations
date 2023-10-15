@@ -226,7 +226,7 @@ public class BicycleConsumer implements Runnable {
         try {
             consumer.modifyAckDeadline(subscription, messageAcks, 30);
         } catch (Exception e) {
-            logger.error("Unable to modify ack deadline for subscription {} {}", subscription e);
+            logger.error("Unable to modify ack deadline for subscription {} {}", subscription, e);
         }
     }
 
