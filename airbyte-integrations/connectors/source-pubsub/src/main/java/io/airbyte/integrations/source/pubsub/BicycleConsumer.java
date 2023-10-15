@@ -167,6 +167,10 @@ public class BicycleConsumer implements Runnable {
                 messageAcks.add(record.getAckId());
                 counter++;
             }
+
+            String subscription = pubsubSourceConfig.getProjectSubscriptionName(subscriptionId).toString();
+            modifyAckDeadline(consumer, subscription, messageAcks);
+
             recordsList = pullResponse.getReceivedMessagesList();
             long finalByteTotalSize = totalSize.longValue();
             this.pubsubSource.getTotalBytesProcessed().getAndUpdate(n->n+ finalByteTotalSize);
@@ -210,11 +214,16 @@ public class BicycleConsumer implements Runnable {
 //                            messageAcks, timeBetweenPullAndPublish.intValue() + 5);
 //                }
                 consumerCycleTimer.stop();
-                consumer.acknowledge(pubsubSourceConfig.getProjectSubscriptionName(subscriptionId).toString(), messageAcks);
+
+                consumer.acknowledge(subscription, messageAcks);
             } catch (Exception exception) {
                 logger.error("Unable to publish bicycle events for {} ", name, exception);
             }
         }
+    }
+
+    private void modifyAckDeadline(SubscriptionAdminClient consumer, String subscription,  List<String> messageAcks) {
+        consumer.modifyAckDeadline(subscription, messageAcks, 30);
     }
 
     public void syncData(BicycleConfig bicycleConfig,
