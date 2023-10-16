@@ -1,0 +1,35 @@
+{
+  "streams" : [
+    {
+      "stream" : {
+        "name" : "talon-segment-bilt",
+        "json_schema" : {
+          "type" : "object",
+          "properties" : {
+            "value" : {
+              "type" : "string"
+            }
+          }
+        },
+        "supported_sync_modes" : [
+          "full_refresh",
+          "incremental"
+        ],
+        "source_defined_cursor" : false,
+        "default_cursor_field" : [],
+        "source_defined_primary_key" : [],
+        "namespace" : ""
+      },
+      "sync_mode" : "full_refresh",
+      "cursor_field" : [],
+      "destination_sync_mode" : "append",
+      "primary_key" : []
+    }
+  ],
+  "bicycleServerURL" : "https://api.ione.bicycle.io",
+  "bicycleConnectorId" : "8b34638a-ccc8-4328-af35-b5f56507819d",
+  "bicycleEventSourceType" : "source-pubsub",
+  "bicycleMetricStoreURL" : "http://metric-store.metrics-platform.svc.cluster.local:4242/api/put?details",
+  "isOnPrem" : false,
+  "bicycleTenantId" : "bilt-2aca9361-f35e-4c99-8978-337ba8cdae75"
+}

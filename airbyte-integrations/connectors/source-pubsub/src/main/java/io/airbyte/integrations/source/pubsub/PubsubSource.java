@@ -270,7 +270,7 @@ public class PubsubSource extends BaseEventConnector {
         String subscriptionId = pubsubSourceConfig.getOrCreateSubscriptionId();
         MetricAsEventsGenerator metricAsEventsGenerator = new PubsubMetricAsEventsGenerator(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher,this);
         try {
-            ses.scheduleAtFixedRate(metricAsEventsGenerator, 60, 60, TimeUnit.SECONDS);
+            ses.scheduleAtFixedRate(metricAsEventsGenerator, 60, 180, TimeUnit.SECONDS);
             eventConnectorJobStatusNotifier.setNumberOfThreadsRunning(new AtomicInteger(numberOfConsumers));
             eventConnectorJobStatusNotifier.setScheduledExecutorService(ses);
             for (int i = 0; i < numberOfConsumers; i++) {

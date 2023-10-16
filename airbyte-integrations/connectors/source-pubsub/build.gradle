@@ -38,6 +38,7 @@ dependencies {
 
     implementation project(':airbyte-integrations:bases:base-bicycle-integration')
 
+    testImplementation 'org.mockito:mockito-core:3.7.7'
     integrationTestJavaImplementation project(':airbyte-integrations:bases:standard-source-test')
 
     implementation files(project(':airbyte-integrations:bases:base-java').airbyteDocker.outputs)
