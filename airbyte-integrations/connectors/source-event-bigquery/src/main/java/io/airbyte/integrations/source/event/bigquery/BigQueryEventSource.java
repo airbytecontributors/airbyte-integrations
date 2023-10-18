@@ -40,6 +40,7 @@ import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -126,10 +127,17 @@ public class BigQueryEventSource extends BaseEventConnector {
         try {
             DataFormatter dataFormatter = getDataFormatter(config);
             LOGGER.info("State information for preview {}", state);
+
             if (dataFormatter != null && state != null) {
                 dataFormatter.updateSyncMode(catalog);
                 LOGGER.info("Updated sync mode for preview");
             }
+
+            //List<String> streamNames = getStreamNames(catalog.getStreams());
+
+            BigQueryEventSourceConfig bigQueryEventSourceConfig = new BigQueryEventSourceConfig(config,
+                    Collections.emptyList(), null);
+            bicycleBigQueryWrapper = new BicycleBigQueryWrapper(bigQueryEventSourceConfig);
 
             AutoCloseableIterator<AirbyteMessage> messagesIterator =
                     bicycleBigQueryWrapper.read(config, catalog, state);
@@ -201,7 +209,7 @@ public class BigQueryEventSource extends BaseEventConnector {
         ScheduledExecutorService ses = Executors.newScheduledThreadPool(2);
 
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
-      /*  if (authInfo == null) {
+    /*    if (authInfo == null) {
             authInfo = new DevAuthInfo();
         }*/
 
@@ -248,7 +256,7 @@ public class BigQueryEventSource extends BaseEventConnector {
                 ).time();
 
                 //TODO: need to remove
-              /*  if (authInfo == null) {
+            /*    if (authInfo == null) {
                     authInfo = new DevAuthInfo();
                 }
 */
