@@ -13,7 +13,9 @@ import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import java.io.ByteArrayInputStream;
 import java.math.BigInteger;
 import java.nio.charset.Charset;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,35 +24,42 @@ public class BigQueryEventSourceMetricGenerator extends MetricAsEventsGenerator 
     private static final String TABLE_ROWS_METRIC = "bigquery_event_table_row_count";
     private static final Logger LOGGER = LoggerFactory.getLogger(BigQueryEventSourceMetricGenerator.class);
     private final BigQueryEventSourceConfig bigQueryEventSourceConfig;
-    public BigQueryEventSourceMetricGenerator(BicycleConfig bicycleConfig, EventSourceInfo eventSourceInfo, JsonNode config, BicycleEventPublisher bicycleEventPublisher,
-                                              BigQueryEventSource bigQueryEventSource, BigQueryEventSourceConfig bigQueryEventSourceConfig) {
+
+    public BigQueryEventSourceMetricGenerator(BicycleConfig bicycleConfig, EventSourceInfo eventSourceInfo,
+                                              JsonNode config, BicycleEventPublisher bicycleEventPublisher,
+                                              BigQueryEventSource bigQueryEventSource,
+                                              BigQueryEventSourceConfig bigQueryEventSourceConfig) {
         super(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher, bigQueryEventSource);
         this.bigQueryEventSourceConfig = bigQueryEventSourceConfig;
     }
 
-    private long getNumberOfRowsMetric() {
+    private Map<String, Long> getNumberOfRowsMetric() {
+        Map<String, Long> streamNameToCountMap = new HashMap<>();
         try {
             String projectId = bigQueryEventSourceConfig.getProjectId();
             // Set your BigQuery dataset and table name
             String datasetName = bigQueryEventSourceConfig.getDatasetId();
-            String tableName = bigQueryEventSourceConfig.getStreamName();
-
+            List<String> tableNames = bigQueryEventSourceConfig.getStreamNames();
             BigQuery bigquery = createAuthorizedClient(bigQueryEventSourceConfig.getCredentialsJson());
 
-            TableId tableId = TableId.of(projectId, datasetName, tableName);
 
-            // Get the table metadata
-            Table table = bigquery.getTable(tableId);
+            for (String tableName : tableNames) {
+                TableId tableId = TableId.of(projectId, datasetName, tableName);
 
-            // Retrieve the row count from the table metadata
-            BigInteger rowCount = table.getNumRows();
-            return rowCount.longValue();
+                // Get the table metadata
+                Table table = bigquery.getTable(tableId);
+
+                // Retrieve the row count from the table metadata
+                BigInteger rowCount = table.getNumRows();
+                streamNameToCountMap.put(tableName, rowCount.longValue());
+            }
+
         } catch (Exception e) {
             LOGGER.error("Unable to get row count for big query for connector {} because of {}",
                     eventSourceInfo.getEventSourceId(), e);
         }
 
-        return -1;
+        return streamNameToCountMap;
     }
 
     public static BigQuery createAuthorizedClient(String credentialJson) {
@@ -77,11 +86,15 @@ public class BigQueryEventSourceMetricGenerator extends MetricAsEventsGenerator 
             attributes.put(UNIQUE_IDENTIFIER, bicycleConfig.getUniqueIdentifier());
             attributes.put(CONNECTOR_ID, eventSourceInfo.getEventSourceId());
 
-            long numberOfRowsMetric = getNumberOfRowsMetric();
-            metricsMap.put(getTagEncodedMetricName(TABLE_ROWS_METRIC, new HashMap<>()), numberOfRowsMetric);
-            attributes.put(TABLE_ROWS_METRIC, String.valueOf(numberOfRowsMetric));
+            Map<String, Long> tableNameToCountMetric = getNumberOfRowsMetric();
+            for (Map.Entry<String, Long> entry: tableNameToCountMetric.entrySet()) {
+                Map<String, String> tags = new HashMap<>();
+                tags.put("streamName", entry.getKey());
+                metricsMap.put(getTagEncodedMetricName(TABLE_ROWS_METRIC, tags), entry.getValue());
+                attributes.put(TABLE_ROWS_METRIC + "_" + entry.getKey(), String.valueOf(entry.getValue()));
+            }
 
-            int totalRecordsConsumed = ((BigQueryEventSource)eventConnector).getTotalRecordsConsumed();
+            int totalRecordsConsumed = ((BigQueryEventSource) eventConnector).getTotalRecordsConsumed();
             attributes.put(TOTAL_EVENTS_PROCESSED_METRIC, String.valueOf(totalRecordsConsumed));
             metricsMap.put(getTagEncodedMetricName(TOTAL_EVENTS_PROCESSED_METRIC, new HashMap<>()),
                     Long.valueOf(totalRecordsConsumed));

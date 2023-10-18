@@ -1,6 +1,7 @@
 package io.airbyte.integrations.source.event.bigquery.data.formatter;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.airbyte.protocol.models.AirbyteStream;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import java.util.List;
 
@@ -16,5 +17,9 @@ public interface DataFormatter {
   String getCursorFieldValue(List<JsonNode> rawData);
 
   ConfiguredAirbyteCatalog updateSyncMode(ConfiguredAirbyteCatalog catalog);
+
+  ConfiguredAirbyteCatalog updateConfiguredAirbyteCatalogWithInterestedStreams(String connectorId,
+                                                                               ConfiguredAirbyteCatalog catalog,
+                                                                               List<AirbyteStream> availableStreams);
 
 }

@@ -19,6 +19,7 @@ import io.airbyte.integrations.bicycle.base.integration.CommonConstants;
 import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
 import io.airbyte.integrations.bicycle.base.integration.DevAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
+import io.airbyte.integrations.source.event.bigquery.data.formatter.BigQueryStreamGetter;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatter;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatterFactory;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatterType;
@@ -28,6 +29,7 @@ import io.airbyte.protocol.models.AirbyteCatalog;
 import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.AirbyteStateMessage;
+import io.airbyte.protocol.models.AirbyteStream;
 import io.airbyte.protocol.models.AirbyteStreamState;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.ConfiguredAirbyteStream;
@@ -162,33 +164,44 @@ public class BigQueryEventSource extends BaseEventConnector {
                                                         JsonNode state) throws Exception {
 
 
+        String connectorId = additionalProperties.containsKey("bicycleConnectorId")
+                ? additionalProperties.get("bicycleConnectorId").toString() : "";
+        DataFormatter dataFormatter = getDataFormatter(config);
+
+        AirbyteCatalog airbyteCatalog = discover(config);
+        List<AirbyteStream> allStreams = airbyteCatalog.getStreams();
+
+        BigQueryStreamGetter bigQueryStreamGetter = new BigQueryStreamGetter(connectorId,
+                this, config, allStreams);
+
+        handleDataFormatter(connectorId, dataFormatter, catalog, bigQueryStreamGetter);
+
+
         Map<String, Object> additionalProperties = catalog.getAdditionalProperties();
         stopConnectorBoolean.set(false);
         String eventSourceType = additionalProperties.containsKey("bicycleEventSourceType") ?
                 additionalProperties.get("bicycleEventSourceType").toString() : CommonUtils.UNKNOWN_EVENT_CONNECTOR;
-        String connectorId = additionalProperties.containsKey("bicycleConnectorId")
-                ? additionalProperties.get("bicycleConnectorId").toString() : "";
+
 
         eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
 
         LOGGER.info("Inside doRead for connector {} with config {} and catalog {}", connectorId,
                 config, catalog);
 
-        DataFormatter dataFormatter = getDataFormatter(config);
-        //TODO: this is workaround until we expose the option to set sync mode in UI
-        if (dataFormatter != null) {
-            dataFormatter.updateSyncMode(catalog);
-        }
+        //TODO: Assumption here is that for all streams cursor field is same.
+        //TODO: need to handle it.
         String cursorField = getCursorField(catalog, dataFormatter);
 
-        BigQueryEventSourceConfig bigQueryEventSourceConfig = new BigQueryEventSourceConfig(config,
-                catalog.getStreams().get(0).getStream().getName(), cursorField);
+        List<String> streamNames = getStreamNames(catalog.getStreams());
+
+        BigQueryEventSourceConfig bigQueryEventSourceConfig = new BigQueryEventSourceConfig(config, streamNames,
+                cursorField);
 
         bicycleBigQueryWrapper = new BicycleBigQueryWrapper(bigQueryEventSourceConfig);
-        ScheduledExecutorService ses = Executors.newScheduledThreadPool(1);
+        ScheduledExecutorService ses = Executors.newScheduledThreadPool(2);
 
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
-       /* if (authInfo == null) {
+      /*  if (authInfo == null) {
             authInfo = new DevAuthInfo();
         }*/
 
@@ -200,9 +213,13 @@ public class BigQueryEventSource extends BaseEventConnector {
                                 eventSourceInfo, config, bicycleEventPublisher, this,
                                 bigQueryEventSourceConfig);
                 ses.scheduleAtFixedRate(elasticMetricsGenerator, 60, 30, TimeUnit.SECONDS);
-                LOGGER.info("Successfully started BigQueryEventSourceMetricGenerator");
+
+                if (dataFormatter != null) {
+                    ses.scheduleAtFixedRate(bigQueryStreamGetter, 60, 300, TimeUnit.SECONDS);
+                }
+                LOGGER.info("Successfully started BigQueryEventSourceMetricGenerator and BigQueryStreamGetter");
             } catch (Exception e) {
-                LOGGER.error("Unable to start BigQueryEventSourceMetricGenerator", e);
+                LOGGER.error("Unable to start BigQueryEventSourceMetricGenerator or BigQueryStreamGetter", e);
             }
 
             try {
@@ -233,8 +250,8 @@ public class BigQueryEventSource extends BaseEventConnector {
                 //TODO: need to remove
               /*  if (authInfo == null) {
                     authInfo = new DevAuthInfo();
-                }*/
-
+                }
+*/
                 List<JsonNode> jsonEvents = new ArrayList<>();
                 List<UserServiceMappingRule> userServiceMappingRules =
                         this.getUserServiceMappingRules(authInfo, eventSourceInfo);
@@ -332,6 +349,9 @@ public class BigQueryEventSource extends BaseEventConnector {
                 }
 
                 authInfo = bicycleConfig.getAuthInfo();
+                //In case of GA streams would come dynamically each day, so need to keep refreshing and update
+                //catalog with it.
+                handleDataFormatter(connectorId, dataFormatter, catalog, bigQueryStreamGetter);
                 consumerCycleTimer.stop();
             }
         } finally {
@@ -340,6 +360,29 @@ public class BigQueryEventSource extends BaseEventConnector {
         }
 
         return null;
+    }
+
+    private List<String> getStreamNames(List<ConfiguredAirbyteStream> streams) {
+        List<String> streamNames = new ArrayList<>();
+
+        for (ConfiguredAirbyteStream configuredAirbyteStream: streams) {
+            streamNames.add(configuredAirbyteStream.getStream().getName());
+        }
+
+        return streamNames;
+    }
+
+    private void handleDataFormatter(String connectorId, DataFormatter dataFormatter, ConfiguredAirbyteCatalog catalog,
+                                     BigQueryStreamGetter bigQueryStreamGetter) {
+
+        if (dataFormatter == null || bigQueryStreamGetter == null) {
+            return;
+        }
+
+        List<AirbyteStream> streams = bigQueryStreamGetter.getStreamList();
+        dataFormatter.updateConfiguredAirbyteCatalogWithInterestedStreams(connectorId, catalog,
+                streams);
+
     }
 
     private String getCursorField(ConfiguredAirbyteCatalog catalog, DataFormatter dataFormatter) {

@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.airbyte.protocol.models.AirbyteStream;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.ConfiguredAirbyteStream;
 import io.airbyte.protocol.models.SyncMode;
+import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,6 +21,7 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
     private static final Logger logger = LoggerFactory.getLogger(GoogleAnalyticsV4DataFormatter.class.getName());
     private static final String EVENT_PARAMS_ATTRIBUTE = "event_params";
     private static final ObjectMapper objectMapper = new ObjectMapper();
+
     @Override
     public JsonNode formatEvent(JsonNode jsonNode) {
 
@@ -87,11 +90,45 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
 
     @Override
     public ConfiguredAirbyteCatalog updateSyncMode(ConfiguredAirbyteCatalog catalog) {
-        ConfiguredAirbyteStream stream = catalog.getStreams().get(0);
-        stream.setSyncMode(SyncMode.INCREMENTAL);
+       // ConfiguredAirbyteStream stream = catalog.getStreams().get(0);
+        List<ConfiguredAirbyteStream> streams = catalog.getStreams();
+
+        for (ConfiguredAirbyteStream stream: catalog.getStreams()) {
+            stream.setSyncMode(SyncMode.INCREMENTAL);
+            if (stream.getCursorField().size() == 0) {
+                stream.getCursorField().add(getCursorFieldName());
+            }
+        }
+      /*  stream.setSyncMode(SyncMode.INCREMENTAL);
         if (stream.getCursorField().size() == 0) {
             stream.getCursorField().add(getCursorFieldName());
+        }*/
+        return catalog;
+    }
+
+    @Override
+    public ConfiguredAirbyteCatalog updateConfiguredAirbyteCatalogWithInterestedStreams(
+            String connectorId, ConfiguredAirbyteCatalog catalog, List<AirbyteStream> availableStreams) {
+
+        try {
+            List<ConfiguredAirbyteStream> interestedStreams = new ArrayList<>();
+            for (AirbyteStream airbyteStream : availableStreams) {
+                String name = airbyteStream.getName();
+                if (name.contains("intraday")) {
+                    ConfiguredAirbyteStream configuredAirbyteStream = new ConfiguredAirbyteStream();
+                    configuredAirbyteStream.setStream(airbyteStream);
+                    interestedStreams.add(configuredAirbyteStream);
+                }
+            }
+            catalog.getStreams().clear();
+            catalog.getStreams().addAll(interestedStreams);
+        } catch (Exception e) {
+            logger.error("Unable to update catalog with interested streams for connector Id {} {} ", connectorId,
+                    e);
         }
+
+        catalog = updateSyncMode(catalog);
+
         return catalog;
     }
 }
