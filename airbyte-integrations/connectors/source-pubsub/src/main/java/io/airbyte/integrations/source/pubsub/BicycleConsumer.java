@@ -5,6 +5,7 @@ import ai.apptuit.ml.utils.MetricUtils;
 import com.codahale.metrics.Timer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.cloud.pubsub.v1.SubscriptionAdminClient;
+import com.google.pubsub.v1.AcknowledgeRequest;
 import com.google.pubsub.v1.PullRequest;
 import com.google.pubsub.v1.PullResponse;
 import com.google.pubsub.v1.ReceivedMessage;
@@ -37,6 +38,12 @@ public class BicycleConsumer implements Runnable {
 
     public static final TagEncodedMetricName PULL_PUSH_CYCLE_TIME = TagEncodedMetricName
             .decode("pubsub_pull_push_cycle_time");
+
+    public static final TagEncodedMetricName PUB_SUB_PULL_TIME = TagEncodedMetricName
+            .decode("pubsub_consumer_pull_time");
+
+    public static final TagEncodedMetricName PUB_SUB_ACK_TIME = TagEncodedMetricName
+            .decode("pubsub_consumer_ack_time");
 
 
     private static final Logger logger = LoggerFactory.getLogger(BicycleConsumer.class.getName());
@@ -140,9 +147,17 @@ public class BicycleConsumer implements Runnable {
                             .toString()
             ).time();
             List<ReceivedMessage> recordsList;
+
+            Timer.Context pullReqTimer = MetricUtils.getMetricRegistry().timer(
+                    PUB_SUB_PULL_TIME
+                            .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
+                            .withTags(THREAD_ID, name).toString()
+                            .toString()
+            ).time();
             PullRequest pullRequest = pubsubSourceConfig.getPullRequest(subscriptionId);
-            PullResponse pullResponse =
-                    consumer.pull(pullRequest);
+            PullResponse pullResponse = consumer.pull(pullRequest);
+            pullReqTimer.stop();
+
             Instant pullResponseTime = Instant.now();
             Timer.Context pullPushResponseTimer = MetricUtils.getMetricRegistry().timer(
                     PULL_PUSH_CYCLE_TIME
@@ -215,7 +230,20 @@ public class BicycleConsumer implements Runnable {
 //                }
                 consumerCycleTimer.stop();
 
-                consumer.acknowledge(subscription, messageAcks);
+                Timer.Context ackTimer = MetricUtils.getMetricRegistry().timer(
+                        PUB_SUB_ACK_TIME
+                                .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
+                                .withTags(THREAD_ID, name).toString()
+                                .toString()
+                ).time();
+                AcknowledgeRequest acknowledgeRequest =
+                        AcknowledgeRequest.newBuilder()
+                                .setSubscription(subscription)
+                                .addAllAckIds(messageAcks)
+                                .build();
+                consumer.acknowledgeCallable().call(acknowledgeRequest);
+                ackTimer.stop();
+                //consumer.acknowledge(subscription, messageAcks);
             } catch (Exception exception) {
                 logger.error("Unable to publish bicycle events for {} ", name, exception);
             }
@@ -225,7 +253,7 @@ public class BicycleConsumer implements Runnable {
     private void modifyAckDeadline(SubscriptionAdminClient consumer, String subscription, List<String> messageAcks) {
         try {
             if (messageAcks.size() > 0) {
-                consumer.modifyAckDeadline(subscription, messageAcks, 30);
+                consumer.modifyAckDeadline(subscription, messageAcks, 120);
             }
         } catch (Exception e) {
             logger.error("Unable to modify ack deadline for subscription {} {}", subscription, e);
