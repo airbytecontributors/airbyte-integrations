@@ -1,7 +1,6 @@
-package io.airbyte.integrations.source.event.bigquery.data.formatter;
+package io.airbyte.integrations.source.event.bigquery;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import io.airbyte.integrations.source.event.bigquery.BigQueryEventSource;
 import io.airbyte.protocol.models.AirbyteCatalog;
 import io.airbyte.protocol.models.AirbyteStream;
 import java.util.ArrayList;
@@ -29,19 +28,23 @@ public class BigQueryStreamGetter implements Runnable {
         this.streamList = streamList;
     }
 
-  public List<AirbyteStream> getStreamList() {
-    return streamList;
-  }
+    public List<AirbyteStream> getStreamList() {
+        return streamList;
+    }
 
-  @Override
+    @Override
     public void run() {
 
         try {
             AirbyteCatalog catalog = bigQueryEventSource.discover(config);
             streamList = catalog.getStreams();
+            List<String> streams = new ArrayList<>();
+            for (AirbyteStream stream : streamList) {
+                streams.add(stream.getName());
+            }
+            logger.info("Fetched streams {}", streams);
         } catch (Exception e) {
             logger.warn("Unable to get streams for connector Id {} {}", connectorId, e);
         }
-
     }
 }

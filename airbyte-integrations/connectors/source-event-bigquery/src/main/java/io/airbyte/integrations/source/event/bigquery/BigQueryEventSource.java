@@ -19,7 +19,6 @@ import io.airbyte.integrations.bicycle.base.integration.CommonConstants;
 import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
 import io.airbyte.integrations.bicycle.base.integration.DevAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
-import io.airbyte.integrations.source.event.bigquery.data.formatter.BigQueryStreamGetter;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatter;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatterFactory;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatterType;
@@ -206,10 +205,10 @@ public class BigQueryEventSource extends BaseEventConnector {
                 cursorField);
 
         bicycleBigQueryWrapper = new BicycleBigQueryWrapper(bigQueryEventSourceConfig);
-        ScheduledExecutorService ses = Executors.newScheduledThreadPool(2);
+        ScheduledExecutorService ses = Executors.newScheduledThreadPool(3);
 
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
-    /*    if (authInfo == null) {
+      /*  if (authInfo == null) {
             authInfo = new DevAuthInfo();
         }*/
 
@@ -220,7 +219,7 @@ public class BigQueryEventSource extends BaseEventConnector {
                         new BigQueryEventSourceMetricGenerator(bicycleConfig,
                                 eventSourceInfo, config, bicycleEventPublisher, this,
                                 bigQueryEventSourceConfig);
-                ses.scheduleAtFixedRate(elasticMetricsGenerator, 60, 30, TimeUnit.SECONDS);
+                ses.scheduleAtFixedRate(elasticMetricsGenerator, 60, 120, TimeUnit.SECONDS);
 
                 if (dataFormatter != null) {
                     ses.scheduleAtFixedRate(bigQueryStreamGetter, 60, 300, TimeUnit.SECONDS);
@@ -249,6 +248,9 @@ public class BigQueryEventSource extends BaseEventConnector {
 
             while (!this.getStopConnectorBoolean().get()) {
 
+                authInfo = bicycleConfig.getAuthInfo();
+                handleAtConsumerBegin(connectorId, dataFormatter, catalog, bigQueryStreamGetter);
+
                 Timer.Context consumerCycleTimer = MetricUtils.getMetricRegistry().timer(
                         BIGQUERY_CYCLE_TIME
                                 .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
@@ -256,10 +258,10 @@ public class BigQueryEventSource extends BaseEventConnector {
                 ).time();
 
                 //TODO: need to remove
-            /*    if (authInfo == null) {
+              /*  if (authInfo == null) {
                     authInfo = new DevAuthInfo();
-                }
-*/
+                }*/
+
                 List<JsonNode> jsonEvents = new ArrayList<>();
                 List<UserServiceMappingRule> userServiceMappingRules =
                         this.getUserServiceMappingRules(authInfo, eventSourceInfo);
@@ -308,6 +310,7 @@ public class BigQueryEventSource extends BaseEventConnector {
 
                 LOGGER.info("Read {} messages for connector Id {}", jsonEvents.size(), connectorId);
                 if (jsonEvents.size() == 0) {
+                    handleAtConsumerBegin(connectorId, dataFormatter, catalog, bigQueryStreamGetter);
                     continue;
                 }
 
@@ -355,11 +358,6 @@ public class BigQueryEventSource extends BaseEventConnector {
                     LOGGER.error("Unable to publish bicycle events for {} {} ", connectorId, exception);
                     throw exception;
                 }
-
-                authInfo = bicycleConfig.getAuthInfo();
-                //In case of GA streams would come dynamically each day, so need to keep refreshing and update
-                //catalog with it.
-                handleDataFormatter(connectorId, dataFormatter, catalog, bigQueryStreamGetter);
                 consumerCycleTimer.stop();
             }
         } finally {
@@ -370,10 +368,18 @@ public class BigQueryEventSource extends BaseEventConnector {
         return null;
     }
 
+    private void handleAtConsumerBegin(String connectorId, DataFormatter dataFormatter,
+                                       ConfiguredAirbyteCatalog catalog,
+                                       BigQueryStreamGetter bigQueryStreamGetter) {
+        //In case of GA streams would come dynamically each day, so need to keep refreshing and update
+        //catalog with it.
+        handleDataFormatter(connectorId, dataFormatter, catalog, bigQueryStreamGetter);
+    }
+
     private List<String> getStreamNames(List<ConfiguredAirbyteStream> streams) {
         List<String> streamNames = new ArrayList<>();
 
-        for (ConfiguredAirbyteStream configuredAirbyteStream: streams) {
+        for (ConfiguredAirbyteStream configuredAirbyteStream : streams) {
             streamNames.add(configuredAirbyteStream.getStream().getName());
         }
 

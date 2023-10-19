@@ -37,10 +37,10 @@ public class BigQueryLiveTest {
         ConfiguredAirbyteCatalog catalog = objectMapper.readValue(catalogString, ConfiguredAirbyteCatalog.class);
         bigQueryEventSource.read(config, catalog, null);
 
-        /*AutoCloseableIterator<AirbyteMessage> iterator =
+       /* AutoCloseableIterator<AirbyteMessage> iterator =
                 bigQueryEventSource.preview(config, catalog, state);
-        System.out.println(iterator.hasNext() ? iterator.next() : "null");*/
-
+        System.out.println(iterator.hasNext() ? iterator.next() : "null");
+*/
     }
 
     public static String readFileAsString(String fileName) {

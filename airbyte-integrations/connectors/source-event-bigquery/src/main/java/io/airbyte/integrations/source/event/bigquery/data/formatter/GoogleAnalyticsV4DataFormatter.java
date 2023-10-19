@@ -111,17 +111,30 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
             String connectorId, ConfiguredAirbyteCatalog catalog, List<AirbyteStream> availableStreams) {
 
         try {
+            int previousStreamCount = catalog.getStreams().size();
+            List<String> previousStreamNames = new ArrayList<>();
+            List<ConfiguredAirbyteStream> previousStreams = catalog.getStreams();
+            for (ConfiguredAirbyteStream configuredAirbyteStream: previousStreams) {
+                previousStreamNames.add(configuredAirbyteStream.getStream().getName());
+            }
             List<ConfiguredAirbyteStream> interestedStreams = new ArrayList<>();
+            List<String> newStreams = new ArrayList<>();
             for (AirbyteStream airbyteStream : availableStreams) {
                 String name = airbyteStream.getName();
                 if (name.contains("intraday")) {
                     ConfiguredAirbyteStream configuredAirbyteStream = new ConfiguredAirbyteStream();
                     configuredAirbyteStream.setStream(airbyteStream);
                     interestedStreams.add(configuredAirbyteStream);
+                    newStreams.add(airbyteStream.getName());
                 }
             }
             catalog.getStreams().clear();
             catalog.getStreams().addAll(interestedStreams);
+            int newStreamsCount = newStreams.size();
+            if (newStreamsCount != previousStreamCount) {
+                logger.info("Added or removed streams from catalog, previous stream {}, new streams {}",
+                        previousStreamNames, newStreams);
+            }
         } catch (Exception e) {
             logger.error("Unable to update catalog with interested streams for connector Id {} {} ", connectorId,
                     e);
