@@ -218,8 +218,9 @@ public class BicycleConsumer implements Runnable {
             }
 
             try {
-                this.pubsubSource.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
+                boolean success = this.pubsubSource.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
                 pullPushResponseTimer.stop();
+
                 Instant publishedEventsTime = Instant.now();
 
                 Long timeBetweenPullAndPublish = publishedEventsTime.getEpochSecond() - pullResponseTime.getEpochSecond();
@@ -230,6 +231,9 @@ public class BicycleConsumer implements Runnable {
 //                }
                 consumerCycleTimer.stop();
 
+                if (!success) {
+                    continue;
+                }
                 Timer.Context ackTimer = MetricUtils.getMetricRegistry().timer(
                         PUB_SUB_ACK_TIME
                                 .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
