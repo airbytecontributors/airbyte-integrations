@@ -88,8 +88,8 @@ public class CSVConnector extends BaseEventConnector {
 
     private long periodicityInMillis = 60000;
     private long sleepTimeInMillis = 2000;
-
     private boolean publishEventsEnabled = true;
+    private String mode;
 
     private List<CSVRecord> records = new ArrayList<>();
 
@@ -109,7 +109,7 @@ public class CSVConnector extends BaseEventConnector {
     }
 
 
-    private void storeToFile(JsonNode config, File file) throws IOException {
+    public void storeToFile(JsonNode config, File file) throws IOException {
         final JsonNode provider = config.get("provider");
         csvUrl = getCsvUrl(config);
         if (provider.get("storage").asText().equals("GCS")) {
@@ -234,6 +234,7 @@ public class CSVConnector extends BaseEventConnector {
             }
             this.datasetName = getDatasetName(config);
             this.format = config.get("format").asText();
+            this.mode = config.get("mode").asText();
             this.timestampHeaderField = config.get("timeHeader").asText();
             this.timestampformat = config.get("timeFormat").asText();
             this.timeZone = config.get("timeZone") != null ? config.get("timeZone").asText() : "UTC";
@@ -248,7 +249,20 @@ public class CSVConnector extends BaseEventConnector {
             this.periodicityInMillis
                     = config.get("periodicity") != null ? config.get("periodicity").asInt() * 1000 : periodicityInMillis;
             boolean backfill = config.get("backfill") != null ? config.get("backfill").asBoolean() : false;
+            String backfillJobId = config.has("backfillJobId") ? config.get("backfillJobId").asText()
+                    : UUID.randomUUID().toString();
+            int batchSize = config.has("batchSize") ? config.get("batchSize").asInt() : 2000;
+
             boolean replay = config.get("replay") != null ? config.get("replay").asBoolean() : true;
+            String eventSourceType = getEventSourceType();
+
+            if (mode.equals("prod")) {
+                CSVProdConnector csvProdConnector = new CSVProdConnector(csvUrl, timestampformat, timeZone,
+                        timestampHeaderField, backfillJobId, getConnectorId(), eventSourceType,
+                        this, batchSize, 2000, config);
+                csvProdConnector.doRead();
+                return null;
+            }
 
             this.sleepTimeInMillis = config.get("sleepTime") != null ? config.get("sleepTime").asLong() : 2000L;
 

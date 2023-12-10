@@ -1,6 +1,7 @@
 package io.airbyte.integrations.bicycle.base.integration;
 
 import static io.bicycle.integration.common.bicycleconfig.BicycleConfig.SAAS_API_ROLE;
+import bicycle.io.events.proto.BicycleEventList;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,6 +49,7 @@ import io.bicycle.integration.connector.runtime.RuntimeConfig;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.config.EventMappingConfigurations;
 import io.bicycle.server.event.mapping.constants.BicycleEventPublisherType;
+import io.bicycle.server.event.mapping.models.converter.BicycleEventsResult;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.models.publisher.EventPublisherResult;
@@ -203,8 +205,12 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         }
     }
 
-    protected JsonRawEvent createJsonRawEvent(JsonNode jsonNode) {
+    public JsonRawEvent createJsonRawEvent(JsonNode jsonNode) {
         return new JsonRawEvent(jsonNode, dataTransformer);
+    }
+
+    public JsonRawEvent createJsonRawEvent(String json) {
+        return new JsonRawEvent(json, dataTransformer);
     }
 
     static ConfigStoreClient getConfigClient(BicycleConfig bicycleConfig) {
@@ -343,13 +349,25 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     }
 
     public boolean publishEvents(AuthInfo authInfo, EventSourceInfo eventSourceInfo,
+                                 BicycleEventsResult bicycleEventsResult){
+
+        if (bicycleEventsResult.getBicycleEvents().getEventsList().size() == 0) {
+            return true;
+        }
+
+        return bicycleEventPublisher.publishEvents(authInfo, eventSourceInfo, bicycleEventsResult);
+    }
+
+    public boolean publishDummyEvents(AuthInfo authInfo, EventSourceInfo eventSourceInfo, long durationInSeconds) {
+        return bicycleEventPublisher.publishDummyEvents(authInfo, eventSourceInfo, durationInSeconds, 5000);
+    }
+    public boolean publishEvents(AuthInfo authInfo, EventSourceInfo eventSourceInfo,
                                  EventProcessorResult eventProcessorResult) {
 
         if (eventProcessorResult == null) {
             return true;
         }
         EventPublisherResult publisherResult = bicycleEventPublisher.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
-
         if (publisherResult == null) {
             logger.warn("There was some issue in publishing events");
             return false;
@@ -478,7 +496,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                                                                  final ConfiguredAirbyteCatalog catalog,
                                                                  final JsonNode state) throws Exception;
 
-    protected String getEventSourceType() {
+    public String getEventSourceType() {
         return additionalProperties.containsKey("bicycleEventSourceType") ?
                 additionalProperties.get("bicycleEventSourceType").toString() : CommonUtils.UNKNOWN_EVENT_CONNECTOR;
     }
@@ -579,7 +597,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         this.state = state;
     }
 
-    protected AirbyteStateMessage getState(AuthInfo authInfo, String streamId) {
+    public AirbyteStateMessage getState(AuthInfo authInfo, String streamId) {
 
         try {
             String state = connectionServiceClient.getReadStateConfigById(authInfo, streamId);
@@ -695,7 +713,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return false;
     }
 
-    protected AuthInfo getAuthInfo() {
+    public AuthInfo getAuthInfo() {
         return bicycleConfig.getAuthInfo(SAAS_API_ROLE);
     }
 
