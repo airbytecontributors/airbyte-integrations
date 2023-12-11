@@ -13,25 +13,27 @@ import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URL;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.io.FileUtils;
@@ -49,6 +51,7 @@ import org.slf4j.LoggerFactory;
  */
 public class CSVProdConnector {
     private static final Logger LOGGER = LoggerFactory.getLogger(CSVProdConnector.class);
+    private static final List<String> BLACKLISTED_DIRS = new ArrayList<>();
     private static final int CONNECT_TIMEOUT_IN_MILLIS = 60000;
     private static final int READ_TIMEOUT_IN_MILLIS = 60000;
     private static final String LAST_UPDATED_TIMESTAMP = "lastUpdatedTimestampInEpochMillis";
@@ -69,6 +72,9 @@ public class CSVProdConnector {
     private final String sourceType;
     private final String timeZone;
     private final int dummyMessageInterval;
+    private final boolean isBackfillEnabled;
+    private long backfillStartTimeInMillis = -1;
+    private long backfillEndTimeInMillis = -1;
 
     public CSVProdConnector(String fileUrl, String dateTimePattern, String timeZone, String dateTimeFieldColumnName,
                             String backfillJobId, String streamId, String sourceType, CSVConnector csvConnector,
@@ -86,15 +92,33 @@ public class CSVProdConnector {
         this.timeZone = timeZone;
         this.dummyMessageInterval = config.has("dummyMessageInterval")
                 ? config.get("dummyMessageInterval").asInt() : 120;
+        isBackfillEnabled = config.get("backfill") != null ? config.get("backfill").asBoolean() : false;
+        String backfillStartTimestamp
+                = config.get("backfillStartDateTime") != null ? config.get("backfillStartDateTime").asText() : null;
+        this.backfillStartTimeInMillis = convertStringToTimestamp(backfillStartTimestamp);
 
+        String backfillEndTimestamp
+                = config.get("backfillEndDateTime") != null ? config.get("backfillEndDateTime").asText() : null;
+        this.backfillEndTimeInMillis = convertStringToTimestamp(backfillEndTimestamp);
+
+        BLACKLISTED_DIRS.add("MACOSX");
     }
+
 
     public void doRead() {
 
+        LOGGER.info("Inside do read for connector {}", streamId);
+
         String fileType = getFileType(fileUrl);
+        LOGGER.info("File type identified for connector {} is {}", streamId, fileType);
+
+        if (StringUtils.isEmpty(fileType)) {
+            throw new RuntimeException("Unable to determine the file type for fileurl " + fileUrl);
+        }
 
         File[] files;
         File file = getFileObject(fileType);
+        LOGGER.info("Able to get file object for stream Id {} {}", streamId, file.getPath());
 
         try {
             if (fileType.equals(ZIP_FILE_TYPE)) {
@@ -104,17 +128,21 @@ public class CSVProdConnector {
                 files[0] = file;
             }
         } catch (Exception e) {
-            throw new RuntimeException("Unable to read file from url" + fileUrl, e);
+            throw new RuntimeException("Unable to read file from url " + fileUrl, e);
         }
+
+        LOGGER.info("Got {} files in the location for stream Id {}", files.length, streamId);
 
         for (int i = 0; i < files.length; i++) {
             processCSVFile(files[i]);
         }
 
         EventSourceInfo eventSourceInfo = new EventSourceInfo(streamId, sourceType);
-        LOGGER.info("Starting publishing dummy events");
-        publishDummyEvents(eventSourceInfo, dummyMessageInterval);
-        LOGGER.info("Done publishing dummy events");
+        if (isBackfillEnabled) {
+            LOGGER.info("Starting publishing dummy events");
+            publishDummyEvents(eventSourceInfo, dummyMessageInterval);
+            LOGGER.info("Done publishing dummy events");
+        }
     }
 
     private String getFileType(String fileUrl) {
@@ -153,6 +181,23 @@ public class CSVProdConnector {
         return CSV_FILE_TYPE;
     }
 
+    private File getFileObject(String fileType) {
+
+        try {
+            File file = File.createTempFile(UUID.randomUUID().toString(), "." + fileType);
+            file.deleteOnExit();
+            final JsonNode provider = config.get("provider");
+
+            if (provider.get("storage").asText().equals("GCS")) {
+                csvConnector.storeToFile(config, file);
+            } else {
+                FileUtils.copyURLToFile(new URL(fileUrl), file, CONNECT_TIMEOUT_IN_MILLIS, READ_TIMEOUT_IN_MILLIS);
+            }
+            return file;
+        } catch (Exception e) {
+            throw new RuntimeException("Unable to read file from GCS", e);
+        }
+    }
 
     private String getFileExtension(String filePath) {
         Path path = Paths.get(filePath);
@@ -169,57 +214,56 @@ public class CSVProdConnector {
     private File[] handleZipFile(String filePath) {
 
         try {
-            File[] files = readZipFile(filePath);
-            return files;
-        } catch (IOException e) {
+            List<File> files = getCSVFilesFromZip(filePath);
+            File[] filesArray = files.toArray(new File[files.size()]);
+            return filesArray;
+        } catch (Exception e) {
             throw new RuntimeException("Unable to read zip file", e);
         }
     }
 
-    private File getFileObject(String fileType) {
 
-        try {
-            File file = File.createTempFile(UUID.randomUUID().toString(), "." + fileType);
-            final JsonNode provider = config.get("provider");
 
-            if (provider.get("storage").asText().equals("GCS")) {
-                csvConnector.storeToFile(config, file);
-            } else {
-                FileUtils.copyURLToFile(new URL(fileUrl), file, CONNECT_TIMEOUT_IN_MILLIS, READ_TIMEOUT_IN_MILLIS);
+    public List<File> getCSVFilesFromZip(String zipFileAbsPath) throws IOException {
+        List<File> csvFiles = new ArrayList<>();
+        Path zipFilePath = Paths.get(zipFileAbsPath);
+        FileSystem zipFileSystem = FileSystems.newFileSystem(zipFilePath);
+        Path root = zipFileSystem.getPath("/");
+        Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path path, BasicFileAttributes attrs) throws IOException {
+                if (isFileAllowed(path.toString())) {
+
+                    File file = new File(OUTPUT_DIRECTORY, path.getFileName().toString());
+                    file.deleteOnExit();
+                    if (file.getParentFile() != null) {
+                        file.getParentFile().mkdirs();
+                    }
+
+                    Path outputPath = Paths.get(OUTPUT_DIRECTORY, path.getFileName().toString());
+                    Files.copy(Files.newInputStream(path), outputPath, StandardCopyOption.REPLACE_EXISTING);
+                    csvFiles.add(file);
+                    System.out.println(path);
+                }
+                return FileVisitResult.CONTINUE;
             }
-            return file;
-        } catch (Exception e) {
-            throw new RuntimeException("Unable to read file from GCS", e);
-        }
-
+        });
+        return csvFiles;
     }
 
-    private File[] readZipFile(String zipFilePath) throws IOException {
-        List<File> csvFiles = new ArrayList<>();
-        try (ZipFile zipFile = new ZipFile(zipFilePath)) {
-            Enumeration<? extends ZipEntry> entries = zipFile.entries();
-            while (entries.hasMoreElements()) {
-                ZipEntry entry = entries.nextElement();
-                if (!entry.isDirectory() && isCSVFile(entry.getName())) {
-                    // Process each CSV file entry
-                    // Get InputStream for the ZipEntry content
-                    try (InputStream inputStream = zipFile.getInputStream(entry)) {
-                        // Use the inputStream to create or process a file if needed
-                        // For example, you can copy the content to a new file
-                        Path outputPath = Paths.get(OUTPUT_DIRECTORY, entry.getName());
-                        Files.copy(inputStream, outputPath, StandardCopyOption.REPLACE_EXISTING);
-                        File file = new File(OUTPUT_DIRECTORY + entry.getName());
-                        csvFiles.add(file);
-                    }
-                    System.out.println("CSV File: " + entry.getName());
-                    // You can add additional logic to read the content of the CSV file if needed
-                }
+    private boolean isFileAllowed(String filePath) {
+
+        for (String fileName : BLACKLISTED_DIRS) {
+            if (filePath.contains(fileName)) {
+                return false;
             }
         }
-        File[] files = new File[csvFiles.size()];
-        files = csvFiles.toArray(files);
-        Arrays.sort(files, Comparator.comparing(File::getName));
-        return files;
+
+        if (filePath.endsWith(".csv")) {
+            return true;
+        }
+
+        return false;
     }
 
     private void processCSVFile(File csvFile) {
@@ -256,6 +300,8 @@ public class CSVProdConnector {
 
             if (isPublishSuccess) {
                 setState(maxTimestamp);
+            } else {
+              throw new RuntimeException("Unable to publish events, cannot move ahead for stream Id " + streamId);
             }
 
             try {
@@ -323,10 +369,6 @@ public class CSVProdConnector {
         return publishEvents;
     }
 
-    private static boolean isCSVFile(String fileName) {
-        return fileName.toLowerCase().endsWith(".csv");
-    }
-
     private static List<String[]> readCsvFile(String csvFilePath) throws IOException, CsvValidationException {
         List<String[]> csvData = new ArrayList<>();
 
@@ -352,7 +394,9 @@ public class CSVProdConnector {
     }
 
     private long convertStringToTimestamp(String dateString) {
-
+        if (dateString == null) {
+            return -1;
+        }
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern(dateTimePattern);
         long milliseconds = 0;
         try {
@@ -395,7 +439,6 @@ public class CSVProdConnector {
                 if (i == 0) {
                     continue;
                 }
-                //  String json = objectMapper.writeValueAsString(createJsonMap(csvData.get(0), csvRow));
                 String json = convertRowToJson(csvData.get(0), csvRow, timestamp);
                 if (!StringUtils.isEmpty(json)) {
                     jsonList.add(json);
@@ -409,7 +452,7 @@ public class CSVProdConnector {
     }
 
     private String convertRowToJson(String[] headers, String[] values, long maxTimestampProcessed) {
-        java.util.Map<String, String> jsonMap = new java.util.HashMap<>();
+        Map<String, String> jsonMap = new HashMap<>();
 
         for (int i = 0; i < headers.length; i++) {
             String headerName = headers[i];
@@ -423,10 +466,16 @@ public class CSVProdConnector {
             if (timestamp <= maxTimestampProcessed) {
                 return null;
             }
+            if (backfillStartTimeInMillis != -1 && timestamp < backfillEndTimeInMillis) {
+                return null;
+            }
+            if (backfillEndTimeInMillis != -1 && timestamp > backfillEndTimeInMillis) {
+                return null;
+            }
             return objectMapper.writeValueAsString(jsonMap);
         } catch (Exception e) {
-            e.printStackTrace();
-            return "{}"; // Return an empty JSON object in case of an error
+            LOGGER.error("Unable to convert a csv row {} to json because of {}", values, e);
+            return null; // Return an empty JSON object in case of an error
         }
     }
 
@@ -456,7 +505,11 @@ public class CSVProdConnector {
     private void setState(long timestamp) {
         JsonNode state = this.csvConnector.getUpdatedState(LAST_UPDATED_TIMESTAMP, timestamp);
         boolean isStateSaved = csvConnector.setState(this.csvConnector.getAuthInfo(), streamId, state);
-
+        if (isStateSaved) {
+            LOGGER.info("Successfully saved state for stream Id {}", streamId);
+        } else {
+            LOGGER.warn("Unable to save state for stream Id {}", streamId);
+        }
     }
 
     private void publishDummyEvents(EventSourceInfo eventSourceInfo, long dummyMessageInterval) {

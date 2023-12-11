@@ -70,6 +70,7 @@ import org.slf4j.LoggerFactory;
  * Created on 28/05/2022
  */
 public abstract class BaseEventConnector extends BaseConnector implements Source {
+    private static final int MAX_RETRY = 3;
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getName());
     private final ConfigHelper configHelper = new ConfigHelper();
     private ConfigStoreClient configStoreClient;
@@ -367,7 +368,24 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         if (eventProcessorResult == null) {
             return true;
         }
-        EventPublisherResult publisherResult = bicycleEventPublisher.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
+        int retry = 0;
+        EventPublisherResult publisherResult = null;
+
+        while (retry < MAX_RETRY) {
+
+            publisherResult = bicycleEventPublisher.publishEvents(authInfo, eventSourceInfo,
+                    eventProcessorResult);
+
+            if (publisherResult != null) {
+                return true;
+            }
+            retry++;
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+            }
+        }
+
         if (publisherResult == null) {
             logger.warn("There was some issue in publishing events");
             return false;

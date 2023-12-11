@@ -118,7 +118,7 @@
           "prod",
           "demo"
         ],
-        "default": "prod",
+        "default": "demo",
         "title": "Mode",
         "description": "Specifies the operational mode for the connector. In Demo mode, replication occurs every minute throughout the day, pushing data accordingly. In Prod mode, CSV data is instantly pushed"
       },
