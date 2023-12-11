@@ -28,6 +28,7 @@ import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -234,7 +235,7 @@ public class CSVConnector extends BaseEventConnector {
             }
             this.datasetName = getDatasetName(config);
             this.format = config.get("format").asText();
-            this.mode = config.get("mode").asText();
+            this.mode = config.has("mode") ? config.get("mode").asText() : "demo";
             this.timestampHeaderField = config.get("timeHeader").asText();
             this.timestampformat = config.get("timeFormat").asText();
             this.timeZone = config.get("timeZone") != null ? config.get("timeZone").asText() : "UTC";
@@ -256,7 +257,7 @@ public class CSVConnector extends BaseEventConnector {
             boolean replay = config.get("replay") != null ? config.get("replay").asBoolean() : true;
             String eventSourceType = getEventSourceType();
 
-            if (mode.equals("prod")) {
+            if (!StringUtils.isEmpty(mode) && mode.equals("prod")) {
                 CSVProdConnector csvProdConnector = new CSVProdConnector(csvUrl, timestampformat, timeZone,
                         timestampHeaderField, backfillJobId, getConnectorId(), eventSourceType,
                         this, batchSize, 2000, config);

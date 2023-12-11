@@ -14,6 +14,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.net.URL;
+import java.nio.charset.Charset;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.FileVisitResult;
@@ -372,7 +373,7 @@ public class CSVProdConnector {
     private static List<String[]> readCsvFile(String csvFilePath) throws IOException, CsvValidationException {
         List<String[]> csvData = new ArrayList<>();
 
-        try (CSVReader csvReader = new CSVReader(new FileReader(csvFilePath))) {
+        try (CSVReader csvReader = new CSVReader(new FileReader(csvFilePath, Charset.defaultCharset()))) {
             String[] nextRecord;
             while ((nextRecord = csvReader.readNext()) != null) {
                 csvData.add(nextRecord);
@@ -482,7 +483,7 @@ public class CSVProdConnector {
     public int getHeaderIndex(String csvFilePath, String headerName) throws IOException {
         CSVFormat csvFormat = CSVFormat.DEFAULT.withHeader().withIgnoreHeaderCase();
 
-        try (CSVParser csvParser = new CSVParser(new FileReader(csvFilePath), csvFormat)) {
+        try (CSVParser csvParser = new CSVParser(new FileReader(csvFilePath, Charset.defaultCharset()), csvFormat)) {
             int index = csvParser.getHeaderMap().get(headerName);
             return index;
         }

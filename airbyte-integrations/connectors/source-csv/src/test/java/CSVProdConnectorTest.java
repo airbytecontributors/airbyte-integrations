@@ -40,20 +40,18 @@ public class CSVProdConnectorTest {
 
         BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL, token, connectorId,uniqueIdentifier,
                 tenantId, Mockito.mock(SystemAuthenticator.class),true);
-        AuthInfo authInfo = bicycleConfig.getAuthInfo();
-        EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
 
         JsonNode config = getPublicUrlConfig();
         String fileUrl = config.get("url").asText();
         String dateTimePattern = config.get("timeFormat").asText();
         String dateTimeField = config.get("timeHeader").asText();
         ConnectorConfigManager connectorConfigManager = Mockito.mock(ConnectorConfigManager.class);
+        Mockito.when(connectorConfigManager.getRuntimeConfig(Mockito.any(AuthInfo.class), Mockito.any(String.class))).
+                thenReturn(RuntimeConfig.getDefaultInstance());
         CSVConnector csvConnector = new CSVConnector(Mockito.mock(SystemAuthenticator.class),
                 Mockito.mock(EventConnectorJobStatusNotifier.class), connectorConfigManager);
         csvConnector.setBicycleEventProcessorAndPublisher(bicycleConfig);
 
-        Mockito.when(connectorConfigManager.getRuntimeConfig(Mockito.any(AuthInfo.class), Mockito.any(String.class))).
-                thenReturn(RuntimeConfig.getDefaultInstance());
 
         CSVProdConnector csvProdConnector = new CSVProdConnector(fileUrl, dateTimePattern, "UTC",
                 dateTimeField, "backfill-job-1", bicycleConfig.getConnectorId(),
@@ -72,21 +70,21 @@ public class CSVProdConnectorTest {
         String uniqueIdentifier = UUID.randomUUID().toString();
         String token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJST0xFIjoiQVBJIiwic3ViIjoic3VtaXQtdGVzdCIsIk9SR19JRCI6IjY0IiwiaXNzIjoic3VtaXRAYmljeWNsZS5pbyIsImlhdCI6MTY0NDk0MTQxMywiVEVOQU5UIjoiZW10LWU5ZTRlZjZjLTYzYzQtNDkzMC1iMzMxLTJkZjNhZjFlNzg4ZSIsImp0aSI6IjBkZjU4ZmFkLTk0NzMtNDQ4OS1iNzMifQ.t8F2oEwEFej1xU2LknY2pLsbgUW3x5YED8trN9QYzDU";
         String connectorId = "8659da17-eb4b-417d-a762-9d59a85a9eef";
-        String userId = "";
         String eventSourceType= "EVENT";
         String tenantId = "";
 
         BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL, token, connectorId,uniqueIdentifier,
                 tenantId, Mockito.mock(SystemAuthenticator.class),true);
-        AuthInfo authInfo = bicycleConfig.getAuthInfo();
-        EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
 
         JsonNode config = getPublicUrlConfig();
         String fileUrl = config.get("url").asText();
         String dateTimePattern = config.get("timeFormat").asText();
         String dateTimeField = config.get("timeHeader").asText();
+        ConnectorConfigManager connectorConfigManager = Mockito.mock(ConnectorConfigManager.class);
+        Mockito.when(connectorConfigManager.getRuntimeConfig(Mockito.any(AuthInfo.class), Mockito.any(String.class))).
+                thenReturn(RuntimeConfig.getDefaultInstance());
         CSVConnector csvConnector = new CSVConnector(Mockito.mock(SystemAuthenticator.class),
-                Mockito.mock(EventConnectorJobStatusNotifier.class), null);
+                Mockito.mock(EventConnectorJobStatusNotifier.class), connectorConfigManager);
         csvConnector.setBicycleEventProcessorAndPublisher(bicycleConfig);
 
         CSVProdConnector csvProdConnector = new CSVProdConnector(fileUrl, dateTimePattern, dateTimeField,
@@ -112,16 +110,17 @@ public class CSVProdConnectorTest {
 
         BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL, token, connectorId,uniqueIdentifier,
                 tenantId, Mockito.mock(SystemAuthenticator.class),true);
-        AuthInfo authInfo = bicycleConfig.getAuthInfo();
-        EventSourceInfo eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
 
         JsonNode config = getGSCConfig(GCS_FILE_URL, "CREATED_AT",
                 "yyyy-MM-dd'T'HH:mm:ss[.SSSSSS][.SSSSS][.SSSS][.SSS][.SS][.S]['Z']");
         String fileUrl = config.get("url").asText();
         String dateTimePattern = config.get("timeFormat").asText();
         String dateTimeField = config.get("timeHeader").asText();
+        ConnectorConfigManager connectorConfigManager = Mockito.mock(ConnectorConfigManager.class);
+        Mockito.when(connectorConfigManager.getRuntimeConfig(Mockito.any(AuthInfo.class), Mockito.any(String.class))).
+                thenReturn(RuntimeConfig.getDefaultInstance());
         CSVConnector csvConnector = new CSVConnector(Mockito.mock(SystemAuthenticator.class),
-                Mockito.mock(EventConnectorJobStatusNotifier.class), null);
+                Mockito.mock(EventConnectorJobStatusNotifier.class), connectorConfigManager);
         csvConnector.setBicycleEventProcessorAndPublisher(bicycleConfig);
 
         CSVProdConnector csvProdConnector = new CSVProdConnector(fileUrl, dateTimePattern, "UTC", dateTimeField,
@@ -153,8 +152,11 @@ public class CSVProdConnectorTest {
         String fileUrl = config.get("url").asText();
         String dateTimePattern = config.get("timeFormat").asText();
         String dateTimeField = config.get("timeHeader").asText();
+        ConnectorConfigManager connectorConfigManager = Mockito.mock(ConnectorConfigManager.class);
+        Mockito.when(connectorConfigManager.getRuntimeConfig(Mockito.any(AuthInfo.class), Mockito.any(String.class))).
+                thenReturn(RuntimeConfig.getDefaultInstance());
         CSVConnector csvConnector = new CSVConnector(Mockito.mock(SystemAuthenticator.class),
-                Mockito.mock(EventConnectorJobStatusNotifier.class), null);
+                Mockito.mock(EventConnectorJobStatusNotifier.class), connectorConfigManager);
         csvConnector.setBicycleEventProcessorAndPublisher(bicycleConfig);
 
         CSVProdConnector csvProdConnector = new CSVProdConnector(fileUrl, dateTimePattern, "UTC", dateTimeField,
@@ -207,7 +209,6 @@ public class CSVProdConnectorTest {
         String uniqueIdentifier = UUID.randomUUID().toString();
         String token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJST0xFIjoiQVBJIiwic3ViIjoic3VtaXQtdGVzdCIsIk9SR19JRCI6IjY0IiwiaXNzIjoic3VtaXRAYmljeWNsZS5pbyIsImlhdCI6MTY0NDk0MTQxMywiVEVOQU5UIjoiZW10LWU5ZTRlZjZjLTYzYzQtNDkzMC1iMzMxLTJkZjNhZjFlNzg4ZSIsImp0aSI6IjBkZjU4ZmFkLTk0NzMtNDQ4OS1iNzMifQ.t8F2oEwEFej1xU2LknY2pLsbgUW3x5YED8trN9QYzDU";
         String connectorId = "8659da17-eb4b-417d-a762-9d59a85a9eef";
-        String userId = "";
         String eventSourceType= "EVENT";
         String tenantId = "";
 
@@ -220,8 +221,11 @@ public class CSVProdConnectorTest {
         String fileUrl = config.get("url").asText();
         String dateTimePattern = config.get("timeFormat").asText();
         String dateTimeField = config.get("timeHeader").asText();
+        ConnectorConfigManager connectorConfigManager = Mockito.mock(ConnectorConfigManager.class);
+        Mockito.when(connectorConfigManager.getRuntimeConfig(Mockito.any(AuthInfo.class), Mockito.any(String.class))).
+                thenReturn(RuntimeConfig.getDefaultInstance());
         CSVConnector csvConnector = new CSVConnector(Mockito.mock(SystemAuthenticator.class),
-                Mockito.mock(EventConnectorJobStatusNotifier.class), null);
+                Mockito.mock(EventConnectorJobStatusNotifier.class), connectorConfigManager);
         csvConnector.setBicycleEventProcessorAndPublisher(bicycleConfig);
 
         CSVProdConnector csvProdConnector = new CSVProdConnector(fileUrl, dateTimePattern, "UTC", dateTimeField,
@@ -239,13 +243,13 @@ public class CSVProdConnectorTest {
         JsonNode config = mapper.createObjectNode();
         //((ObjectNode)config).put("url", "");
         //((ObjectNode)config).put("url", "file:///home/ravi/Desktop/test1.csv");
-        ((ObjectNode) config).put("url", "https://storage.googleapis.com/kdev-blob-store/evt-fbb967ad-25f2-4eee-b2e5-f52b047be2ef/test-namespace/test-path/1ec89429-8516-43c5-8d2b-6cd22b63f248?GoogleAccessId=alert-store-bucket-access@pivotal-canto-171605.iam.gserviceaccount.com&Expires=1703045130&Signature=Lzkc2qVoaeBlE1S%2FHrhCr3Cc5HTVB0T5XJLDew9kpMniAPyI6DtfGf8RSs1baUWj6MDo%2B96JG7jXK4u07fpRTgT0MZeCmgmTHJwZOqLINtAEU2lzAluxQqNa6iovr5YVe9t0GuCq8jNX31Itws1m1H7aPCK%2B75M7RcrOZ8JrnWq8fGSR3FEu1wm6tC30fkrmT0fdEUXKNR2iK8KkUOy789ODs836vcJoW%2BSNcJKEUZC5%2FSznIWpJkZY6CiZPmLTodOZNJeiFtJ6gmvBr4coAPsk2vkXLRqAnno3sNR%2FEcxv2F5rBdh6hE8fR%2FkzVmIp1gasPE14KaTc8U1rG3wPHdA%3D%3D");
+        ((ObjectNode) config).put("url", PUBLIC_FILE);
         ((ObjectNode) config).put("timeHeader", "Start Time");
         ((ObjectNode) config).put("timeFormat", "yyyy-MMM-dd HH:mm:ss z");
         ((ObjectNode) config).put("timeZone", "UTC");
         ((ObjectNode) config).put("datasetName", "test-csv");
         ((ObjectNode) config).put("format", "csv");
-        ((ObjectNode) config).put("backfill", true);
+        ((ObjectNode) config).put("backfill", false);
         ((ObjectNode) config).put("replay", false);
         ((ObjectNode) config).put("mode", "prod");
         ((ObjectNode) config).put("backfillDateTime", "test");
@@ -291,7 +295,7 @@ public class CSVProdConnectorTest {
         ((ObjectNode) config).put("timeZone", "UTC");
         ((ObjectNode) config).put("datasetName", "test-csv");
         ((ObjectNode) config).put("format", "csv");
-        ((ObjectNode) config).put("backfill", true);
+        ((ObjectNode) config).put("backfill", false);
         ((ObjectNode) config).put("replay", false);
         ((ObjectNode) config).put("mode", "prod");
         ((ObjectNode) config).put("backfillDateTime", "test");
