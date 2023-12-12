@@ -148,12 +148,14 @@ public class CSVProdConnector {
     public void doRead() {
 
         File[] files = getFilesObject();
+        EventSourceInfo eventSourceInfo = new EventSourceInfo(streamId, sourceType);
+        boolean doesMappingRulesExist = csvConnector.doesMappingRulesExists(csvConnector.getAuthInfo(),
+                eventSourceInfo);
 
         for (int i = 0; i < files.length; i++) {
-            processCSVFile(files[i]);
+            processCSVFile(files[i], doesMappingRulesExist);
         }
 
-        EventSourceInfo eventSourceInfo = new EventSourceInfo(streamId, sourceType);
         if (isBackfillEnabled) {
             LOGGER.info("Starting publishing dummy events");
             publishDummyEvents(eventSourceInfo, dummyMessageInterval);
@@ -285,7 +287,7 @@ public class CSVProdConnector {
         return false;
     }
 
-    private void processCSVFile(File csvFile) {
+    private void processCSVFile(File csvFile, boolean doesMappingRuleExists) {
 
         try {
             long maxTimestamp = getState();
@@ -303,7 +305,7 @@ public class CSVProdConnector {
             List<String> jsonList = convertCsvToJson(csvData, maxTimestamp);
             LOGGER.info("Json rows for stream ID {} :: {} with file name {}", streamId, jsonList.size(),
                     csvFile.getName());
-            long maxTimestampPublished = handleRawEvents(jsonList, maxTimestamp);
+            long maxTimestampPublished = handleRawEvents(jsonList, maxTimestamp, doesMappingRuleExists);
             LOGGER.info("MaxTimeStamp published for connector Id {} :: {} after processing file {}", streamId,
                     maxTimestampPublished, csvFile.getName());
         } catch (Exception e) {
@@ -311,7 +313,7 @@ public class CSVProdConnector {
         }
     }
 
-    private long handleRawEvents(List<String> jsonList, long maxTimestamp) {
+    private long handleRawEvents(List<String> jsonList, long maxTimestamp, boolean doesMappingRuleExists) {
 
         for (int i = 0; i < jsonList.size(); i += batchSize) {
             List<String> batch = jsonList.subList(i, Math.min(i + batchSize, jsonList.size()));
@@ -320,8 +322,8 @@ public class CSVProdConnector {
 
             boolean isPublishSuccess = processAndPublishEvents(jsonNodes);
 
-            if (isPublishSuccess) {
-                setState(maxTimestamp);
+            if (isPublishSuccess && doesMappingRuleExists) {
+                updateState(maxTimestamp);
             } else {
               throw new RuntimeException("Unable to publish events, cannot move ahead for stream Id " + streamId);
             }
@@ -524,7 +526,7 @@ public class CSVProdConnector {
         return lastUpdatedTimestamp;
     }
 
-    private void setState(long timestamp) {
+    private void updateState(long timestamp) {
         JsonNode state = this.csvConnector.getUpdatedState(LAST_UPDATED_TIMESTAMP, timestamp);
         boolean isStateSaved = csvConnector.setState(this.csvConnector.getAuthInfo(), streamId, state);
         if (isStateSaved) {

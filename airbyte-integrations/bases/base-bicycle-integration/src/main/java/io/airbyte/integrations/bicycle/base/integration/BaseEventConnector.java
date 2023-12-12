@@ -434,6 +434,16 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         }
     }
 
+    public boolean doesMappingRulesExists(AuthInfo authInfo, EventSourceInfo eventSourceInfo) {
+        List<UserServiceMappingRule> userServiceMappingRules =
+                this.configHelper.getUserServiceMappingRules(
+                        authInfo,
+                        eventSourceInfo.getEventSourceId(),
+                        configStoreClient
+                );
+
+        return userServiceMappingRules != null ? userServiceMappingRules.size() > 0 ? true : false : false;
+    }
     private ProcessRawEventsResult processRawEvents(AuthInfo authInfo,
                                                    EventSourceInfo eventSourceInfo,
                                                    List<RawEvent> rawEvents) {
