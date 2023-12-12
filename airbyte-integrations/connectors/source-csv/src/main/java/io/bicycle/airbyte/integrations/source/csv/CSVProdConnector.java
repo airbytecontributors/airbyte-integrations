@@ -322,10 +322,12 @@ public class CSVProdConnector {
 
             boolean isPublishSuccess = processAndPublishEvents(jsonNodes);
 
-            if (isPublishSuccess && doesMappingRuleExists) {
-                updateState(maxTimestamp);
+            if (isPublishSuccess) {
+                if (doesMappingRuleExists) {
+                    updateState(maxTimestamp);
+                }
             } else {
-              throw new RuntimeException("Unable to publish events, cannot move ahead for stream Id " + streamId);
+                throw new RuntimeException("Unable to publish events, cannot move ahead for stream Id " + streamId);
             }
 
             try {
