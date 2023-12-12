@@ -109,7 +109,6 @@ public class CSVConnector extends BaseEventConnector {
         stopEventConnector("Successfully Stopped", JobExecutionStatus.success);
     }
 
-
     public void storeToFile(JsonNode config, File file) throws IOException {
         final JsonNode provider = config.get("provider");
         csvUrl = getCsvUrl(config);
@@ -134,8 +133,15 @@ public class CSVConnector extends BaseEventConnector {
             this.timestampformat = config.get("timeFormat").asText();
             this.timeZone = config.get("timeZone") != null ? config.get("timeZone").asText() : "UTC";
             String datasetName = getDatasetName(config);
-            File file = File.createTempFile(UUID.randomUUID().toString(),".csv");
-            storeToFile(config, file);
+            String mode = config.has("mode") ? config.get("mode").asText() : "demo";
+            File file = null;
+            if (isProdMode(mode)) {
+                file = getFileObjectInProdMode(csvUrl, config);
+            } else {
+                file = File.createTempFile(UUID.randomUUID().toString(),".csv");
+                storeToFile(config, file);
+            }
+
             CSVParser parsed = CSVFormat.DEFAULT.withFirstRecordAsHeader().parse(new FileReader(file, Charset.defaultCharset()));
             Iterator<org.apache.commons.csv.CSVRecord> iterator = parsed.iterator();
             return AutoCloseableIterators.fromIterator(new AbstractIterator<>() {
@@ -165,19 +171,48 @@ public class CSVConnector extends BaseEventConnector {
         }
     }
 
+    private File getFileObjectInProdMode(String csvUrl, JsonNode config) {
+        CSVProdConnector csvProdConnector = new CSVProdConnector(csvUrl, config, this);
+        File[] files = csvProdConnector.getFilesObject();
+        if (files.length == 0) {
+            throw new RuntimeException("Unable to get file object for url " + csvUrl);
+        }
+        File file = files[0];
+        return file;
+    }
+
+    private boolean isProdMode(String mode) {
+        if (StringUtils.isEmpty(mode)) {
+            return false;
+        }
+
+        if (mode.equals("prod")) {
+            return true;
+        }
+        return false;
+    }
+
     public AirbyteConnectionStatus check(JsonNode config) throws Exception {
         LOGGER.info("Check the status");
         String csvUrl = getCsvUrl(config);
-        if (csvUrl  == null) {
+        String mode = config.has("mode") ? config.get("mode").asText() : "demo";
+
+        if (csvUrl == null) {
             return new AirbyteConnectionStatus()
                     .withStatus(AirbyteConnectionStatus.Status.FAILED)
                     .withMessage("URL is not provided.");
         } else {
             CSVParser parsed = null;
+            File file = null;
             try {
-                File file = File.createTempFile(UUID.randomUUID().toString(),".csv");
-                storeToFile(config, file);
-                parsed = CSVFormat.DEFAULT.withFirstRecordAsHeader().parse(new FileReader(file, Charset.defaultCharset()));
+                if (isProdMode(mode)) {
+                    file = getFileObjectInProdMode(csvUrl, config);
+                } else {
+                    file = File.createTempFile(UUID.randomUUID().toString(), ".csv");
+                    storeToFile(config, file);
+                }
+                parsed = CSVFormat.DEFAULT.withFirstRecordAsHeader()
+                        .parse(new FileReader(file, Charset.defaultCharset()));
                 parsed.iterator().hasNext();
                 return new AirbyteConnectionStatus()
                         .withStatus(AirbyteConnectionStatus.Status.SUCCEEDED)
@@ -192,7 +227,6 @@ public class CSVConnector extends BaseEventConnector {
                     parsed.close();
                 }
             }
-
         }
     }
 
@@ -293,6 +327,7 @@ public class CSVConnector extends BaseEventConnector {
 
         } catch(Throwable e) {
             LOGGER.error("Exception in the job ["+getTenantId()+"] : ["+getConnectorId()+"]" , e);
+            throw new RuntimeException("Exception in the job ["+getTenantId()+"] : ["+getConnectorId()+"]", e);
         } finally {
             LOGGER.info("Completed Read v3 [{}] [{}] [{}]", getTenantId(), getConnectorId(), runCount);
         }

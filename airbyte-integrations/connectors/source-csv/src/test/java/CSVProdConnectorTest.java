@@ -5,13 +5,16 @@ import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.auth.model.BearerTokenAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
+import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.airbyte.integrations.source.csv.CSVConnector;
 import io.bicycle.airbyte.integrations.source.csv.CSVProdConnector;
 import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.integration.connector.runtime.RuntimeConfig;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -237,6 +240,73 @@ public class CSVProdConnectorTest {
 
     }
 
+    @Test
+    public void testCSVProdConnectorPreviewWithGCS() {
+
+        String serverURL =  "https://api.dev.bicycle.io";
+        String metricStoreURL =  "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details";
+        String uniqueIdentifier = UUID.randomUUID().toString();
+        String token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJST0xFIjoiQVBJIiwic3ViIjoic3VtaXQtdGVzdCIsIk9SR19JRCI6IjY0IiwiaXNzIjoic3VtaXRAYmljeWNsZS5pbyIsImlhdCI6MTY0NDk0MTQxMywiVEVOQU5UIjoiZW10LWU5ZTRlZjZjLTYzYzQtNDkzMC1iMzMxLTJkZjNhZjFlNzg4ZSIsImp0aSI6IjBkZjU4ZmFkLTk0NzMtNDQ4OS1iNzMifQ.t8F2oEwEFej1xU2LknY2pLsbgUW3x5YED8trN9QYzDU";
+        String connectorId = "8659da17-eb4b-417d-a762-9d59a85a9eef";
+        String eventSourceType= "EVENT";
+        String tenantId = "";
+
+        BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL, token, connectorId, uniqueIdentifier,
+                tenantId, Mockito.mock(SystemAuthenticator.class),false);
+
+        JsonNode config = getGSCConfigWithBackfillDisabled(GCS_ZIP_URL,
+                "booking_timestamp",
+                "yyyy-MM-dd HH:mm:ss.[SSSSSS][SSSSS][SSSS][SSS][SS][S] z");
+
+        ConnectorConfigManager connectorConfigManager = Mockito.mock(ConnectorConfigManager.class);
+        Mockito.when(connectorConfigManager.getRuntimeConfig(Mockito.any(AuthInfo.class), Mockito.any(String.class))).
+                thenReturn(RuntimeConfig.getDefaultInstance());
+        CSVConnector csvConnector = new CSVConnector(Mockito.mock(SystemAuthenticator.class),
+                Mockito.mock(EventConnectorJobStatusNotifier.class), connectorConfigManager);
+        csvConnector.setBicycleEventProcessorAndPublisher(bicycleConfig);
+
+        try {
+            csvConnector.preview(config, getConfiguredAirbyteCatalog(), null);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
+
+    @Test
+    public void testCSVProdConnectorCheckWithGCS() {
+
+        String serverURL =  "https://api.dev.bicycle.io";
+        String metricStoreURL =  "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details";
+        String uniqueIdentifier = UUID.randomUUID().toString();
+        String token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJST0xFIjoiQVBJIiwic3ViIjoic3VtaXQtdGVzdCIsIk9SR19JRCI6IjY0IiwiaXNzIjoic3VtaXRAYmljeWNsZS5pbyIsImlhdCI6MTY0NDk0MTQxMywiVEVOQU5UIjoiZW10LWU5ZTRlZjZjLTYzYzQtNDkzMC1iMzMxLTJkZjNhZjFlNzg4ZSIsImp0aSI6IjBkZjU4ZmFkLTk0NzMtNDQ4OS1iNzMifQ.t8F2oEwEFej1xU2LknY2pLsbgUW3x5YED8trN9QYzDU";
+        String connectorId = "8659da17-eb4b-417d-a762-9d59a85a9eef";
+        String eventSourceType= "EVENT";
+        String tenantId = "";
+
+        BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL, token, connectorId, uniqueIdentifier,
+                tenantId, Mockito.mock(SystemAuthenticator.class),false);
+
+        JsonNode config = getGSCConfigWithBackfillDisabled(GCS_ZIP_URL,
+                "booking_timestamp",
+                "yyyy-MM-dd HH:mm:ss.[SSSSSS][SSSSS][SSSS][SSS][SS][S] z");
+
+        ConnectorConfigManager connectorConfigManager = Mockito.mock(ConnectorConfigManager.class);
+        Mockito.when(connectorConfigManager.getRuntimeConfig(Mockito.any(AuthInfo.class), Mockito.any(String.class))).
+                thenReturn(RuntimeConfig.getDefaultInstance());
+        CSVConnector csvConnector = new CSVConnector(Mockito.mock(SystemAuthenticator.class),
+                Mockito.mock(EventConnectorJobStatusNotifier.class), connectorConfigManager);
+        csvConnector.setBicycleEventProcessorAndPublisher(bicycleConfig);
+
+        try {
+            csvConnector.check(config);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     private JsonNode getPublicUrlConfig() {
 
         ObjectMapper mapper = new ObjectMapper();
@@ -265,6 +335,28 @@ public class CSVProdConnectorTest {
 
         return config;
 
+    }
+
+    private ConfiguredAirbyteCatalog getConfiguredAirbyteCatalog() {
+
+        String serverURL =  "https://api.dev.bicycle.io";
+        String metricStoreURL =  "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details";
+        String uniqueIdentifier = UUID.randomUUID().toString();
+        String token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJSYXZpIiwiT1JHX0lEIjoiMzgiLCJpc3MiOiJhZG1pbiIsImlhdCI6MTYzMjQ2NTIxOSwiVEVOQU5UIjoiZHRzLTU2OGRjZWEzLTExYjAtNDBjMi1iODllLWQxODlmZTc3MDAyZSIsImp0aSI6ImViYTY5ZDU0LTViMTItNDYyZi1iODkifQ.ucz5kNwT2NfORTf5VDMuMrfPBLqa3xLy34iWOlwNZqk";
+        String connectorId = "c_connector_stream:950ae7a5-d88d-413b-a96b-d61348aaf4a1";
+        String userId = "";
+        String eventSourceType= "EVENT";
+        String tenantId = "";
+
+        ConfiguredAirbyteCatalog catalog= new ConfiguredAirbyteCatalog();
+        catalog.getAdditionalProperties().put("bicycleServerURL", serverURL);
+        catalog.getAdditionalProperties().put("bicycleTenantId", "dts-568dcea3-11b0-40c2-b89e-d189fe77002e");
+        catalog.getAdditionalProperties().put("bicycleToken", token);
+        catalog.getAdditionalProperties().put("bicycleConnectorId", connectorId);
+        catalog.getAdditionalProperties().put("bicycleEventSourceType", eventSourceType);
+        catalog.getAdditionalProperties().put("bicycleMetricStoreURL", metricStoreURL);
+
+        return catalog;
     }
 
     private JsonNode getGSCConfigWithBackfillDisabled(String gcsUrl, String dateTimeFieldName, String dateTimePattern) {

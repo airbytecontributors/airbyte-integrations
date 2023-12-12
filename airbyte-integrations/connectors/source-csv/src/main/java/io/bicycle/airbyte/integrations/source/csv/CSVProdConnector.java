@@ -29,6 +29,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -60,20 +61,20 @@ public class CSVProdConnector {
     private static final String CSV_FILE_TYPE = "csv";
     private static final String ZIP_FILE_TYPE = "zip";
     private static final String OUTPUT_DIRECTORY = "/tmp/csvfiles";
-    private final String fileUrl;
-    private final String dateTimePattern;
-    private final String dateTimeFieldColumnName;
-    private final int batchSize;
-    private final long delay;
-    private final String backfillJobId;
-    private final CSVConnector csvConnector;
-    private final String streamId;
+    private String fileUrl;
+    private String dateTimePattern;
+    private String dateTimeFieldColumnName;
+    private int batchSize;
+    private long delay;
+    private String backfillJobId;
+    private CSVConnector csvConnector;
+    private String streamId;
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final JsonNode config;
-    private final String sourceType;
-    private final String timeZone;
-    private final int dummyMessageInterval;
-    private final boolean isBackfillEnabled;
+    private JsonNode config;
+    private String sourceType;
+    private String timeZone;
+    private int dummyMessageInterval;
+    private boolean isBackfillEnabled;
     private long backfillStartTimeInMillis = -1;
     private long backfillEndTimeInMillis = -1;
 
@@ -105,16 +106,23 @@ public class CSVProdConnector {
         BLACKLISTED_DIRS.add("MACOSX");
     }
 
+    public CSVProdConnector(String fileUrl, JsonNode config, CSVConnector csvConnector) {
+        this.fileUrl = fileUrl;
+        this.streamId = "unknown";
+        this.sourceType = "unknown";
+        this.config = config;
+        this.csvConnector = csvConnector;
+    }
 
-    public void doRead() {
-
+    public File[] getFilesObject() {
         LOGGER.info("Inside do read for connector {}", streamId);
 
         String fileType = getFileType(fileUrl);
         LOGGER.info("File type identified for connector {} is {}", streamId, fileType);
 
         if (StringUtils.isEmpty(fileType)) {
-            throw new RuntimeException("Unable to determine the file type for fileurl " + fileUrl);
+            throw new RuntimeException("Unable to determine the file type for fileurl " + fileUrl +
+                    " and stream Id " + streamId);
         }
 
         File[] files;
@@ -129,10 +137,17 @@ public class CSVProdConnector {
                 files[0] = file;
             }
         } catch (Exception e) {
-            throw new RuntimeException("Unable to read file from url " + fileUrl, e);
+            throw new RuntimeException("Unable to read file from url " + fileUrl + " for stream Id " + streamId, e);
         }
 
         LOGGER.info("Got {} files in the location for stream Id {}", files.length, streamId);
+
+        return files;
+    }
+
+    public void doRead() {
+
+        File[] files = getFilesObject();
 
         for (int i = 0; i < files.length; i++) {
             processCSVFile(files[i]);
@@ -144,6 +159,8 @@ public class CSVProdConnector {
             publishDummyEvents(eventSourceInfo, dummyMessageInterval);
             LOGGER.info("Done publishing dummy events");
         }
+
+        csvConnector.stopEventConnector();
     }
 
     private String getFileType(String fileUrl) {
@@ -217,6 +234,7 @@ public class CSVProdConnector {
         try {
             List<File> files = getCSVFilesFromZip(filePath);
             File[] filesArray = files.toArray(new File[files.size()]);
+            Arrays.sort(filesArray, Comparator.comparing(File::getName));
             return filesArray;
         } catch (Exception e) {
             throw new RuntimeException("Unable to read zip file", e);
@@ -271,20 +289,23 @@ public class CSVProdConnector {
 
         try {
             long maxTimestamp = getState();
+            LOGGER.info("Current state for connector with id {} is {} and processing file {}", streamId, maxTimestamp,
+                    csvFile.getName());
 
             List<String[]> csvData = readCsvFile(csvFile.getPath());
 
             //Sort the data in csv
             csvData = sortByColumn(csvData, getHeaderIndex(csvFile.getPath(), dateTimeFieldColumnName));
 
-            LOGGER.info("CSV FileName:: {}", csvFile.getName());
-            LOGGER.info("CSV rows:: {}", csvData.size());
+            LOGGER.info("CSV FileName for stream Id {} :: {} and rows {}", streamId, csvFile.getName(), csvData.size());
 
             //convert csv rows to json rows
             List<String> jsonList = convertCsvToJson(csvData, maxTimestamp);
-            LOGGER.info("Json rows:: {}", jsonList.size());
+            LOGGER.info("Json rows for stream ID {} :: {} with file name {}", streamId, jsonList.size(),
+                    csvFile.getName());
             long maxTimestampPublished = handleRawEvents(jsonList, maxTimestamp);
-            LOGGER.info("MaxTimeStamp published:: {}", maxTimestampPublished);
+            LOGGER.info("MaxTimeStamp published for connector Id {} :: {} after processing file {}", streamId,
+                    maxTimestampPublished, csvFile.getName());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
