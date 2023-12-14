@@ -13,6 +13,8 @@ import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.io.StringReader;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.file.FileSystem;
@@ -33,11 +35,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -78,6 +83,9 @@ public class CSVProdConnector {
     private long backfillStartTimeInMillis = -1;
     private long backfillEndTimeInMillis = -1;
 
+    //if we do in multiple threads will need to have thread local map
+    private Map<String, Integer> headerNameToIndexMap;
+
     public CSVProdConnector(String fileUrl, String dateTimePattern, String timeZone, String dateTimeFieldColumnName,
                             String backfillJobId, String streamId, String sourceType, CSVConnector csvConnector,
                             int batchSize, long delay, JsonNode config) {
@@ -113,6 +121,25 @@ public class CSVProdConnector {
         this.config = config;
         this.csvConnector = csvConnector;
     }
+    public void doRead() throws IOException {
+
+        File[] files = getFilesObject();
+        EventSourceInfo eventSourceInfo = new EventSourceInfo(streamId, sourceType);
+        boolean doesMappingRulesExist = csvConnector.doesMappingRulesExists(csvConnector.getAuthInfo(),
+                eventSourceInfo);
+
+        for (int i = 0; i < files.length; i++) {
+            processCSVFile(files[i], doesMappingRulesExist);
+        }
+
+        if (isBackfillEnabled) {
+            LOGGER.info("Starting publishing dummy events for stream Id {}", streamId);
+            publishDummyEvents(eventSourceInfo, dummyMessageInterval);
+            LOGGER.info("Done publishing dummy events for stream Id {}", streamId);
+        }
+
+        csvConnector.stopEventConnector();
+    }
 
     public File[] getFilesObject() {
         LOGGER.info("Inside do read for connector {}", streamId);
@@ -145,25 +172,6 @@ public class CSVProdConnector {
         return files;
     }
 
-    public void doRead() {
-
-        File[] files = getFilesObject();
-        EventSourceInfo eventSourceInfo = new EventSourceInfo(streamId, sourceType);
-        boolean doesMappingRulesExist = csvConnector.doesMappingRulesExists(csvConnector.getAuthInfo(),
-                eventSourceInfo);
-
-        for (int i = 0; i < files.length; i++) {
-            processCSVFile(files[i], doesMappingRulesExist);
-        }
-
-        if (isBackfillEnabled) {
-            LOGGER.info("Starting publishing dummy events");
-            publishDummyEvents(eventSourceInfo, dummyMessageInterval);
-            LOGGER.info("Done publishing dummy events");
-        }
-
-        csvConnector.stopEventConnector();
-    }
 
     private String getFileType(String fileUrl) {
         //it could be a signed url or it could be url with bucket service account json
@@ -243,9 +251,7 @@ public class CSVProdConnector {
         }
     }
 
-
-
-    public List<File> getCSVFilesFromZip(String zipFileAbsPath) throws IOException {
+    private List<File> getCSVFilesFromZip(String zipFileAbsPath) throws IOException {
         List<File> csvFiles = new ArrayList<>();
         Path zipFilePath = Paths.get(zipFileAbsPath);
         FileSystem zipFileSystem = FileSystems.newFileSystem(zipFilePath);
@@ -264,7 +270,6 @@ public class CSVProdConnector {
                     Path outputPath = Paths.get(OUTPUT_DIRECTORY, path.getFileName().toString());
                     Files.copy(Files.newInputStream(path), outputPath, StandardCopyOption.REPLACE_EXISTING);
                     csvFiles.add(file);
-                    System.out.println(path);
                 }
                 return FileVisitResult.CONTINUE;
             }
@@ -287,33 +292,99 @@ public class CSVProdConnector {
         return false;
     }
 
-    private void processCSVFile(File csvFile, boolean doesMappingRuleExists) {
+    private void processCSVFile(File csvFile, boolean doesMappingRuleExists) throws IOException {
+
+        RandomAccessFile accessFile = null;
 
         try {
             long maxTimestamp = getState();
             LOGGER.info("Current state for connector with id {} is {} and processing file {}", streamId, maxTimestamp,
                     csvFile.getName());
 
-            List<String[]> csvData = readCsvFile(csvFile.getPath());
+            Map<Long, List<Long>> timeStampToOffset = getTimestampToFileOffset(csvFile.getPath());
+            List<String[]> csvRecords = new ArrayList<>();
+            accessFile = new RandomAccessFile(csvFile.getPath(), "r");
+            boolean headerAdded = false;
+            long recordsProcessed = 0;
+            for (Map.Entry<Long, List<Long>> entry: timeStampToOffset.entrySet()) {
+                long timestamp = entry.getKey();
+                if (!shouldProcessRawEvent(timestamp, maxTimestamp)) {
+                    LOGGER.warn("Ignoring events for timestamp {} either because its less than state or " +
+                            "doesn't fall in backfill start time and backfill end time", timestamp);
+                    continue;
+                }
+                List<Long> offsets = entry.getValue();
+                if (!headerAdded) {
+                    csvRecords.add(headerNameToIndexMap.keySet().toArray(new String[headerNameToIndexMap.size()]));
+                    headerAdded = true;
+                }
+                for (Long offset: offsets) {
+                    accessFile.seek(offset);
+                    String row = accessFile.readLine();
+                    CSVRecord record = getCsvRecord(offset, row, headerNameToIndexMap);
+                    String[] recordArray = new String[record.size()];
+                    Iterator<String> iterator = record.iterator();
+                    int i=0;
+                    while (iterator.hasNext()) {
+                        recordArray[i] = iterator.next();
+                        i++;
+                    }
+                    csvRecords.add(recordArray);
+                }
 
-            //Sort the data in csv
-            csvData = sortByColumn(csvData, getHeaderIndex(csvFile.getPath(), dateTimeFieldColumnName));
+                if (csvRecords.size() >= batchSize) {
+                    maxTimestamp = handleCSVRecords(csvRecords, csvFile.getName(), maxTimestamp, doesMappingRuleExists);
+                    recordsProcessed += csvRecords.size() - 1;
+                    headerAdded = false;
+                    csvRecords.clear();
+                }
+            }
 
-            LOGGER.info("CSV FileName for stream Id {} :: {} and rows {}", streamId, csvFile.getName(), csvData.size());
+            if (csvRecords.size() > 0) {
+                maxTimestamp = handleCSVRecords(csvRecords, csvFile.getName(), maxTimestamp, doesMappingRuleExists);
+                recordsProcessed += csvRecords.size() - 1;
+                csvRecords.clear();
+            }
 
-            //convert csv rows to json rows
-            List<String> jsonList = convertCsvToJson(csvData, maxTimestamp);
-            LOGGER.info("Json rows for stream ID {} :: {} with file name {}", streamId, jsonList.size(),
-                    csvFile.getName());
-            long maxTimestampPublished = handleRawEvents(jsonList, maxTimestamp, doesMappingRuleExists);
-            LOGGER.info("MaxTimeStamp published for connector Id {} :: {} after processing file {}", streamId,
-                    maxTimestampPublished, csvFile.getName());
+            LOGGER.info("Total records processed for stream {} and file name {} is {} with max timestamp {}", streamId,
+                    csvFile.getPath(), recordsProcessed, maxTimestamp);
+
         } catch (Exception e) {
             throw new RuntimeException(e);
+        }  finally {
+            if (accessFile != null) {
+                accessFile.close();
+            }
         }
     }
 
-    private long handleRawEvents(List<String> jsonList, long maxTimestamp, boolean doesMappingRuleExists) {
+    private boolean shouldProcessRawEvent(long eventTimestamp, long maxTimestamp) {
+
+        if (eventTimestamp <= maxTimestamp) {
+            return false;
+        }
+        if (backfillStartTimeInMillis != -1 && eventTimestamp < backfillStartTimeInMillis) {
+            return false;
+        }
+        if (backfillEndTimeInMillis != -1 && eventTimestamp > backfillEndTimeInMillis) {
+            return false;
+        }
+
+        return true;
+    }
+
+    private long handleCSVRecords(List<String[]> csvData, String fileName, long maxTimestamp, boolean doesMappingRuleExists) {
+        List<String> jsonList = convertCsvToJson(csvData, maxTimestamp);
+        LOGGER.info("Json rows for stream ID {} :: {} with file name {}", streamId, jsonList.size(),
+                fileName);
+        long maxTimestampPublished = handleRawJsonEvents(jsonList, maxTimestamp, doesMappingRuleExists);
+        LOGGER.info("MaxTimeStamp published for connector Id {} :: {} after processing file {}", streamId,
+                maxTimestampPublished, fileName);
+
+        return maxTimestampPublished;
+    }
+
+    private long handleRawJsonEvents(List<String> jsonList, long maxTimestamp, boolean doesMappingRuleExists) {
 
         for (int i = 0; i < jsonList.size(); i += batchSize) {
             List<String> batch = jsonList.subList(i, Math.min(i + batchSize, jsonList.size()));
@@ -349,9 +420,7 @@ public class CSVProdConnector {
             } catch (Exception e) {
                 LOGGER.error("Unable to convert json string {} to json node because of {}", str, e);
             }
-
         }
-
         return jsonNodes;
     }
 
@@ -395,28 +464,103 @@ public class CSVProdConnector {
         return publishEvents;
     }
 
-    private static List<String[]> readCsvFile(String csvFilePath) throws IOException, CsvValidationException {
-        List<String[]> csvData = new ArrayList<>();
-
-        try (CSVReader csvReader = new CSVReader(new FileReader(csvFilePath, Charset.defaultCharset()))) {
-            String[] nextRecord;
-            while ((nextRecord = csvReader.readNext()) != null) {
-                csvData.add(nextRecord);
+    private static  Map<String, Integer> getHeaderNameToIndexMap(String row) {
+        Map<String, Integer> fieldNameToIndexMap = new HashMap<>();
+        try {
+            CSVParser csvRecords = new CSVParser(new StringReader(row), CSVFormat.DEFAULT.withSkipHeaderRecord());
+            org.apache.commons.csv.CSVRecord next = csvRecords.iterator().next();
+            Iterator<String> iterator = next.iterator();
+            int index = 0;
+            while (iterator.hasNext()) {
+                String headerName = iterator.next();
+                headerName = headerName.replaceAll("\\.", "_");
+                fieldNameToIndexMap.put(headerName, index);
+                index++;
             }
+        } catch (Exception e) {
+            LOGGER.error("Failed to parse the row using csv reader " + row, e);
         }
 
-        return csvData;
+        return fieldNameToIndexMap;
     }
 
+    private Map<Long, List<Long>> getTimestampToFileOffset(String csvFilePath) throws IOException {
+        Map<Long, List<Long>> timestampToFileOffsetsMap = new TreeMap<>();
+        RandomAccessFile accessFile = null;
+        String row = null;
+        long counter = 0;
+        long nullRows = 0;
+        try {
+            accessFile = new RandomAccessFile(csvFilePath, "r");
+            String headersLine = accessFile.readLine();
+//            bytesRead += headersLine.getBytes().length;
+            headerNameToIndexMap = getHeaderNameToIndexMap(headersLine);
+            if (headerNameToIndexMap.isEmpty()) {
+                throw new RuntimeException("Unable to read headers from csv file " + csvFilePath + " for " + streamId);
+            }
 
-    private List<String[]> sortByColumn(List<String[]> data, final int columnIndex) {
-        List<String[]> dataCopy = new ArrayList<>();
-        dataCopy.add(data.get(0));
-        //first row has header names so removed that
-        data.remove(0);
-        Collections.sort(data, Comparator.comparing(row -> convertStringToTimestamp(row[columnIndex])));
-        dataCopy.addAll(data);
-        return dataCopy;
+            do {
+                try {
+                    long offset = accessFile.getFilePointer();
+                    row = accessFile.readLine();
+                    if (!StringUtils.isEmpty(row)) {
+                        CSVRecord csvRecord = getCsvRecord(offset, row, headerNameToIndexMap);
+                        nullRows = 0;
+                        if (csvRecord == null) {
+                            continue;
+                        }
+                        int dateTimeFieldIndex = headerNameToIndexMap.get(dateTimeFieldColumnName);
+                        String timestampFieldValue = csvRecord.get(dateTimeFieldIndex);
+                        long timestampInMillisInEpoch = convertStringToTimestamp(timestampFieldValue);
+                        timestampToFileOffsetsMap.computeIfAbsent(timestampInMillisInEpoch,
+                                (recordOffset) -> new ArrayList<>()).add(offset);
+                    } else if (StringUtils.isEmpty(row)) {
+                        nullRows++;
+                        continue;
+                    } else {
+                        LOGGER.info("Exiting as coming in else block for stream Id {} and counter is at {}",
+                                streamId, counter);
+                        break;
+                    }
+                    counter++;
+                    //just for logging progress
+                    if (counter % 10000 == 0) {
+                        LOGGER.info("Processing the file for stream Id {} and counter is at {}", streamId, counter);
+                    }
+
+                } catch (Exception e) {
+                    LOGGER.error("Error while calculating timestamp to offset map for a row [{}] for stream Id [{}]",
+                            row, streamId, e);
+                }
+            } while (nullRows <= 5000); // this is assuming once there are consecutive 100 null rows file read is complete.
+
+        } catch (Exception e) {
+            LOGGER.error("Error while calculating timestamp to offset map", e);
+        } finally {
+            if (accessFile != null) {
+                accessFile.close();
+            }
+        }
+        LOGGER.info("Total rows processed for file {} with stream Id {} is {}", csvFilePath, streamId, counter);
+        return timestampToFileOffsetsMap;
+    }
+
+    private CSVRecord getCsvRecord(long offset, String row, Map<String, Integer> headerNameToIndexMap) {
+        try {
+            CSVParser csvParser = CSVParser.parse(new StringReader(row), CSVFormat.DEFAULT);
+            CSVRecord record = csvParser.iterator().next();
+            int columns = record.size();
+            
+            if (columns != headerNameToIndexMap.size()) {
+                LOGGER.warn("Ignoring the row {} for stream Id {}", row, streamId);
+            }
+            
+            return record;
+        } catch (Throwable e) {
+            LOGGER.error("Failed to parse the row [{}] [{}] for stream Id [{}]. Row will be ignored", 
+                    offset, row, streamId, e);
+        }
+        return null;
     }
 
     private long convertStringToTimestamp(String dateString) {
@@ -480,11 +624,18 @@ public class CSVProdConnector {
     private String convertRowToJson(String[] headers, String[] values, long maxTimestampProcessed) {
         Map<String, String> jsonMap = new HashMap<>();
 
-        for (int i = 0; i < headers.length; i++) {
-            String headerName = headers[i];
-            headerName = headerName.replaceAll("\\.", "_");
-            jsonMap.put(headerName, values[i]);
+        try {
+            for (int i = 0; i < headers.length; i++) {
+                String headerName = headers[i];
+                headerName = headerName.replaceAll("\\.", "_");
+                int index = headerNameToIndexMap.get(headerName);
+                jsonMap.put(headerName, values[index]);
+            }
+        } catch (Exception e) {
+            LOGGER.error("Unable to convert a row to json", e);
+            return null;
         }
+
 
         try {
             String timestampString = jsonMap.get(dateTimeFieldColumnName);
@@ -492,7 +643,7 @@ public class CSVProdConnector {
             if (timestamp <= maxTimestampProcessed) {
                 return null;
             }
-            if (backfillStartTimeInMillis != -1 && timestamp < backfillEndTimeInMillis) {
+            if (backfillStartTimeInMillis != -1 && timestamp < backfillStartTimeInMillis) {
                 return null;
             }
             if (backfillEndTimeInMillis != -1 && timestamp > backfillEndTimeInMillis) {
@@ -521,7 +672,7 @@ public class CSVProdConnector {
         }
         JsonNode jsonNode = airbyteStateMessage.getData();
         long lastUpdatedTimestamp = 0;
-        if (jsonNode.has(LAST_UPDATED_TIMESTAMP)) {
+        if (jsonNode!= null && jsonNode.has(LAST_UPDATED_TIMESTAMP)) {
             lastUpdatedTimestamp = jsonNode.get(LAST_UPDATED_TIMESTAMP).asLong();
         }
 
@@ -540,6 +691,29 @@ public class CSVProdConnector {
 
     private void publishDummyEvents(EventSourceInfo eventSourceInfo, long dummyMessageInterval) {
         csvConnector.publishDummyEvents(csvConnector.getAuthInfo(), eventSourceInfo, dummyMessageInterval);
+    }
+
+    private static List<String[]> readCsvFile(String csvFilePath) throws IOException, CsvValidationException {
+        List<String[]> csvData = new ArrayList<>();
+
+        try (CSVReader csvReader = new CSVReader(new FileReader(csvFilePath, Charset.defaultCharset()))) {
+            String[] nextRecord;
+            while ((nextRecord = csvReader.readNext()) != null) {
+                csvData.add(nextRecord);
+            }
+        }
+
+        return csvData;
+    }
+
+    private List<String[]> sortByColumn(List<String[]> data, final int columnIndex) {
+        List<String[]> dataCopy = new ArrayList<>();
+        dataCopy.add(data.get(0));
+        //first row has header names so removed that
+        data.remove(0);
+        Collections.sort(data, Comparator.comparing(row -> convertStringToTimestamp(row[columnIndex])));
+        dataCopy.addAll(data);
+        return dataCopy;
     }
 
 

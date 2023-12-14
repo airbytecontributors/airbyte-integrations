@@ -10,8 +10,7 @@
       "format",
       "timeHeader",
       "timeFormat",
-      "data_source",
-      "backfillJobId"
+      "data_source"
     ],
     "properties": {
       "datasetName": {

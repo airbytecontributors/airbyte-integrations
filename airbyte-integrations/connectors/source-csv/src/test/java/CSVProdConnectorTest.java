@@ -3,7 +3,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
-import com.inception.server.auth.model.BearerTokenAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.airbyte.integrations.source.csv.CSVConnector;
@@ -11,8 +10,7 @@ import io.bicycle.airbyte.integrations.source.csv.CSVProdConnector;
 import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.integration.connector.runtime.RuntimeConfig;
-import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
-import java.util.Map;
+import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.Test;
@@ -30,7 +28,7 @@ public class CSVProdConnectorTest {
     private static final String PUBLIC_FILE = "https://storage.googleapis.com/kdev-blob-store/evt-fbb967ad-25f2-4eee-b2e5-f52b047be2ef/test-namespace/test-path/1ec89429-8516-43c5-8d2b-6cd22b63f248?GoogleAccessId=alert-store-bucket-access@pivotal-canto-171605.iam.gserviceaccount.com&Expires=1703045130&Signature=Lzkc2qVoaeBlE1S%2FHrhCr3Cc5HTVB0T5XJLDew9kpMniAPyI6DtfGf8RSs1baUWj6MDo%2B96JG7jXK4u07fpRTgT0MZeCmgmTHJwZOqLINtAEU2lzAluxQqNa6iovr5YVe9t0GuCq8jNX31Itws1m1H7aPCK%2B75M7RcrOZ8JrnWq8fGSR3FEu1wm6tC30fkrmT0fdEUXKNR2iK8KkUOy789ODs836vcJoW%2BSNcJKEUZC5%2FSznIWpJkZY6CiZPmLTodOZNJeiFtJ6gmvBr4coAPsk2vkXLRqAnno3sNR%2FEcxv2F5rBdh6hE8fR%2FkzVmIp1gasPE14KaTc8U1rG3wPHdA%3D%3D";
 
     @Test
-    public void testCSVProdConnectorWithPublicUrl() {
+    public void testCSVProdConnectorWithPublicUrl() throws IOException {
 
         String serverURL =  "https://api.dev.bicycle.io";
         String metricStoreURL =  "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details";
@@ -66,7 +64,7 @@ public class CSVProdConnectorTest {
     }
 
   //  @Test
-    public void testCSVProdConnectorWithPublicUrlAndZipFile() {
+    public void testCSVProdConnectorWithPublicUrlAndZipFile() throws IOException {
 
         String serverURL =  "https://api.dev.bicycle.io";
         String metricStoreURL =  "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details";
@@ -100,7 +98,7 @@ public class CSVProdConnectorTest {
     }
 
     @Test
-    public void testCSVProdConnectorWithGCS() {
+    public void testCSVProdConnectorWithGCS() throws IOException {
 
         String serverURL =  "https://api.dev.bicycle.io";
         String metricStoreURL =  "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details";
@@ -135,15 +133,51 @@ public class CSVProdConnectorTest {
 
     }
 
-
-    @Test
-    public void testCSVProdConnectorWithGCSAndZipFile() {
+  //  @Test
+    public void testCSVProdConnectorWithGCSSumup() throws IOException {
 
         String serverURL =  "https://api.dev.bicycle.io";
         String metricStoreURL =  "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details";
         String uniqueIdentifier = UUID.randomUUID().toString();
         String token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJST0xFIjoiQVBJIiwic3ViIjoic3VtaXQtdGVzdCIsIk9SR19JRCI6IjY0IiwiaXNzIjoic3VtaXRAYmljeWNsZS5pbyIsImlhdCI6MTY0NDk0MTQxMywiVEVOQU5UIjoiZW10LWU5ZTRlZjZjLTYzYzQtNDkzMC1iMzMxLTJkZjNhZjFlNzg4ZSIsImp0aSI6IjBkZjU4ZmFkLTk0NzMtNDQ4OS1iNzMifQ.t8F2oEwEFej1xU2LknY2pLsbgUW3x5YED8trN9QYzDU";
         String connectorId = "8659da17-eb4b-417d-a762-9d59a85a9eef";
+        String userId = "";
+        String eventSourceType= "EVENT";
+        String tenantId = "";
+
+        BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL, token, connectorId,uniqueIdentifier,
+                tenantId, Mockito.mock(SystemAuthenticator.class),true);
+
+        JsonNode config = getGSCConfigWithBackfillStartAndEndTime("gs://inception-general-purpose-bucket/sumup/AllTransactions-Modified.csv", "SERVER_TIME_CREATED_AT",
+                "yyyy-MM-dd'T'HH:mm:ss[.SSSSSS][.SSSSS][.SSSS][.SSS][.SS][.S]['Z']");
+        String fileUrl = config.get("url").asText();
+        String dateTimePattern = config.get("timeFormat").asText();
+        String dateTimeField = config.get("timeHeader").asText();
+        ConnectorConfigManager connectorConfigManager = Mockito.mock(ConnectorConfigManager.class);
+        Mockito.when(connectorConfigManager.getRuntimeConfig(Mockito.any(AuthInfo.class), Mockito.any(String.class))).
+                thenReturn(RuntimeConfig.getDefaultInstance());
+        CSVConnector csvConnector = new CSVConnector(Mockito.mock(SystemAuthenticator.class),
+                Mockito.mock(EventConnectorJobStatusNotifier.class), connectorConfigManager);
+        csvConnector.setBicycleEventProcessorAndPublisher(bicycleConfig);
+
+        CSVProdConnector csvProdConnector = new CSVProdConnector(fileUrl, dateTimePattern, "UTC", dateTimeField,
+                "backfill-job-1", bicycleConfig.getConnectorId(), eventSourceType,  csvConnector,
+                10, 5000, config);
+
+
+        csvProdConnector.doRead();
+
+    }
+
+
+    @Test
+    public void testCSVProdConnectorWithGCSAndZipFile() throws IOException {
+
+        String serverURL =  "https://api.dev.bicycle.io";
+        String metricStoreURL =  "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details";
+        String uniqueIdentifier = UUID.randomUUID().toString();
+        String token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJST0xFIjoiQVBJIiwic3ViIjoic3VtaXQtdGVzdCIsIk9SR19JRCI6IjY0IiwiaXNzIjoic3VtaXRAYmljeWNsZS5pbyIsImlhdCI6MTY0NDk0MTQxMywiVEVOQU5UIjoiZW10LWU5ZTRlZjZjLTYzYzQtNDkzMC1iMzMxLTJkZjNhZjFlNzg4ZSIsImp0aSI6IjBkZjU4ZmFkLTk0NzMtNDQ4OS1iNzMifQ.t8F2oEwEFej1xU2LknY2pLsbgUW3x5YED8trN9QYzDU";
+        String connectorId = "7dd1b74c-034e-45b8-84c0-5d718ec793e6";
         String userId = "";
         String eventSourceType= "EVENT";
         String tenantId = "";
@@ -171,7 +205,7 @@ public class CSVProdConnectorTest {
 
     }
 
-    public void testCSVProdConnectorWithGCSAndZipFileAndBackfillStartAndEndTime() {
+    public void testCSVProdConnectorWithGCSAndZipFileAndBackfillStartAndEndTime() throws IOException {
 
         String serverURL =  "https://api.dev.bicycle.io";
         String metricStoreURL =  "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details";
@@ -205,7 +239,7 @@ public class CSVProdConnectorTest {
     }
 
     @Test
-    public void testCSVProdConnectorWithGCSAndWithBackfillDisabled() {
+    public void testCSVProdConnectorWithGCSAndWithBackfillDisabled() throws IOException {
 
         String serverURL =  "https://api.dev.bicycle.io";
         String metricStoreURL =  "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details";
@@ -369,9 +403,9 @@ public class CSVProdConnectorTest {
 
          JsonNode config = getGSCConfig(gcsUrl, dateTimeFieldName, dateTimePattern);
 
-        ((ObjectNode) config).put("backfillStartDateTime", "2023-06-01T05:30:00.000000Z");
-        ((ObjectNode) config).put("backfillEndDateTime", "2023-07-01T05:29:59.000000Z");
-        ((ObjectNode) config).put("backfill", false);
+        ((ObjectNode) config).put("backfillStartDateTime", "2023-05-01T00:00:00.000000Z");
+        ((ObjectNode) config).put("backfillEndDateTime", "2023-05-31T23:59:59.000000Z");
+        ((ObjectNode) config).put("backfill", true);
         return config;
     }
 
