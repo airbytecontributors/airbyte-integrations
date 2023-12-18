@@ -77,15 +77,15 @@ public class CSVConnectorTest {
     }
 
     @Test
-    public void testReadFile() {
-        csvConnector.doRead(config, catalog, null);
+    public void testReadFile() throws Exception {
+        csvConnector.read(config, catalog, null);
         Assertions.assertTrue(true);
     }
 
     @Test
     public void testPublishEvents() {
         try {
-            csvConnector.doRead(config, catalog, new ObjectMapper().createObjectNode());
+            csvConnector.read(config, catalog, new ObjectMapper().createObjectNode());
             Assertions.assertTrue(true);
         } catch (Exception e) {
             e.printStackTrace();

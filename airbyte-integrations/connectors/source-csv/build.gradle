@@ -34,7 +34,10 @@ dependencies {
         exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'
     }
 
-    implementation 'org.apache.commons:commons-csv:1.8'
+    implementation 'org.apache.commons:commons-csv:1.5'
+    implementation 'com.opencsv:opencsv:5.5'
+
+    implementation group: 'com.github.ben-manes.caffeine', name: 'caffeine', version: '2.8.8'
 
 
     integrationTestJavaImplementation project(':airbyte-integrations:bases:standard-source-test')
