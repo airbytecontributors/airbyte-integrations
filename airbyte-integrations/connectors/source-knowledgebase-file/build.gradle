@@ -1,0 +1,50 @@
+plugins {
+    id 'application'
+    id 'airbyte-docker'
+    id 'airbyte-integration-test-java'
+}
+
+application {
+    mainClass = 'io.bicycle.airbyte.integrations.source.csv.CSVConnector'
+    applicationDefaultJvmArgs = ['-XX:+ExitOnOutOfMemoryError', '-XX:MaxRAMPercentage=75.0']
+}
+
+dependencies {
+    implementation("io.micrometer:micrometer-core:1.6.7")
+    implementation project(':airbyte-config:models')
+    implementation project(':airbyte-protocol:models')
+    implementation project(':airbyte-integrations:bases:base-java')
+  //  implementation group: 'com.inception', name: 'event-model', version: "0.1.0-snapshot.202205191419.c95071d"
+
+   // implementation project(':airbyte-integrations:bases:base-bicycle-integration')
+
+  //  implementation group: 'com.inception', name: 'integration-model', version: "${metaPipelineVersion}"
+  //  implementation group: 'com.inception', name: 'integration-common-api', version: "${metaPipelineVersion}"
+ //   implementation group: 'com.inception', name: 'integration-common-impl', version: "${metaPipelineVersion}"
+
+ /*   implementation("com.inception:bicycle-event-processor:${bicyleEventProcessorVersion}") {
+        exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
+        exclude group: 'org.springframework.kafka', module:'spring-kafka'
+        exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'
+    }*/
+
+   /* implementation("com.inception:bicycle-event-publisher:${bicyleEventProcessorVersion}") {
+        exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
+        exclude group: 'org.springframework.kafka', module:'spring-kafka'
+        exclude group: 'org.springframework.boot', module:'spring-boot-autoconfigure'
+    }*/
+
+   // implementation 'org.apache.commons:commons-csv:1.5'
+   // implementation 'com.opencsv:opencsv:5.5'
+
+   // implementation group: 'com.github.ben-manes.caffeine', name: 'caffeine', version: '2.8.8'
+
+
+    integrationTestJavaImplementation project(':airbyte-integrations:bases:standard-source-test')
+   // integrationTestJavaImplementation project(':airbyte-integrations:connectors:source-csv')
+    integrationTestJavaImplementation libs.testcontainers.kafka
+
+    implementation files(project(':airbyte-integrations:bases:base-java').airbyteDocker.outputs)
+    implementation 'com.google.cloud:google-cloud-storage:2.17.2'
+    testImplementation 'org.mockito:mockito-core:3.7.7'
+}
