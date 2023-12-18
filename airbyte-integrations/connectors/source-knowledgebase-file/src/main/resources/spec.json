@@ -1,0 +1,52 @@
+{
+  "documentationUrl" : "https://docs.airbyte.io/integrations/sources/file",
+  "connectionSpecification" : {
+    "$schema" : "http://json-schema.org/draft-07/schema#",
+    "title" : "File Source Spec",
+    "type" : "object",
+    "additionalProperties" : false,
+    "required" : [
+      "companyName",
+      "data_source"
+    ],
+    "properties" : {
+      "companyName" : {
+        "type" : "string",
+        "title" : "companyName",
+        "description" : "The Name of the company for which this knowledge base is created."
+      },
+      "Vertical" : {
+        "type" : "string",
+        "title" : "Company's Vertical",
+        "description" : "This defines the area in which the company focuses. Ex:- ecommerce/travel etc"
+      },
+      "SubVertical" : {
+        "type" : "string",
+        "title" : "Company's SubVertical",
+        "description" : "This defines the business unit of the company. Ex: Flights/Hotels for travel vertical"
+      },
+      "data_source" : {
+        "type" : "object",
+        "title" : "Data Source",
+        "description" : "The data source ",
+        "required" : [
+          "source_type",
+          "upload_id"
+        ],
+        "properties" : {
+          "source_type" : {
+            "type" : "string",
+            "const" : "Upload"
+          },
+          "upload_id" : {
+            "type" : "string",
+            "subtype" : "file",
+            "dependency" : "['companyName', 'vertical', 'subVertical']",
+            "title" : "Data",
+            "description" : "Upload one or more files"
+          }
+        }
+      }
+    }
+  }
+}
