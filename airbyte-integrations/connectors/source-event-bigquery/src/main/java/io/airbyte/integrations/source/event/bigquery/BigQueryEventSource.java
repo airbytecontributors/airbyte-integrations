@@ -17,7 +17,6 @@ import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.CommonConstants;
 import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
-import io.airbyte.integrations.bicycle.base.integration.DevAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatter;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatterFactory;
@@ -73,8 +72,7 @@ public class BigQueryEventSource extends BaseEventConnector {
     private BicycleBigQueryWrapper bicycleBigQueryWrapper = new BicycleBigQueryWrapper();
     private AtomicBoolean stopConnectorBoolean = new AtomicBoolean(false);
     private AtomicLong totalRecordsProcessed = new AtomicLong(0);
-    private final io.bicycle.integration.common.kafka.processing.CommonUtils commonUtils =
-            new io.bicycle.integration.common.kafka.processing.CommonUtils();
+    private BigQueryEventSourceMetricGenerator bigQueryEventSourceMetricGenerator;
 
     public BigQueryEventSource(SystemAuthenticator systemAuthenticator,
                                EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
@@ -215,11 +213,15 @@ public class BigQueryEventSource extends BaseEventConnector {
         try {
 
             try {
-                BigQueryEventSourceMetricGenerator elasticMetricsGenerator =
-                        new BigQueryEventSourceMetricGenerator(bicycleConfig,
-                                eventSourceInfo, config, bicycleEventPublisher, this,
-                                bigQueryEventSourceConfig);
-                ses.scheduleAtFixedRate(elasticMetricsGenerator, 60, 120, TimeUnit.SECONDS);
+
+                if (bigQueryEventSourceMetricGenerator == null) {
+                    bigQueryEventSourceMetricGenerator =
+                            new BigQueryEventSourceMetricGenerator(bicycleConfig,
+                                    eventSourceInfo, config, bicycleEventPublisher, this,
+                                    bigQueryEventSourceConfig);
+                }
+
+                ses.scheduleAtFixedRate(bigQueryEventSourceMetricGenerator, 60, 120, TimeUnit.SECONDS);
 
                 if (dataFormatter != null) {
                     ses.scheduleAtFixedRate(bigQueryStreamGetter, 60, 300, TimeUnit.SECONDS);

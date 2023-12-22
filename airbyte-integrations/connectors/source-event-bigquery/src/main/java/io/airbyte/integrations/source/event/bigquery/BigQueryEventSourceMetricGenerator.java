@@ -44,16 +44,21 @@ public class BigQueryEventSourceMetricGenerator extends MetricAsEventsGenerator 
 
 
             for (String tableName : tableNames) {
-                TableId tableId = TableId.of(projectId, datasetName, tableName);
+                try {
+                    TableId tableId = TableId.of(projectId, datasetName, tableName);
 
-                // Get the table metadata
-                Table table = bigquery.getTable(tableId);
+                    // Get the table metadata
+                    Table table = bigquery.getTable(tableId);
 
-                // Retrieve the row count from the table metadata
-                BigInteger rowCount = table.getNumRows();
-                streamNameToCountMap.put(tableName, rowCount.longValue());
+                    // Retrieve the row count from the table metadata
+                    BigInteger rowCount = table.getNumRows();
+                    streamNameToCountMap.put(tableName, rowCount.longValue());
+                } catch (Exception e) {
+                    LOGGER.error("Unable to get row count for big query for connector {} for table name {}, " +
+                                    "dataset name {} because of {}", eventSourceInfo.getEventSourceId(), tableName,
+                            datasetName, e);
+                }
             }
-
         } catch (Exception e) {
             LOGGER.error("Unable to get row count for big query for connector {} because of {}",
                     eventSourceInfo.getEventSourceId(), e);
@@ -73,7 +78,6 @@ public class BigQueryEventSourceMetricGenerator extends MetricAsEventsGenerator 
                     .setCredentials(serviceAccountCredentials)
                     .build().getService();
         } catch (Exception e) {
-            e.printStackTrace();
             throw new RuntimeException("Error creating authorized BigQuery client: " + e.getMessage());
         }
     }
