@@ -12,7 +12,7 @@
     "properties" : {
       "companyName" : {
         "type" : "string",
-        "title" : "companyName",
+        "title" : "Company Name",
         "description" : "The Name of the company for which this knowledge base is created."
       },
       "Vertical" : {
@@ -36,14 +36,21 @@
         "properties" : {
           "source_type" : {
             "type" : "string",
+            "title" : "Data Source Type",
             "const" : "Upload"
           },
           "upload_id" : {
             "type" : "string",
-            "subtype" : "file",
-            "dependency" : "['companyName', 'vertical', 'subVertical']",
+            "subtype" : "multifile",
             "title" : "Data",
             "description" : "Upload one or more files"
+          },
+          "namespace" : {
+            "type" : "string",
+            "hidden": "true",
+            "dependency" : "['companyName']",
+            "title" : "Namespace",
+            "description" : "Namespace where file will be uploaded"
           }
         }
       }
