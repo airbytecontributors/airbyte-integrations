@@ -78,7 +78,6 @@ public class BigQueryEventSourceMetricGenerator extends MetricAsEventsGenerator 
                     .setCredentials(serviceAccountCredentials)
                     .build().getService();
         } catch (Exception e) {
-            e.printStackTrace();
             throw new RuntimeException("Error creating authorized BigQuery client: " + e.getMessage());
         }
     }

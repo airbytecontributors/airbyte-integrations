@@ -57,8 +57,12 @@ public class MetricAsEventsGenerator implements Runnable {
     protected boolean publishMetrics(Map<String, String> attributes, Map<TagEncodedMetricName, Long> metricsMap) {
         try {
             for (Map.Entry<TagEncodedMetricName, Long> metricsEntry : metricsMap.entrySet()) {
-                MetricUtils.getMetricRegistry().gauge(metricsEntry.getKey().toString(),
-                        () -> () -> metricsMap.get(metricsEntry.getKey()));
+                logger.info("MetricName:: {}, MetricValue:: {}", metricsEntry.getKey().getMetricName(),
+                        metricsEntry.getValue());
+                MetricUtils.getMetricRegistry().gauge(metricsEntry.getKey().getMetricName(),
+                        () -> () -> {
+                            return metricsMap.get(metricsEntry.getKey());
+                        });
             }
 
             AuthInfo bicycleAuthInfo = bicycleConfig.getAuthInfo();
