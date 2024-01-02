@@ -5,6 +5,8 @@ package io.airbyte.integrations.source.elasticsearch;
  * Created on 06/04/2023
  */
 
+import static io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator.CONNECTOR_LAG;
+import static io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator.CONNECTOR_LAG_STRING;
 import static io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator.TOTAL_EVENTS_PROCESSED_METRIC;
 import static io.airbyte.integrations.source.elasticsearch.ElasticsearchSource.ELASTIC_LAG;
 import static io.airbyte.integrations.source.elasticsearch.ElasticsearchSource.STATE;
@@ -114,7 +116,7 @@ public class InMemoryConsumer {
                                             "with startTime {} and endTime {}",
                                     jsonNodesWithEpoch.getJsonNodes().size(), eventSourceInfo.getEventSourceId(),
                                     startEpoch, endEpoch);
-                            metrics.put(ELASTIC_LAG, System.currentTimeMillis() - endEpoch);
+                            metrics.put(CONNECTOR_LAG_STRING, System.currentTimeMillis() - endEpoch);
                             elasticMetricsGenerator.addMetrics(metrics);
                             queue.offerFirst(jsonNodesWithEpoch);
                             continue;
@@ -125,7 +127,7 @@ public class InMemoryConsumer {
                         elasticsearchSource.setState(authInfo, eventSourceInfo.getEventSourceId(), toBeSavedState);
                         //lag metrics
                         metrics.put(TOTAL_EVENTS_PROCESSED_METRIC, totalRecordsProcessed);
-                        metrics.put(ELASTIC_LAG, System.currentTimeMillis() - endEpoch);
+                        metrics.put(CONNECTOR_LAG_STRING, System.currentTimeMillis() - endEpoch);
                         elasticMetricsGenerator.addMetrics(metrics);
                         LOGGER.info("MissingEventsDebugging: {} New events published for startTime {} and endTime {}",
                                 jsonNodesWithEpoch.getJsonNodes().size(), startEpoch, endEpoch);

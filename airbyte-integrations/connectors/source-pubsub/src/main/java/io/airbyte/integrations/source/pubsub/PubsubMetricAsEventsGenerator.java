@@ -132,8 +132,8 @@ public class PubsubMetricAsEventsGenerator extends MetricAsEventsGenerator {
             String metricName = TOTAL_LAG_METRIC + METRIC_NAME_SEPARATOR + projectSubscriptionName.getSubscription();
             attributes.put(metricName, String.valueOf(totalLag));
             labelForTotalLagMetrics.put(TOPIC, projectSubscriptionName.getSubscription());
-            metricsMap.put(getTagEncodedMetricName(TOTAL_LAG_METRIC, labelForTotalLagMetrics), totalLag);
-            getTagEncodedMetricName(TOTAL_LAG_METRIC, labelForTotalLagMetrics);
+            metricsMap.put(getTagEncodedMetricName(CONNECTOR_LAG_STRING, labelForTotalLagMetrics), totalLag);
+            getTagEncodedMetricName(CONNECTOR_LAG_STRING, labelForTotalLagMetrics);
 
             for (Map.Entry<String, Long> entry : consumerThreadToTopicPartitionMessagesRead.entrySet()) {
                 Map<String, String> labels = new HashMap<>();

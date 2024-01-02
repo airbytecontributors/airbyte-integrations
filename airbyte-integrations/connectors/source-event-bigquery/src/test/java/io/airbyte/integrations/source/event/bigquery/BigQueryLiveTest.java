@@ -35,7 +35,9 @@ public class BigQueryLiveTest {
         JsonNode state = objectMapper.readValue(stateString, JsonNode.class);
 
         ConfiguredAirbyteCatalog catalog = objectMapper.readValue(catalogString, ConfiguredAirbyteCatalog.class);
-        bigQueryEventSource.read(config, catalog, null);
+        bigQueryEventSource.read(config, catalog, state);
+
+        //bigQueryEventSource.discover(config);
 
        /* AutoCloseableIterator<AirbyteMessage> iterator =
                 bigQueryEventSource.preview(config, catalog, state);

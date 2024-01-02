@@ -2,104 +2,24 @@
   "streams" : [
     {
       "stream" : {
-        "name" : "events_20231009",
-        "json_schema" : {
-          "type" : "object",
-          "properties" : {
-            "event_server_timestamp_offset" : {
-              "type" : "number"
-            },
-            "user_properties" : {
-              "type" : "object"
-            },
-            "event_timestamp" : {
-              "type" : "number"
-            },
-            "event_params" : {
-              "type" : "object"
-            },
-            "platform" : {
-              "type" : "string"
-            },
-            "geo" : {
-              "type" : "object"
-            },
-            "collected_traffic_source" : {
-              "type" : "object"
-            },
-            "stream_id" : {
-              "type" : "string"
-            },
-            "event_date" : {
-              "type" : "string"
-            },
-            "ecommerce" : {
-              "type" : "object"
-            },
-            "user_ltv" : {
-              "type" : "object"
-            },
-            "is_active_user" : {
-              "type" : "boolean"
-            },
-            "app_info" : {
-              "type" : "object"
-            },
-            "event_dimensions" : {
-              "type" : "object"
-            },
-            "user_first_touch_timestamp" : {
-              "type" : "number"
-            },
-            "traffic_source" : {
-              "type" : "object"
-            },
-            "event_bundle_sequence_id" : {
-              "type" : "number"
-            },
-            "user_id" : {
-              "type" : "string"
-            },
-            "event_value_in_usd" : {
-              "type" : "number"
-            },
-            "event_previous_timestamp" : {
-              "type" : "number"
-            },
-            "event_name" : {
-              "type" : "string"
-            },
-            "user_pseudo_id" : {
-              "type" : "string"
-            },
-            "device" : {
-              "type" : "object"
-            },
-            "items" : {
-              "type" : "object"
-            },
-            "privacy_info" : {
-              "type" : "object"
-            }
-          }
-        },
-        "supported_sync_modes" : [
-          "full_refresh",
-          "incremental"
-        ],
+        "name" : "",
+        "json_schema" : null,
+        "supported_sync_modes" : [],
         "source_defined_cursor" : false,
         "default_cursor_field" : [],
         "source_defined_primary_key" : [],
-        "namespace" : "analytics_307818505"
+        "namespace" : ""
       },
+      "sync_mode" : "full_refresh",
+      "cursor_field" : [],
       "destination_sync_mode" : "append",
       "primary_key" : []
     }
   ],
-  "bicycleServerURL" : "https://api.dev.bicycle.io",
-  "bicycleConnectorId" : "648eacea-5809-4d43-8f75-eac0b620dde6",
+  "bicycleServerURL" : "https://api.ione.bicycle.io",
+  "bicycleConnectorId" : "fd7a4b25-8503-4827-b095-5bb3a6a9a9a0",
   "bicycleEventSourceType" : "source-event-bigquery",
   "bicycleMetricStoreURL" : "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details",
   "isOnPrem" : false,
-  "bicycleTenantId" : "evt-fbb967ad-25f2-4eee-b2e5-f52b047be2ef"
+  "bicycleTenantId" : "tbr-ced2973d-fb07-4cf7-977c-6bc351eefa5f"
 }
