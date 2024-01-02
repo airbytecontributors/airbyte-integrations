@@ -142,8 +142,8 @@ public class KafkaMetricAsEventsGenerator extends MetricAsEventsGenerator {
                 String metricName = TOTAL_LAG_METRIC + METRIC_NAME_SEPARATOR + entry.getKey();
                 attributes.put(metricName, String.valueOf(entry.getValue()));
                 labels.put(TOPIC, entry.getKey());
-                metricsMap.put(getTagEncodedMetricName(TOTAL_LAG_METRIC, labels), entry.getValue());
-                getTagEncodedMetricName(TOTAL_LAG_METRIC, labels);
+                metricsMap.put(getTagEncodedMetricName(CONNECTOR_LAG_STRING, labels), entry.getValue());
+                getTagEncodedMetricName(CONNECTOR_LAG_STRING, labels);
             }
 
             Map<String, Map<String, Long>> consumerThreadToTopicPartitionMessagesRead =

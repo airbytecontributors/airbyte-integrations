@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 public class BigQueryStreamGetter implements Runnable {
 
     private static final Logger logger = LoggerFactory.getLogger(BigQueryStreamGetter.class.getName());
+    public static final long LAST_7_DAYS_MILLISECONDS = 7 * 24 * 60 * 60 * 1000;
     private final JsonNode config;
     private final BigQueryEventSource bigQueryEventSource;
     private final String connectorId;
@@ -32,12 +33,21 @@ public class BigQueryStreamGetter implements Runnable {
         return streamList;
     }
 
+    public List<String> getStreamNames() {
+        List<String> streams = new ArrayList<>();
+        for (AirbyteStream stream : streamList) {
+            streams.add(stream.getName());
+        }
+        return streams;
+    }
+
     @Override
     public void run() {
 
         try {
             AirbyteCatalog catalog = bigQueryEventSource.discover(config);
             streamList = catalog.getStreams();
+
             List<String> streams = new ArrayList<>();
             for (AirbyteStream stream : streamList) {
                 streams.add(stream.getName());

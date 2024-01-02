@@ -324,10 +324,45 @@
     {
       "stream_name" : "events_intraday_20231221",
       "stream_namespace" : "analytics_308033850",
+      "cursor_field" : []
+    },
+    {
+      "stream_name" : "events_intraday_20231222",
+      "stream_namespace" : "analytics_308033850",
+      "cursor_field" : []
+    },
+    {
+      "stream_name" : "events_intraday_20231223",
+      "stream_namespace" : "analytics_308033850",
+      "cursor_field" : []
+    },
+    {
+      "stream_name" : "events_intraday_20231224",
+      "stream_namespace" : "analytics_308033850",
+      "cursor_field" : []
+    },
+    {
+      "stream_name" : "events_intraday_20231225",
+      "stream_namespace" : "analytics_308033850",
+      "cursor_field" : []
+    },
+    {
+      "stream_name" : "events_intraday_20231226",
+      "stream_namespace" : "analytics_308033850",
+      "cursor_field" : []
+    },
+    {
+      "stream_name" : "events_intraday_20231227",
+      "stream_namespace" : "analytics_308033850",
+      "cursor_field" : []
+    },
+    {
+      "stream_name" : "events_intraday_20231228",
+      "stream_namespace" : "analytics_308033850",
       "cursor_field" : [
         "event_timestamp"
       ],
-      "cursor" : "1703180170216221"
+      "cursor" : "1703788106543795"
     }
   ]
 }

@@ -24,13 +24,16 @@ public class BigQueryEventSourceMetricGenerator extends MetricAsEventsGenerator 
     private static final String TABLE_ROWS_METRIC = "bigquery_event_table_row_count";
     private static final Logger LOGGER = LoggerFactory.getLogger(BigQueryEventSourceMetricGenerator.class);
     private final BigQueryEventSourceConfig bigQueryEventSourceConfig;
+    private final BigQueryStreamGetter bigQueryStreamGetter;
 
     public BigQueryEventSourceMetricGenerator(BicycleConfig bicycleConfig, EventSourceInfo eventSourceInfo,
                                               JsonNode config, BicycleEventPublisher bicycleEventPublisher,
                                               BigQueryEventSource bigQueryEventSource,
-                                              BigQueryEventSourceConfig bigQueryEventSourceConfig) {
+                                              BigQueryEventSourceConfig bigQueryEventSourceConfig,
+                                              BigQueryStreamGetter bigQueryStreamGetter) {
         super(bicycleConfig, eventSourceInfo, config, bicycleEventPublisher, bigQueryEventSource);
         this.bigQueryEventSourceConfig = bigQueryEventSourceConfig;
+        this.bigQueryStreamGetter = bigQueryStreamGetter;
     }
 
     private Map<String, Long> getNumberOfRowsMetric() {
@@ -39,7 +42,7 @@ public class BigQueryEventSourceMetricGenerator extends MetricAsEventsGenerator 
             String projectId = bigQueryEventSourceConfig.getProjectId();
             // Set your BigQuery dataset and table name
             String datasetName = bigQueryEventSourceConfig.getDatasetId();
-            List<String> tableNames = bigQueryEventSourceConfig.getStreamNames();
+            List<String> tableNames = bigQueryStreamGetter.getStreamNames();
             BigQuery bigquery = createAuthorizedClient(bigQueryEventSourceConfig.getCredentialsJson());
 
 

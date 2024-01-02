@@ -23,13 +23,19 @@ public class MetricAsEventsGenerator implements Runnable {
     protected final Logger logger = LoggerFactory.getLogger(MetricAsEventsGenerator.class.getName());
     private static final String TENANT_ID = "tenant";
 
-    private static final String SOURCE_TYPE = "sourceType";
+    public static final String SOURCE_TYPE = "sourceType";
     protected static final String UNIQUE_IDENTIFIER = "identifier";
     protected static final String CONNECTOR_ID = "connectorId";
     protected static final String METRIC_NAME_SEPARATOR = "_";
     protected static final String EVENTS_PROCESSED_METRIC = "events_processed";
     public static final String TOTAL_EVENTS_PROCESSED_METRIC = "total_events_processed";
     protected static final String TOTAL_BYTES_PROCESSED_METRIC = "total_bytes_processed";
+
+    public static final String CONNECTOR_LAG_STRING = "connector_lag";
+    public static final TagEncodedMetricName CONNECTOR_LAG = TagEncodedMetricName
+            .decode(CONNECTOR_LAG_STRING);
+
+
     protected final Map<String, String> globalTags = new HashMap<>();
 
     protected BicycleConfig bicycleConfig;
@@ -57,9 +63,9 @@ public class MetricAsEventsGenerator implements Runnable {
     protected boolean publishMetrics(Map<String, String> attributes, Map<TagEncodedMetricName, Long> metricsMap) {
         try {
             for (Map.Entry<TagEncodedMetricName, Long> metricsEntry : metricsMap.entrySet()) {
-                logger.info("MetricName:: {}, MetricValue:: {}", metricsEntry.getKey().getMetricName(),
-                        metricsEntry.getValue());
-                MetricUtils.getMetricRegistry().gauge(metricsEntry.getKey().getMetricName(),
+               /* logger.info("MetricName:: {}, MetricValue:: {}", metricsEntry.getKey().getMetricName(),
+                        metricsEntry.getValue());*/
+                MetricUtils.getMetricRegistry().gauge(metricsEntry.getKey().toString(),
                         () -> () -> {
                             return metricsMap.get(metricsEntry.getKey());
                         });
