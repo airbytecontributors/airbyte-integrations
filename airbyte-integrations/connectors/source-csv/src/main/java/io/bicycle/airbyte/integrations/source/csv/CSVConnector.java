@@ -633,7 +633,7 @@ public class CSVConnector extends BaseEventConnector {
         return csvRecord;
     }
 
-    public List<RawEvent> convertRecordsToRawEvents(List<?> records) {
+    public List<RawEvent> convertRecordsToRawEventsInternal(List<?> records) {
         return null;
     }
 

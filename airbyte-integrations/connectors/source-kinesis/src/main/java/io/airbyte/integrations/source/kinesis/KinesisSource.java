@@ -179,7 +179,7 @@ public class KinesisSource extends BaseEventConnector {
     }
 
     @Override
-    public List<RawEvent> convertRecordsToRawEvents(List<?> records) {
+    public List<RawEvent> convertRecordsToRawEventsInternal(List<?> records) {
         Iterator<String> recordsIterator = (Iterator<String>) records.iterator();
         List<RawEvent> rawEvents = new ArrayList<>();
         while (recordsIterator.hasNext()) {

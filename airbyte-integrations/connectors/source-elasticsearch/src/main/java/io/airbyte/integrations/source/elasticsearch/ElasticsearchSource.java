@@ -1,10 +1,16 @@
 package io.airbyte.integrations.source.elasticsearch;
 
+import static io.airbyte.integrations.bicycle.base.integration.CommonConstants.CONNECTOR_RECORDS_PULL_METRIC;
+import static io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator.SOURCE_TYPE;
 import static io.airbyte.integrations.source.elasticsearch.ElasticsearchConstants.CONNECTOR_TYPE;
 import static io.airbyte.integrations.source.elasticsearch.ElasticsearchConstants.ENTITY;
 import static io.airbyte.integrations.source.elasticsearch.ElasticsearchConstants.FROM;
 import static io.airbyte.integrations.source.elasticsearch.ElasticsearchConstants.TIME_FIELD;
 import static io.airbyte.integrations.source.elasticsearch.ElasticsearchConstants.TIME_RANGE;
+import static io.bicycle.integration.common.constants.EventConstants.SOURCE_ID;
+import static io.bicycle.integration.common.constants.EventConstants.THREAD_ID;
+import ai.apptuit.ml.utils.MetricUtils;
+import com.codahale.metrics.Timer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -255,7 +261,14 @@ public class ElasticsearchSource extends BaseEventConnector {
                 if (rules == null) {
                     continue;
                 }
+                Timer.Context timer = MetricUtils.getMetricRegistry().timer(
+                        CONNECTOR_RECORDS_PULL_METRIC
+                                .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
+                                .withTags(SOURCE_TYPE, eventSourceInfo.getEventSourceType())
+                                .toString()
+                ).time();
                 elasticsearchConnector.search(restClient, startEpoch, endEpoch, queryLine, configObject.getPageSize(), false);
+                timer.stop();
                 startEpoch = endEpoch;
                 endEpoch = startEpoch + pollFrequency;
                 while ((System.currentTimeMillis() - dataLateness) < endEpoch) {
@@ -279,7 +292,7 @@ public class ElasticsearchSource extends BaseEventConnector {
 
     }
 
-    public List<RawEvent> convertRecordsToRawEvents(List<?> records) {
+    public List<RawEvent> convertRecordsToRawEventsInternal(List<?> records) {
         Iterator<?> recordsIterator = (Iterator<?>) records.iterator();
         List<RawEvent> rawEvents = new ArrayList<>();
         while (recordsIterator.hasNext()) {

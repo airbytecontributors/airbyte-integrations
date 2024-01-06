@@ -1,5 +1,6 @@
 package io.airbyte.integrations.source.event.bigquery;
 
+import static io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator.SOURCE_TYPE;
 import static io.bicycle.integration.common.constants.EventConstants.SOURCE_ID;
 import ai.apptuit.metrics.client.TagEncodedMetricName;
 import ai.apptuit.ml.utils.MetricUtils;
@@ -94,7 +95,7 @@ public class BigQueryEventSource extends BaseEventConnector {
     }
 
     @Override
-    public List<RawEvent> convertRecordsToRawEvents(List<?> records) {
+    public List<RawEvent> convertRecordsToRawEventsInternal(List<?> records) {
 
         List<RawEvent> rawEvents = new ArrayList<>();
         List<JsonNode> jsonRecords = (List<JsonNode>) records;
@@ -287,10 +288,12 @@ public class BigQueryEventSource extends BaseEventConnector {
                         userServiceMappingRules.size(), connectorId);
 
                 Timer.Context getRecordsTimer = MetricUtils.getMetricRegistry().timer(
-                        BIGQUERY_PULL_RECORDS_TIME
+                        CommonConstants.CONNECTOR_RECORDS_PULL_METRIC
                                 .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
+                                .withTags(SOURCE_TYPE, eventSourceInfo.getEventSourceType())
                                 .toString()
                 ).time();
+
 
                 AutoCloseableIterator<AirbyteMessage> iterator = bicycleBigQueryWrapper.read(config, catalog, state);
 

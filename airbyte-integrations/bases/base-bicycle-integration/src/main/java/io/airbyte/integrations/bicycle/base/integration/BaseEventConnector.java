@@ -1,7 +1,15 @@
 package io.airbyte.integrations.bicycle.base.integration;
 
+import static io.airbyte.integrations.bicycle.base.integration.CommonConstants.CONNECTOR_CONVERT_RECORDS_RAW_EVENTS;
+import static io.airbyte.integrations.bicycle.base.integration.CommonConstants.CONNECTOR_PROCESS_RAW_EVENTS;
+import static io.airbyte.integrations.bicycle.base.integration.CommonConstants.CONNECTOR_PROCESS_RAW_EVENTS_WITH_RULES_DOWNLOAD;
+import static io.airbyte.integrations.bicycle.base.integration.CommonConstants.CONNECTOR_PUBLISH_EVENTS;
+import static io.airbyte.integrations.bicycle.base.integration.CommonConstants.CONNECTOR_USER_SERVICE_RULES_DOWNLOAD;
+import static io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator.SOURCE_TYPE;
 import static io.bicycle.integration.common.bicycleconfig.BicycleConfig.SAAS_API_ROLE;
-import bicycle.io.events.proto.BicycleEventList;
+import static io.bicycle.integration.common.constants.EventConstants.SOURCE_ID;
+import ai.apptuit.ml.utils.MetricUtils;
+import com.codahale.metrics.Timer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -269,7 +277,18 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         logger.info(message + " for connector {}", bicycleConfig.getConnectorId());
     }
 
-    public abstract List<RawEvent> convertRecordsToRawEvents(List<?> records);
+    public List<RawEvent> convertRecordsToRawEvents(List<?> records) {
+        Timer.Context timer = MetricUtils.getMetricRegistry().timer(
+                CONNECTOR_CONVERT_RECORDS_RAW_EVENTS
+                        .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
+                        .toString()
+        ).time();
+        List<RawEvent> rawEvents = convertRecordsToRawEventsInternal(records);
+        timer.stop();
+        return rawEvents;
+    }
+
+    public abstract List<RawEvent> convertRecordsToRawEventsInternal(List<?> records);
 
     public abstract AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws InterruptedException, ExecutionException;
 
@@ -331,9 +350,15 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                                                                 EventSourceInfo eventSourceInfo,
                                                                 List<RawEvent> rawEvents) {
 
+        Timer.Context timer = MetricUtils.getMetricRegistry().timer(
+                CONNECTOR_PROCESS_RAW_EVENTS_WITH_RULES_DOWNLOAD
+                        .withTags(SOURCE_ID, eventSourceInfo.getEventSourceId())
+                        .withTags(SOURCE_TYPE, eventSourceInfo.getEventSourceType())
+                        .toString()
+        ).time();
         EventProcessorResult eventProcessorResult =
                 bicycleEventProcessor.processEvents(authInfo, eventSourceInfo, rawEvents);
-
+        timer.stop();
         return eventProcessorResult;
 
     }
@@ -342,8 +367,16 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                                                                List<RawEvent> rawEvents,
                                                                 List<UserServiceMappingRule> userServiceMappingRules) {
 
+
+        Timer.Context timer = MetricUtils.getMetricRegistry().timer(
+                CONNECTOR_PROCESS_RAW_EVENTS
+                        .withTags(SOURCE_ID, eventSourceInfo.getEventSourceId())
+                        .withTags(SOURCE_TYPE, eventSourceInfo.getEventSourceType())
+                        .toString()
+        ).time();
         EventProcessorResult eventProcessorResult =
                 bicycleEventProcessor.processEvents(authInfo, eventSourceInfo, rawEvents, userServiceMappingRules);
+        timer.stop();
 
         return eventProcessorResult;
 
@@ -365,6 +398,12 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     public boolean publishEvents(AuthInfo authInfo, EventSourceInfo eventSourceInfo,
                                  EventProcessorResult eventProcessorResult) {
 
+        Timer.Context timer = MetricUtils.getMetricRegistry().timer(
+                CONNECTOR_PUBLISH_EVENTS
+                        .withTags(SOURCE_ID, eventSourceInfo.getEventSourceId())
+                        .withTags(SOURCE_TYPE, eventSourceInfo.getEventSourceType())
+                        .toString()
+        ).time();
         if (eventProcessorResult == null) {
             return true;
         }
@@ -385,6 +424,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             } catch (InterruptedException e) {
             }
         }
+
+        timer.stop();
 
         if (publisherResult == null) {
             logger.warn("There was some issue in publishing events");
@@ -459,12 +500,20 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     public List<UserServiceMappingRule> getUserServiceMappingRules(AuthInfo authInfo, EventSourceInfo eventSourceInfo) {
 
-        return this.configHelper.getUserServiceMappingRules(
-                        authInfo,
-                        eventSourceInfo.getEventSourceId(),
-                        configStoreClient
-                );
+        Timer.Context timer = MetricUtils.getMetricRegistry().timer(
+                CONNECTOR_USER_SERVICE_RULES_DOWNLOAD
+                        .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
+                        .withTags(SOURCE_TYPE, eventSourceInfo.getEventSourceType())
+                        .toString()
+        ).time();
 
+        List<UserServiceMappingRule> rules = this.configHelper.getUserServiceMappingRules(
+                authInfo,
+                eventSourceInfo.getEventSourceId(),
+                configStoreClient
+        );
+        timer.stop();
+        return rules;
     }
 
     public String getTenantId() {

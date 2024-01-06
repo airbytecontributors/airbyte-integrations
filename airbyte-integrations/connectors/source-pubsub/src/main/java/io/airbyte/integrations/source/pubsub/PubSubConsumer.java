@@ -11,6 +11,7 @@ import com.google.pubsub.v1.PullResponse;
 import com.google.pubsub.v1.ReceivedMessage;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
+import io.airbyte.integrations.bicycle.base.integration.CommonConstants;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
@@ -27,11 +28,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import static io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator.SOURCE_TYPE;
 import static io.bicycle.integration.common.constants.EventConstants.SOURCE_ID;
 import static io.bicycle.integration.common.constants.EventConstants.THREAD_ID;
 /**
  */
-public class BicycleConsumer implements Runnable {
+public class PubSubConsumer implements Runnable {
 
     public static final TagEncodedMetricName PUB_SUB_CYCLE_TIME = TagEncodedMetricName
             .decode("pubsub_consumer_cycle_time");
@@ -46,7 +48,7 @@ public class BicycleConsumer implements Runnable {
             .decode("pubsub_consumer_ack_time");
 
 
-    private static final Logger logger = LoggerFactory.getLogger(BicycleConsumer.class.getName());
+    private static final Logger logger = LoggerFactory.getLogger(PubSubConsumer.class.getName());
     private final PubsubSourceConfig pubsubSourceConfig;
     private final JsonNode config;
     private final BicycleConfig bicycleConfig;
@@ -58,20 +60,20 @@ public class BicycleConsumer implements Runnable {
     private final boolean isDestinationSyncConnector;
     private final SyncDataRequest syncDataRequest;
 
-    public BicycleConsumer(String name, BicycleConfig bicycleConfig, JsonNode connectorConfig, ConfiguredAirbyteCatalog configuredCatalog, EventSourceInfo eventSourceInfo, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier, PubsubSource instance) {
+    public PubSubConsumer(String name, BicycleConfig bicycleConfig, JsonNode connectorConfig, ConfiguredAirbyteCatalog configuredCatalog, EventSourceInfo eventSourceInfo, EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier, PubsubSource instance) {
         this(name, bicycleConfig, connectorConfig, configuredCatalog, eventSourceInfo,
                 eventConnectorJobStatusNotifier, instance, false, null);
     }
 
-    public BicycleConsumer(String name,
-                           BicycleConfig bicycleConfig,
-                           JsonNode connectorConfig,
-                           ConfiguredAirbyteCatalog configuredCatalog,
-                           EventSourceInfo eventSourceInfo,
-                           EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
-                           PubsubSource instance,
-                           boolean isDestinationSyncConnector,
-                           SyncDataRequest syncDataRequest) {
+    public PubSubConsumer(String name,
+                          BicycleConfig bicycleConfig,
+                          JsonNode connectorConfig,
+                          ConfiguredAirbyteCatalog configuredCatalog,
+                          EventSourceInfo eventSourceInfo,
+                          EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
+                          PubsubSource instance,
+                          boolean isDestinationSyncConnector,
+                          SyncDataRequest syncDataRequest) {
         this.name = name;
         this.config = connectorConfig;
         this.catalog = configuredCatalog;
@@ -149,8 +151,9 @@ public class BicycleConsumer implements Runnable {
             List<ReceivedMessage> recordsList;
 
             Timer.Context pullReqTimer = MetricUtils.getMetricRegistry().timer(
-                    PUB_SUB_PULL_TIME
+                    CommonConstants.CONNECTOR_RECORDS_PULL_METRIC
                             .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
+                            .withTags(SOURCE_TYPE, eventSourceInfo.getEventSourceType())
                             .withTags(THREAD_ID, name).toString()
                             .toString()
             ).time();

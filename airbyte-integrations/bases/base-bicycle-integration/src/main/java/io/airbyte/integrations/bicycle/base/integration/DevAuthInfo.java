@@ -18,7 +18,7 @@ public class DevAuthInfo implements AuthInfo {
 
     @Override
     public String getToken() {
-        return "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJST0xFIjoiQVBJIiwic3ViIjoiZXZlbnQtZGVtby1hcHAtMiIsIk9SR19JRCI6IjgwIiwiaXNzIjoiamF5YUBiaWN5Y2xlLmlvIiwiaWF0IjoxNjYzNTgyNjgwLCJURU5BTlQiOiJldnQtZmJiOTY3YWQtMjVmMi00ZWVlLWIyZTUtZjUyYjA0N2JlMmVmIiwianRpIjoiZTQxMDhhNDMtYjVmNC00ZmRkLTg5NiJ9.wC6lMnpMvlNMvvyI_TPP4vzHRgPQstu0IUSpkD5aIPg";
+        return "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJST0xFIjoiQVBJIiwic3ViIjoiSU5GT1NFQy01OTMiLCJPUkdfSUQiOiI3NiIsImlzcyI6IjYzOWYyOGY3LTg4YzYtNGFkOC1hMGIiLCJleHAiOjE3MDQ1MzIzNzQsImlhdCI6MTcwMzMyMjc3NCwiVEVOQU5UIjoidGJyLWNlZDI5NzNkLWZiMDctNGNmNy05NzdjLTZiYzM1MWVlZmE1ZiIsImp0aSI6IjViNzhiNTQ5LTVlYjktNGRkNC05ZjIifQ.U0BqVKDlSN6F4lxfOMASypn8s1p5qaN59NXrjhpwcqQ";
     }
 
     @Override
@@ -28,7 +28,7 @@ public class DevAuthInfo implements AuthInfo {
 
     @Override
     public String getTenantId() {
-        return "evt-fbb967ad-25f2-4eee-b2e5-f52b047be2ef";
+        return "tbr-ced2973d-fb07-4cf7-977c-6bc351eefa5f";
     }
 
     @Override

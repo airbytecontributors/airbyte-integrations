@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import static io.airbyte.integrations.bicycle.base.integration.CommonConstants.CONNECTOR_LAG_STRING;
 
 public class KinesisMetricAsEventsGenerator extends MetricAsEventsGenerator {
     private static final String LAG_METRIC = "consumer_lag";
