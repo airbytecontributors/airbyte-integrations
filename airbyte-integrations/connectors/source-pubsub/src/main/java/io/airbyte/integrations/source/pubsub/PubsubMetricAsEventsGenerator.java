@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static com.google.protobuf.util.Timestamps.fromMillis;
+import static io.airbyte.integrations.bicycle.base.integration.CommonConstants.CONNECTOR_LAG_STRING;
 import static java.lang.System.currentTimeMillis;
 
 public class PubsubMetricAsEventsGenerator extends MetricAsEventsGenerator {

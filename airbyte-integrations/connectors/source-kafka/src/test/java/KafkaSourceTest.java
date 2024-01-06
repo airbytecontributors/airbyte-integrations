@@ -71,8 +71,7 @@ public class KafkaSourceTest {
         node.put("TestKey","TestValue");
         records.add(new ConsumerRecord<String, JsonNode>("Test",0, 0,"Key",(JsonNode) node));
 
-        List<RawEvent> rawEventsFromConnector = new KafkaSource(Mockito.mock(SystemAuthenticator.class),
-                Mockito.mock(EventConnectorJobStatusNotifier.class), null).convertRecordsToRawEvents(records);
+        List<RawEvent> rawEventsFromConnector = kafkaSource.convertRecordsToRawEvents(records);
 
         List<RawEvent> rawEventsExpected = new ArrayList<>();
         JsonRawEvent jsonRawEvent = new JsonRawEvent(node);

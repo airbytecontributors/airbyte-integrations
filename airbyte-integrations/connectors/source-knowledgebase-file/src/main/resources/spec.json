@@ -29,30 +29,35 @@
         "type" : "object",
         "title" : "Data Source",
         "description" : "The data source ",
-        "required" : [
-          "source_type",
-          "upload_id"
-        ],
-        "properties" : {
-          "source_type" : {
-            "type" : "string",
-            "title" : "Data Source Type",
-            "const" : "Upload"
-          },
-          "upload_id" : {
-            "type" : "string",
-            "subtype" : "multifile",
-            "title" : "Data",
-            "description" : "Upload one or more files"
-          },
-          "namespace" : {
-            "type" : "string",
-            "hidden": "true",
-            "dependency" : "['companyName']",
-            "title" : "Namespace",
-            "description" : "Namespace where file will be uploaded"
+        "default": "Upload",
+        "oneOf" : [
+          {
+            "title" : "Upload",
+            "required" : [
+              "source_type",
+              "upload_id"
+            ],
+            "properties" : {
+              "source_type" : {
+                "type" : "string",
+                "const" : "Upload"
+              },
+              "upload_id" : {
+                "type" : "string",
+                "subtype" : "multifile",
+                "title" : "Data",
+                "description" : "Upload one or more files"
+              },
+              "namespace" : {
+                "type" : "string",
+                "hidden" : "true",
+                "dependency" : "['companyName']",
+                "title" : "Namespace",
+                "description" : "Namespace where file will be uploaded"
+              }
+            }
           }
-        }
+        ]
       }
     }
   }

@@ -31,11 +31,6 @@ public class MetricAsEventsGenerator implements Runnable {
     public static final String TOTAL_EVENTS_PROCESSED_METRIC = "total_events_processed";
     protected static final String TOTAL_BYTES_PROCESSED_METRIC = "total_bytes_processed";
 
-    public static final String CONNECTOR_LAG_STRING = "connector_lag";
-    public static final TagEncodedMetricName CONNECTOR_LAG = TagEncodedMetricName
-            .decode(CONNECTOR_LAG_STRING);
-
-
     protected final Map<String, String> globalTags = new HashMap<>();
 
     protected BicycleConfig bicycleConfig;

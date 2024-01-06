@@ -44,7 +44,7 @@ public class CommonPushConnector extends BaseEventConnector {
     }
 
     @Override
-    public List<RawEvent> convertRecordsToRawEvents(List<?> records) {
+    public List<RawEvent> convertRecordsToRawEventsInternal(List<?> records) {
         return null;
     }
 

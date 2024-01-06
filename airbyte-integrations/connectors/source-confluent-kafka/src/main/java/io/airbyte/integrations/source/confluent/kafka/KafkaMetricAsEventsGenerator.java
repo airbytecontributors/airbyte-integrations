@@ -12,6 +12,7 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import static io.airbyte.integrations.bicycle.base.integration.CommonConstants.CONNECTOR_LAG_STRING;
 
 public class KafkaMetricAsEventsGenerator extends MetricAsEventsGenerator {
     private static final String LAG_METRIC = "consumer_lag";

@@ -1,5 +1,7 @@
 package io.airbyte.integrations.source.kafka;
 
+import ai.apptuit.ml.utils.MetricUtils;
+import com.codahale.metrics.Timer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.util.concurrent.RateLimiter;
@@ -36,7 +38,11 @@ import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static io.airbyte.integrations.bicycle.base.integration.CommonConstants.CONNECTOR_RECORDS_PULL_METRIC;
+import static io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator.SOURCE_TYPE;
 import static io.airbyte.integrations.source.kafka.KafkaSource.STREAM_NAME;
+import static io.bicycle.integration.common.constants.EventConstants.SOURCE_ID;
+import static io.bicycle.integration.common.constants.EventConstants.THREAD_ID;
 
 /**
  */
@@ -176,8 +182,16 @@ public class BicycleConsumer implements Runnable {
         try {
             while (!this.kafkaSource.getStopConnectorBoolean().get()) {
                 final List<ConsumerRecord<String, JsonNode>> recordsList = new ArrayList<>();
+                Timer.Context timer = MetricUtils.getMetricRegistry().timer(
+                        CONNECTOR_RECORDS_PULL_METRIC
+                                .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
+                                .withTags(SOURCE_TYPE, eventSourceInfo.getEventSourceType())
+                                .withTags(THREAD_ID, name).toString()
+                                .toString()
+                ).time();
                 final ConsumerRecords<String, JsonNode> consumerRecords =
                         consumer.poll(Duration.of(5000, ChronoUnit.MILLIS));
+                timer.stop();
                 int counter = 0;
                 logger.debug("No of records actually read by consumer {} are {}", name, consumerRecords.count());
                 sampledRecords = getNumberOfRecordsToBeReturnedBasedOnSamplingRate(consumerRecords.count(), samplingRate);

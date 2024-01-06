@@ -207,7 +207,7 @@ public class KafkaSource extends BaseEventConnector {
   }
 
   @Override
-  public List<RawEvent> convertRecordsToRawEvents(List<?> records) {
+  public List<RawEvent> convertRecordsToRawEventsInternal(List<?> records) {
     Iterator<ConsumerRecord<String, JsonNode>> recordsIterator =
             (Iterator<ConsumerRecord<String, JsonNode>>) records.iterator();
     List<RawEvent> rawEvents = new ArrayList<>();

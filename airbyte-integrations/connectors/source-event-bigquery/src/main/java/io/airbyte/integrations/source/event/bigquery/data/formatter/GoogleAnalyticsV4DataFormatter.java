@@ -1,6 +1,6 @@
 package io.airbyte.integrations.source.event.bigquery.data.formatter;
 
-import static io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator.CONNECTOR_LAG;
+import static io.airbyte.integrations.bicycle.base.integration.CommonConstants.CONNECTOR_LAG;
 import static io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator.SOURCE_TYPE;
 import static io.airbyte.integrations.source.event.bigquery.BigQueryEventSource.STREAM_NAME_TAG;
 import static io.airbyte.integrations.source.event.bigquery.BigQueryStreamGetter.LAST_7_DAYS_MILLISECONDS;
@@ -8,7 +8,6 @@ import static io.bicycle.integration.common.constants.EventConstants.SOURCE_ID;
 import ai.apptuit.metrics.client.TagEncodedMetricName;
 import ai.apptuit.ml.utils.MetricUtils;
 import com.codahale.metrics.CachedGauge;
-import com.codahale.metrics.Gauge;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -275,8 +274,15 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
             }
 
             for (Map.Entry<TagEncodedMetricName, Long> metricsEntry : metricsMap.entrySet()) {
+
                 MetricUtils.getMetricRegistry().gauge(metricsEntry.getKey().toString(),
-                        () -> () -> metricsMap.get(metricsEntry.getKey()));
+                        () -> new CachedGauge(15, TimeUnit.SECONDS) {
+                            @Override
+                            protected Object loadValue() {
+                                return metricsMap.get(metricsEntry.getKey());
+                            }
+                        }
+                );
             }
 
         } catch (Exception e) {

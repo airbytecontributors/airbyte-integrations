@@ -5,10 +5,9 @@ package io.airbyte.integrations.source.elasticsearch;
  * Created on 06/04/2023
  */
 
-import static io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator.CONNECTOR_LAG;
-import static io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator.CONNECTOR_LAG_STRING;
+
+import static io.airbyte.integrations.bicycle.base.integration.CommonConstants.CONNECTOR_LAG_STRING;
 import static io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator.TOTAL_EVENTS_PROCESSED_METRIC;
-import static io.airbyte.integrations.source.elasticsearch.ElasticsearchSource.ELASTIC_LAG;
 import static io.airbyte.integrations.source.elasticsearch.ElasticsearchSource.STATE;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.inception.server.auth.model.AuthInfo;
@@ -20,8 +19,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;

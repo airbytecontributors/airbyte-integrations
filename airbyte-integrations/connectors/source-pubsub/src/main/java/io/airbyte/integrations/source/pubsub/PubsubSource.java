@@ -87,7 +87,7 @@ public class PubsubSource extends BaseEventConnector {
     }
 
     @Override
-    public List<RawEvent> convertRecordsToRawEvents(List<?> records) {
+    public List<RawEvent> convertRecordsToRawEventsInternal(List<?> records) {
         Iterator<ReceivedMessage> recordsIterator = (Iterator<ReceivedMessage>) records.iterator();
         List<RawEvent> rawEvents = new ArrayList<>();
         boolean printed = false;
@@ -275,8 +275,8 @@ public class PubsubSource extends BaseEventConnector {
             eventConnectorJobStatusNotifier.setScheduledExecutorService(ses);
             for (int i = 0; i < numberOfConsumers; i++) {
                 String consumerThreadId = UUID.randomUUID().toString();
-                BicycleConsumer bicycleConsumer = new BicycleConsumer(consumerThreadId, bicycleConfig, config, catalog, eventSourceInfo, eventConnectorJobStatusNotifier,this);
-                ses.schedule(bicycleConsumer, 1, TimeUnit.SECONDS);
+                PubSubConsumer pubSubConsumer = new PubSubConsumer(consumerThreadId, bicycleConfig, config, catalog, eventSourceInfo, eventConnectorJobStatusNotifier,this);
+                ses.schedule(pubSubConsumer, 1, TimeUnit.SECONDS);
             }
             AuthInfo authInfo = bicycleConfig.getAuthInfo();
             eventConnectorJobStatusNotifier.sendStatus(JobExecutionStatus.processing,"Pubsub Event Connector started Successfully", connectorId, getTotalRecordsConsumed(),authInfo);
