@@ -2,9 +2,12 @@ package io.bicycle.airbyte.integrations.source.csv;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.Lists;
+import com.inception.server.auth.api.SystemAuthenticator;
+import com.inception.server.auth.model.AuthInfo;
 import io.airbyte.commons.util.AutoCloseableIterator;
-import io.airbyte.integrations.BaseConnector;
 import io.airbyte.integrations.base.Source;
+import io.airbyte.integrations.bicycle.base.integration.BaseKnowledgeBaseConnector;
+import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.AirbyteCatalog;
 import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteMessage;
@@ -14,8 +17,19 @@ import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.Field;
 import io.airbyte.protocol.models.JsonSchemaType;
 import io.airbyte.protocol.models.SyncMode;
+import io.bicycle.blob.store.schema.BlobObject;
+import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
+import io.bicycle.integration.common.utils.CommonUtil;
+import io.bicycle.integration.connector.ConfiguredConnectorStream;
+import io.bicycle.integration.connector.FileKnowledgeBaseConnectorResponse;
+import io.bicycle.integration.connector.FileSummary;
+import io.bicycle.integration.connector.KnowledgeBaseCompanySummary;
+import io.bicycle.integration.connector.KnowledgeBaseConnectorResponse;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,8 +38,15 @@ import org.slf4j.LoggerFactory;
  * @since 14/11/22
  */
 
-public class FileKnowledgebaseConnector extends BaseConnector implements Source {
+public class FileKnowledgebaseConnector extends BaseKnowledgeBaseConnector implements Source {
     private static final Logger LOGGER = LoggerFactory.getLogger(FileKnowledgebaseConnector.class);
+
+
+    public FileKnowledgebaseConnector(SystemAuthenticator systemAuthenticator,
+                                      EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
+                                      ConnectorConfigManager connectorConfigManager) {
+        super(systemAuthenticator, eventConnectorJobStatusNotifier, connectorConfigManager);
+    }
 
     @Override
     public AirbyteConnectionStatus check(JsonNode config) throws Exception {
@@ -44,8 +65,124 @@ public class FileKnowledgebaseConnector extends BaseConnector implements Source 
     }
 
     @Override
+    protected int getTotalRecordsConsumed() {
+        return 0;
+    }
+
+    @Override
+    public void stopEventConnector() {
+
+    }
+
+    @Override
+    public KnowledgeBaseConnectorResponse getKnowledgeBaseConnectorResponseInternal(
+            JsonNode config, ConfiguredAirbyteCatalog catalog) {
+
+        LOGGER.info("Config received {} and additional properties {}", config, additionalProperties);
+        KnowledgeBaseConnectorResponse.Builder knowledgeBaseConnRespBuilder =
+                KnowledgeBaseConnectorResponse.newBuilder();
+        String knowledgeBaseConnectorId = additionalProperties.containsKey("bicycleConnectorId")
+                ? additionalProperties.get("bicycleConnectorId").toString() : null;
+        if (StringUtils.isEmpty(knowledgeBaseConnectorId)) {
+            throw new RuntimeException("Connector Id cannot be empty or null");
+        }
+
+        String traceInfo = additionalProperties.containsKey("traceId")
+                ? additionalProperties.get("traceId").toString() : null;
+
+        AuthInfo authInfo = getAuthInfo();
+        LOGGER.info("{} Received request to get knowledge base connector for connector id {}", traceInfo,
+                knowledgeBaseConnectorId);
+
+        ConfiguredConnectorStream connectorStream =
+                getConfiguredConnectorStream(authInfo, knowledgeBaseConnectorId);
+
+        LOGGER.info("{} Fetch the connector stream {}", traceInfo, connectorStream);
+
+        Pair namespaceAndUploadIds = getNamespaceAndUploadIds(traceInfo, connectorStream);
+        LOGGER.info("{} Fetch the namespace and uploadIds {}", traceInfo, namespaceAndUploadIds);
+
+        KnowledgeBaseCompanySummary knowledgeBaseCompanySummary = getCompanySummary(traceInfo, connectorStream);
+
+        if (namespaceAndUploadIds != null) {
+            String namespace = (String) namespaceAndUploadIds.getLeft();
+            Collection<String> uploadIds = (Collection<String>) namespaceAndUploadIds.getRight();
+            FileKnowledgeBaseConnectorResponse.Builder fileKnowledgeBaseConnector =
+                    FileKnowledgeBaseConnectorResponse.newBuilder();
+            for (String uploadId : uploadIds) {
+                BlobObject fileMetadata = getFileMetadata(authInfo, traceInfo, namespace, uploadId);
+                LOGGER.info("{} Got the file metadata {}", traceInfo, fileMetadata);
+                String signedUrl = getSingedUrl(authInfo, traceInfo, namespace, uploadId);
+                if (StringUtils.isEmpty(signedUrl)) {
+                    LOGGER.warn("{} Unable to get the signed url for file {}", traceInfo, fileMetadata.getName());
+                    continue;
+                }
+                LOGGER.info("{} Got the signed url {} for file {}", traceInfo, signedUrl, fileMetadata.getName());
+                String fileContent = getFileContent(traceInfo, signedUrl);
+                LOGGER.info("{} Got the file content {}", traceInfo, fileContent);
+                FileSummary fileSummary = FileSummary.newBuilder().setContent(fileContent)
+                        .setIdentifier(uploadId)
+                        .setLastModifiedTime(String.valueOf(fileMetadata.getLastUpdatedAt())).build();
+                fileKnowledgeBaseConnector.addFileSummary(fileSummary);
+            }
+
+            return knowledgeBaseConnRespBuilder.setCompanySummary(knowledgeBaseCompanySummary)
+                    .setFileKnowledgeBaseConnectorResponse(fileKnowledgeBaseConnector.build())
+                    .build();
+        }
+
+        return null;
+    }
+
+    public String getSingedUrl(AuthInfo authInfo, String traceInfo, String namespace, String connectorUploadId) {
+        try {
+            return blobStoreBroker.getSingedUrl(authInfo, traceInfo, connectorUploadId, namespace);
+        } catch (Throwable var6) {
+            String message = "Failed to get signed url from blob store for given bicycle upload id";
+            LOGGER.error("{},{} {}", new Object[] {traceInfo, message, connectorUploadId, var6});
+        }
+        return null;
+    }
+
+    private Pair getNamespaceAndUploadIds(String traceInfo,
+                                          ConfiguredConnectorStream connectorStream) {
+        return commonUtil.getNameSpaceToUploadIdsForKnowledgeBaseConnector(traceInfo, connectorStream);
+    }
+
+    private BlobObject getFileMetadata(AuthInfo authInfo, String traceInfo,
+                                       String namespace, String uploadId) {
+        return blobStoreBroker.getFileMetadata(authInfo, traceInfo, uploadId, namespace);
+    }
+
+    private String getFileContent(String traceInfo, String signedUrl) {
+        return blobStoreBroker.getUploadFileContentAsString(traceInfo, signedUrl);
+    }
+
+    private KnowledgeBaseCompanySummary getCompanySummary(String traceInfo,
+                                                          ConfiguredConnectorStream connectorStream) {
+
+        KnowledgeBaseCompanySummary.Builder builder = KnowledgeBaseCompanySummary.newBuilder();
+        try {
+            CommonUtil.CompanySummary companySummary = commonUtil.getCompanySummary(traceInfo, connectorStream);
+            builder.setCompanyName(companySummary.getCompanyName());
+            if (!StringUtils.isEmpty(companySummary.getVertical())) {
+                builder.setVerticalName(companySummary.getVertical());
+            }
+            if (!StringUtils.isEmpty(companySummary.getSubVertical())) {
+                builder.setSubVerticalName(companySummary.getSubVertical());
+            }
+        } catch (Exception e) {
+            LOGGER.error("{} Unable to get vertical identifier for stream {} because of {}", traceInfo,
+                    connectorStream.getConfiguredConnectorStreamId(), e);
+        }
+        LOGGER.info("{} got the vertical Identifier {}", traceInfo, builder);
+        return builder.build();
+    }
+
+    @Override
     public AutoCloseableIterator<AirbyteMessage> read(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state)
             throws Exception {
         return null;
     }
+
 }

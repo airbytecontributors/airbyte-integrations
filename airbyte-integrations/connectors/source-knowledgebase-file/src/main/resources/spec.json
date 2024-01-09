@@ -51,7 +51,7 @@
               "namespace" : {
                 "type" : "string",
                 "hidden" : "true",
-                "dependency" : "['companyName']",
+                "const" : "source-knowledgebase-file",
                 "title" : "Namespace",
                 "description" : "Namespace where file will be uploaded"
               }
