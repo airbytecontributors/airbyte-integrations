@@ -1,9 +1,12 @@
 package io.bicycle.airbyte.integrations.source.csv;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.Lists;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
+import com.inception.server.config.Config;
+import com.inception.server.config.ConfigReference;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.base.Source;
 import io.airbyte.integrations.bicycle.base.integration.BaseKnowledgeBaseConnector;
@@ -19,6 +22,7 @@ import io.airbyte.protocol.models.JsonSchemaType;
 import io.airbyte.protocol.models.SyncMode;
 import io.bicycle.blob.store.schema.BlobObject;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
+import io.bicycle.integration.common.constants.ConfigConstants;
 import io.bicycle.integration.common.utils.CommonUtil;
 import io.bicycle.integration.connector.ConfiguredConnectorStream;
 import io.bicycle.integration.connector.FileKnowledgeBaseConnectorResponse;
@@ -76,7 +80,7 @@ public class FileKnowledgebaseConnector extends BaseKnowledgeBaseConnector imple
 
     @Override
     public KnowledgeBaseConnectorResponse getKnowledgeBaseConnectorResponseInternal(
-            JsonNode config, ConfiguredAirbyteCatalog catalog) {
+            JsonNode config, ConfiguredAirbyteCatalog catalog) throws JsonProcessingException {
 
         LOGGER.info("Config received {} and additional properties {}", config, additionalProperties);
         KnowledgeBaseConnectorResponse.Builder knowledgeBaseConnRespBuilder =
@@ -97,38 +101,66 @@ public class FileKnowledgebaseConnector extends BaseKnowledgeBaseConnector imple
         ConfiguredConnectorStream connectorStream =
                 getConfiguredConnectorStream(authInfo, knowledgeBaseConnectorId);
 
+        Config streamConfig = getConfigByReference(authInfo, ConfigReference.newBuilder()
+                .setUuid(knowledgeBaseConnectorId).setTypeId(ConfigConstants.CONNECTOR_STREAM_CONFIG_TYPE).build());
+
+
         LOGGER.info("{} Fetch the connector stream {}", traceInfo, connectorStream);
 
-        Pair namespaceAndUploadIds = getNamespaceAndUploadIds(traceInfo, connectorStream);
-        LOGGER.info("{} Fetch the namespace and uploadIds {}", traceInfo, namespaceAndUploadIds);
+        String connectionConfigurationString = connectorStream.getConfiguredConnection().getConnectionConfiguration();
+        JsonNode connectionConfigJson = objectMapper.readTree(connectionConfigurationString);
 
-        KnowledgeBaseCompanySummary knowledgeBaseCompanySummary = getCompanySummary(traceInfo, connectorStream);
-
-        if (namespaceAndUploadIds != null) {
-            String namespace = (String) namespaceAndUploadIds.getLeft();
-            Collection<String> uploadIds = (Collection<String>) namespaceAndUploadIds.getRight();
+        if (connectionConfigJson.hasNonNull("data_source") && !connectionConfigJson.get("data_source").isNull()) {
+            JsonNode dataSourceConfig = connectionConfigJson.get("data_source");
+            LOGGER.info("{} Found data source config {}", traceInfo, dataSourceConfig);
+            String sourceType = dataSourceConfig.get("source_type").textValue();
             FileKnowledgeBaseConnectorResponse.Builder fileKnowledgeBaseConnector =
                     FileKnowledgeBaseConnectorResponse.newBuilder();
-            for (String uploadId : uploadIds) {
-                BlobObject fileMetadata = getFileMetadata(authInfo, traceInfo, namespace, uploadId);
-                LOGGER.info("{} Got the file metadata {}", traceInfo, fileMetadata);
-                String signedUrl = getSingedUrl(authInfo, traceInfo, namespace, uploadId);
-                if (StringUtils.isEmpty(signedUrl)) {
-                    LOGGER.warn("{} Unable to get the signed url for file {}", traceInfo, fileMetadata.getName());
-                    continue;
+            if (sourceType.equals("Upload")) {
+                Pair namespaceAndUploadIds = getNamespaceAndUploadIds(traceInfo, connectorStream);
+                LOGGER.info("{} Fetch the namespace and uploadIds {}", traceInfo, namespaceAndUploadIds);
+                if (namespaceAndUploadIds != null) {
+                    String namespace = (String) namespaceAndUploadIds.getLeft();
+                    Collection<String> uploadIds = (Collection<String>) namespaceAndUploadIds.getRight();
+
+                    for (String uploadId : uploadIds) {
+                        BlobObject fileMetadata = getFileMetadata(authInfo, traceInfo, namespace, uploadId);
+                        LOGGER.info("{} Got the file metadata {}", traceInfo, fileMetadata);
+                        String signedUrl = getSingedUrl(authInfo, traceInfo, namespace, uploadId);
+                        if (StringUtils.isEmpty(signedUrl)) {
+                            LOGGER.warn("{} Unable to get the signed url for file {}", traceInfo,
+                                    fileMetadata.getName());
+                            continue;
+                        }
+                        LOGGER.info("{} Got the signed url {} for file {}", traceInfo, signedUrl,
+                                fileMetadata.getName());
+                        String fileContent = getFileContent(traceInfo, signedUrl);
+                        LOGGER.info("{} Got the file content {}", traceInfo, fileContent);
+                        FileSummary fileSummary = FileSummary.newBuilder().setContent(fileContent)
+                                .setIdentifier(uploadId)
+                                .setLastModifiedTime(System.currentTimeMillis()).build();
+                        fileKnowledgeBaseConnector.addFileSummary(fileSummary);
+                    }
                 }
-                LOGGER.info("{} Got the signed url {} for file {}", traceInfo, signedUrl, fileMetadata.getName());
-                String fileContent = getFileContent(traceInfo, signedUrl);
-                LOGGER.info("{} Got the file content {}", traceInfo, fileContent);
+            } else if (sourceType.equals("Inline Text")) {
+                String fileContent = dataSourceConfig.get("text").textValue();
+                LOGGER.info("{} Inside inline text with file content size {}", traceInfo, fileContent.length());
                 FileSummary fileSummary = FileSummary.newBuilder().setContent(fileContent)
-                        .setIdentifier(uploadId)
-                        .setLastModifiedTime(String.valueOf(fileMetadata.getLastUpdatedAt())).build();
+                        .setIdentifier(connectorStream.getConfiguredConnectorStreamId())
+                        .setLastModifiedTime(System.currentTimeMillis()).build();
                 fileKnowledgeBaseConnector.addFileSummary(fileSummary);
             }
 
-            return knowledgeBaseConnRespBuilder.setCompanySummary(knowledgeBaseCompanySummary)
-                    .setFileKnowledgeBaseConnectorResponse(fileKnowledgeBaseConnector.build())
-                    .build();
+            KnowledgeBaseCompanySummary knowledgeBaseCompanySummary = getCompanySummary(traceInfo, connectorStream);
+
+            KnowledgeBaseConnectorResponse response =
+                    knowledgeBaseConnRespBuilder.setCompanySummary(knowledgeBaseCompanySummary)
+                            .setFileKnowledgeBaseConnectorResponse(fileKnowledgeBaseConnector.build())
+                            .build();
+
+            LOGGER.info("{} response sent from connector is {}", traceInfo, response);
+
+            return response;
         }
 
         return null;

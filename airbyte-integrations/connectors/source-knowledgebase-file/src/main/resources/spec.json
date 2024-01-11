@@ -56,6 +56,23 @@
                 "description" : "Namespace where file will be uploaded"
               }
             }
+          },
+          {
+            "title": "Inline Text",
+            "required": [
+              "source_type",
+              "text"
+            ],
+            "properties": {
+              "source_type" : {
+                "type" : "string",
+                "const": "Inline Text"
+              },
+              "text": {
+                "type": "string",
+                "subtype": "multiline"
+              }
+            }
           }
         ]
       }
