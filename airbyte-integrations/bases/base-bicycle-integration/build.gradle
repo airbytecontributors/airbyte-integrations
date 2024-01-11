@@ -62,6 +62,9 @@ dependencies {
     implementation("com.inception:tenant-client:0.2.0-snapshot.202207131743.6aac96e")
 
 
+    implementation("com.inception:tenant-client:0.2.0-snapshot.202207131743.6aac96e")
+
+
     implementation libs.testcontainers
     implementation libs.testcontainers.jdbc
     implementation files(project(':airbyte-integrations:bases:base').airbyteDocker.outputs)

@@ -100,6 +100,7 @@ public class FileKnowledgebaseConnector extends BaseKnowledgeBaseConnector imple
 
         ConfiguredConnectorStream connectorStream =
                 getConfiguredConnectorStream(authInfo, knowledgeBaseConnectorId);
+
         Config streamConfig = getConfigByReference(authInfo, ConfigReference.newBuilder()
                 .setUuid(knowledgeBaseConnectorId).setTypeId(ConfigConstants.CONNECTOR_STREAM_CONFIG_TYPE).build());
 
