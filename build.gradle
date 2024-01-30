@@ -33,7 +33,7 @@ repositories {
 }
 
 ext.bicyleEventProcessorVersion = "0.2.51384"
-ext.metaPipelineVersion = "0.2.52399"
+ext.metaPipelineVersion = "0.2.52987"
 Properties env = new Properties()
 rootProject.file('.env').withInputStream { env.load(it) }
 
@@ -267,6 +267,9 @@ subprojects {
             force "com.google.protobuf:protobuf-java:3.19.1"
             force "com.google.cloud:google-cloud-bigquery:1.133.1"
             force "com.google.api-client:google-api-client:1.33.2"
+            force "com.inception:integration-common-api:${metaPipelineVersion}"
+            force "com.inception:integration-common-impl:${metaPipelineVersion}"
+            force "com.inception:integration-model:${metaPipelineVersion}"
         }
     }
 
