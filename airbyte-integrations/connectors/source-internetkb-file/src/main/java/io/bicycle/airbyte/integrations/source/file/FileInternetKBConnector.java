@@ -103,33 +103,35 @@ public class FileInternetKBConnector extends BaseKnowledgeBaseConnector implemen
         String connectionConfigurationString = connectorStream.getConfiguredConnection().getConnectionConfiguration();
         JsonNode connectionConfigJson = objectMapper.readTree(connectionConfigurationString);
 
+        final var knowledgeBaseText = "";
+
         if (connectionConfigJson.hasNonNull("knowledge_base") && !connectionConfigJson.get("knowledge_base").isNull()) {
             final var knowledgeBase = connectionConfigJson.get("knowledge_base");
             final var knowledgeBaseText = knowledgeBase.textValue();
             LOGGER.info("{} Found knowledge base config {}", traceInfo, knowledgeBaseText);
-
-            FileKnowledgeBaseConnectorResponse.Builder fileKnowledgeBaseConnector =
-                    FileKnowledgeBaseConnectorResponse.newBuilder();
-            FileSummary fileSummary =
-                    FileSummary.newBuilder()
-                            .setContent(knowledgeBaseText)
-                            .setIdentifier(connectorStream.getConfiguredConnectorStreamId())
-                            .setLastModifiedTime(System.currentTimeMillis()).build();
-            fileKnowledgeBaseConnector.addFileSummary(fileSummary);
-
-            KnowledgeBaseCompanySummary knowledgeBaseCompanySummary = getCompanySummary(traceInfo, connectorStream);
-
-            KnowledgeBaseConnectorResponse response =
-                    knowledgeBaseConnRespBuilder
-                            .setCompanySummary(knowledgeBaseCompanySummary)
-                            .setFileKnowledgeBaseConnectorResponse(fileKnowledgeBaseConnector.build())
-                            .build();
-
-            LOGGER.info("{} response sent from connector is {}", traceInfo, response);
-
-            return response;
         }
-        return null;
+
+
+        FileKnowledgeBaseConnectorResponse.Builder fileKnowledgeBaseConnector =
+                FileKnowledgeBaseConnectorResponse.newBuilder();
+        FileSummary fileSummary =
+                FileSummary.newBuilder()
+                        .setContent(knowledgeBaseText)
+                        .setIdentifier(connectorStream.getConfiguredConnectorStreamId())
+                        .setLastModifiedTime(System.currentTimeMillis()).build();
+        fileKnowledgeBaseConnector.addFileSummary(fileSummary);
+
+        KnowledgeBaseCompanySummary knowledgeBaseCompanySummary = getCompanySummary(traceInfo, connectorStream);
+
+        KnowledgeBaseConnectorResponse response =
+                knowledgeBaseConnRespBuilder
+                        .setCompanySummary(knowledgeBaseCompanySummary)
+                        .setFileKnowledgeBaseConnectorResponse(fileKnowledgeBaseConnector.build())
+                        .build();
+
+        LOGGER.info("{} response sent from connector is {}", traceInfo, response);
+
+        return response;
     }
 
     public String getSingedUrl(AuthInfo authInfo, String traceInfo, String namespace, String connectorUploadId) {
