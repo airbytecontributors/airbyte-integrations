@@ -103,7 +103,7 @@ public class FileInternetKBConnector extends BaseKnowledgeBaseConnector implemen
         String connectionConfigurationString = connectorStream.getConfiguredConnection().getConnectionConfiguration();
         JsonNode connectionConfigJson = objectMapper.readTree(connectionConfigurationString);
 
-        final var knowledgeBaseText = "";
+        var knowledgeBaseText = "";
 
         if (connectionConfigJson.hasNonNull("knowledge_base") && !connectionConfigJson.get("knowledge_base").isNull()) {
             final var knowledgeBase = connectionConfigJson.get("knowledge_base");
