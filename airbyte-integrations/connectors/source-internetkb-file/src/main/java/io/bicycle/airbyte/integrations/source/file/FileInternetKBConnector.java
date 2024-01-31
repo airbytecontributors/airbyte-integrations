@@ -107,7 +107,7 @@ public class FileInternetKBConnector extends BaseKnowledgeBaseConnector implemen
 
         if (connectionConfigJson.hasNonNull("knowledge_base") && !connectionConfigJson.get("knowledge_base").isNull()) {
             final var knowledgeBase = connectionConfigJson.get("knowledge_base");
-            final var knowledgeBaseText = knowledgeBase.textValue();
+            knowledgeBaseText = knowledgeBase.textValue();
             LOGGER.info("{} Found knowledge base config {}", traceInfo, knowledgeBaseText);
         }
 
