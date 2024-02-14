@@ -1,0 +1,179 @@
+{
+  "documentationUrl": "https://docs.airbyte.io/integrations/sources/file",
+  "connectionSpecification": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "CSV Lite",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "name",
+      "description",
+      "data_source"
+    ],
+    "properties": {
+      "datasetName": {
+        "type": "string",
+        "title": "Name",
+        "description": "The Name of the stream under which this file will be replicated. Could be any name. (should include letters, numbers dash and underscores only)."
+      },
+      "format": {
+        "type": "string",
+        "enum": [
+          "csv"
+        ],
+        "default": "csv",
+        "title": "File Format",
+        "description": "The Format of the file which should be replicated (Warning: some formats may be experimental, please refer to the docs)."
+      },
+      "timeHeader": {
+        "type": "string",
+        "title": "DateTime Header",
+        "description": "The header field in the CSV which represents the date time for the event"
+      },
+      "timeFormat": {
+        "type": "string",
+        "title": "DateTime Format",
+        "description": "The format of the date time field. Eg :  yyyy-MM-dd'T'HH:mm:ss.SSS"
+      },
+      "timeZone": {
+        "type": "string",
+        "title": "TimeZone",
+        "description": "Provide TimeZone in java TimeZone ID format incase timeZone not available in DataTime Header. Default UTC. Eg : US/Pacific US/Eastern UTC etc"
+      },
+      "backfill": {
+        "type": "string",
+        "enum": [
+          "true",
+          "false"
+        ],
+        "default": "true",
+        "title": "Backfill",
+        "description": "Backfill Data"
+      },
+      "backfillJobId": {
+        "type": "string",
+        "title": "Backfill Job Id",
+        "description": "It serves as a distinctive identifier for uniquely identifying a backfill run."
+      },
+      "replay": {
+        "type": "string",
+        "enum": [
+          "true",
+          "false"
+        ],
+        "default": "true",
+        "title": "Replay",
+        "description": "Replay Data"
+      },
+      "periodicity": {
+        "type": "string",
+        "title": "Periodicity",
+        "description": "Periodicity of simulating the load. (In secs)"
+      },
+      "sleepTime": {
+        "type": "integer",
+        "title": "Sleep(ms)",
+        "description": "Specifies the sleep after publishing each batch",
+        "default": 2000
+      },
+      "batchSize": {
+        "type": "integer",
+        "title": "Batch Size",
+        "description": "Specifies the size of batches for publishing records.",
+        "default": 2000
+      },
+      "dummyMessageInterval": {
+        "type": "integer",
+        "title": "Interval for Sending Dummy Messages",
+        "description": "Specifies the interval till when the dummy message should be published in seconds",
+        "default": 120
+      },
+      "data_source": {
+        "type": "object",
+        "title": "Data Source",
+        "description": "The data source (URL or file)",
+        "default": "URL",
+        "oneOf": [
+          {
+            "title": "URL",
+            "required": [
+              "source_type",
+              "URL",
+              "provider"
+            ],
+            "properties": {
+              "source_type": {
+                "type": "string",
+                "const": "URL"
+              },
+              "URL": {
+                "type": "string",
+                "title": "URL",
+                "description": "The URL path to access the file which should be replicated."
+              },
+              "provider": {
+                "type": "object",
+                "title": "Storage Provider",
+                "description": "The storage Provider or Location of the file(s) which should be replicated.",
+                "default": "HTTPS: Public Web",
+                "oneOf": [
+                  {
+                    "title": "HTTPS: Public Web",
+                    "required": [
+                      "storage"
+                    ],
+                    "properties": {
+                      "storage": {
+                        "type": "string",
+                        "const": "HTTPS"
+                      }
+                    }
+                  },
+                  {
+                    "title": "GCS: Google Cloud Storage",
+                    "required": [
+                      "storage",
+                      "service_account_json"
+                    ],
+                    "properties": {
+                      "storage": {
+                        "type": "string",
+                        "title": "Storage",
+                        "const": "GCS"
+                      },
+                      "service_account_json": {
+                        "type": "string",
+                        "title": "Service Account JSON",
+                        "description": "In order to access private Buckets stored on Google Cloud, this connector would need a service account json credentials with the proper permissions as described <a href=\"https://cloud.google.com/iam/docs/service-accounts\" target=\"_blank\">here</a>. Please generate the credentials.json file and copy/paste its content to this field (expecting JSON formats). If accessing publicly available data, this field is not necessary."
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "title": "Upload",
+            "required": [
+              "source_type",
+              "upload_id"
+            ],
+            "properties": {
+              "source_type": {
+                "type": "string",
+                "const": "Upload"
+              },
+              "upload_id": {
+                "type": "string",
+                "subtype": "file",
+                "namespace": "integration",
+                "title": "Data",
+                "description": "Select a file containing data to be processed"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
