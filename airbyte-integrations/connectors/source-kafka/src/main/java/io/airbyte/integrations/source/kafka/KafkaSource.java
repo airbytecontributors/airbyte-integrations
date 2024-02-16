@@ -39,6 +39,7 @@ import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.integration.common.utils.CommonUtil;
 import io.bicycle.integration.connector.SyncDataRequest;
+import io.bicycle.integration.connector.SyncDataResponse;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import java.time.Duration;
@@ -313,16 +314,15 @@ public class KafkaSource extends BaseEventConnector {
   }
 
   @Override
-  public AutoCloseableIterator<AirbyteMessage> syncData(JsonNode sourceConfig,
-                                                        ConfiguredAirbyteCatalog configuredAirbyteCatalog,
-                                                        JsonNode readState,
-                                                        SyncDataRequest syncDataRequest) {
+  public SyncDataResponse syncData(JsonNode sourceConfig,
+                                   ConfiguredAirbyteCatalog configuredAirbyteCatalog,
+                                   JsonNode readState,
+                                   SyncDataRequest syncDataRequest) {
 
     PropertyValue propVal = syncDataRequest.getTraceInfo().getContextMap().get("enableExistingConnections");
     if (propVal != null && propVal.getBooleanVal() == true) {
-      AutoCloseableIterator<AirbyteMessage> nonEmptyIterator =
-              super.syncData(sourceConfig, configuredAirbyteCatalog, readState, syncDataRequest);
-      if (nonEmptyIterator != null) {
+      SyncDataResponse syncDataResponse = super.syncData(sourceConfig, configuredAirbyteCatalog, readState, syncDataRequest);
+      if (syncDataResponse != null && !syncDataResponse.equals(SyncDataResponse.getDefaultInstance())) {
         return null;
       }
     } else {
