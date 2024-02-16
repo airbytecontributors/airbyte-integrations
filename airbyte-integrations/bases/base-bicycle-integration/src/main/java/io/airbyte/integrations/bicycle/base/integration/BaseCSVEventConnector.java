@@ -8,6 +8,7 @@ import com.inception.common.client.impl.GenericApiClient;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
+import io.bicycle.ai.model.tenant.summary.discovery.*;
 import io.bicycle.blob.store.client.BlobStoreApiClient;
 import io.bicycle.blob.store.client.BlobStoreClient;
 import io.bicycle.blob.store.schema.BlobObject;
@@ -23,6 +24,8 @@ import io.bicycle.preview.store.PreviewStoreClient;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import io.bicycle.server.sources.mapping.utils.PreviewEventSamplingHandler;
+import io.bicycle.server.verticalcontext.tenant.api.Source;
+import io.bicycle.server.verticalcontext.tenant.api.VerticalIdentifier;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
@@ -74,7 +77,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         getConnectionServiceClient();
         this.connectorConfigService = new ConnectorConfigServiceImpl(configStoreClient, schemaStoreApiClient,
                 entityStoreApiClient, null, null,
-                null, systemAuthenticator, blobStoreBroker, null);
+                null, systemAuthenticator, blobStoreBroker, null, null);
     }
 
     protected BlobStoreClient getBlobStoreClient() {
@@ -155,7 +158,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         return mismatchRecords;
     }
 
-    protected long updateFilesMetadata(File csvFile, int recordsCount) throws IOException {
+    protected long updateFilesMetadata(File csvFile, int recordsCount, boolean updateVC) throws IOException {
         String streamId = getConnectorId();
         RandomAccessFile accessFile = null;
         String row = null;
@@ -194,6 +197,10 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                         }
                         if (rawEvents.size() >= BATCH_SIZE) {
                             submitRecordsToPreviewStore(getConnectorId(), rawEvents, false);
+                            if (updateVC) {
+                                updateTenantSummaryVC(getAuthInfo(), "", "", rawEvents, getConnectorId(), "");
+                                updateVC = false;
+                            }
                             rawEvents.clear();
                         }
                         if (counter > recordsCount) {
@@ -244,6 +251,71 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         bicycleEventPublisher.publishPreviewEvents(getAuthInfo(), eventSourceInfo, rawEvents, shouldFlush);
         LOGGER.info("[{}] : Published preview events [{}] [{}]", getConnectorId(), eventSourceId,
                 shouldFlush);
+    }
+
+
+
+    private void updateTenantSummaryVC(AuthInfo authInfo, String traceId, String companyName,
+                                       List<RawEvent> rawEvents,
+                                       String configId, String configName) {
+        try {
+            VerticalIdentifier verticalIdentifier = getVerticalIdentifier(companyName);
+
+            RawDataKnowledgeBase.Builder rawDataKnowledgeBaseBuilder = RawDataKnowledgeBase.newBuilder();
+            KnowledgeBaseMetadata knowledgeBaseMetadata = KnowledgeBaseMetadata.newBuilder()
+                    .setCompanyName(companyName)
+                    .setSource(Source.RAW_DATA)
+                    .setSourceId(configId)
+                    .setSourceName(configName)
+                    .setConnectorId(configId)
+                    .build();
+
+            rawDataKnowledgeBaseBuilder.setMetaData(knowledgeBaseMetadata);
+            rawDataKnowledgeBaseBuilder.setVerticalIdentifier(verticalIdentifier);
+
+            Map<String, List<String>> fieldsVsSamples = new HashMap<>();
+            for (RawEvent rawEvent : rawEvents) {
+                ObjectNode objectNode = (ObjectNode) rawEvent.getRawEventObject();
+                objectNode.fields().forEachRemaining(entry -> {
+                    String key = entry.getKey();
+                    JsonNode value = entry.getValue();
+                    fieldsVsSamples.computeIfAbsent(key, (k) -> new ArrayList<>()).add(value.textValue());
+                });
+            }
+
+            RawDataSource.Builder rawDataSourceBuilder = RawDataSource.newBuilder();
+            //String topicName = rawEvent.getEventTypeName();
+            //rawDataSourceBuilder.setSourceName(topicName);
+            for (String fieldName : fieldsVsSamples.keySet()) {
+                if (StringUtils.isEmpty(fieldName)) {
+                    continue;
+                }
+                rawDataSourceBuilder.addDimensions(RawDataField.newBuilder()
+                        .setFieldName(fieldName)
+                        .addAllSampleValues(fieldsVsSamples.get(fieldName))
+                        .build());
+            }
+            rawDataKnowledgeBaseBuilder.addRawDataSource(rawDataSourceBuilder.build());
+
+
+
+            DiscoverTenantSummary.Builder builder = DiscoverTenantSummary.newBuilder();
+            builder.setVertical(verticalIdentifier);
+            builder.setRawDataKnowledgeBase(rawDataKnowledgeBaseBuilder.build());
+            builder.setTraceInfo(io.bicycle.server.verticalcontext.tenant.api.TraceInfo
+                    .newBuilder().setTraceId(traceId).build());
+
+            DiscoverTenantSummaryResponse response =
+                    tenantSummaryDiscovererClient.discoverTenantSummary(authInfo, builder.build());
+
+            LOGGER.info("{} Response from tenant summary discoverer {}", traceId, response);
+        } catch (Exception e) {
+            LOGGER.error("{} Unable to update tenant summary for company {} because of {}", traceId, companyName, e);
+        }
+    }
+
+    private VerticalIdentifier getVerticalIdentifier(String companyName) {
+        return VerticalIdentifier.newBuilder().setVertical(companyName).setCompanyName(companyName).build();
     }
 
     /*protected Map<Long, List<FileRecordOffset>> updateFilesMetadataOffsets(Map<Long, List<FileRecordOffset>> timestampToFileOffsetMap,

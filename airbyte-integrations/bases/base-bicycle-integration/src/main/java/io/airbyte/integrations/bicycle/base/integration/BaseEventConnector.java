@@ -45,6 +45,7 @@ import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.config.BlackListedFields;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.integration.common.services.config.ConnectorConfigServiceImpl;
+import io.bicycle.tenant.ai.client.TenantSummaryDiscovererClient;
 import io.bicycle.integration.common.transformation.TransformationImpl;
 import io.bicycle.integration.common.utils.CommonUtil;
 import io.bicycle.integration.common.utils.MetricUtilWrapper;
@@ -86,6 +87,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected ConfigStoreClient configStoreClient;
     protected SchemaStoreApiClient schemaStoreApiClient;
     protected EntityStoreApiClient entityStoreApiClient;
+    protected TenantSummaryDiscovererClient tenantSummaryDiscovererClient;
     private BicycleEventProcessor bicycleEventProcessor;
     protected BicycleEventPublisher bicycleEventPublisher;
     protected TransformationImpl dataTransformer;
@@ -192,6 +194,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             configStoreClient = getConfigClient(bicycleConfig);
             schemaStoreApiClient = getSchemaStoreApiClient(bicycleConfig);
             entityStoreApiClient = getEntityStoreApiClient(bicycleConfig);
+            tenantSummaryDiscovererClient = getTenantSummaryDiscovererClient(bicycleConfig);
             dataTransformer
                     = new TransformationImpl(schemaStoreApiClient, entityStoreApiClient, configStoreClient,
                     getTraceQueryClient(bicycleConfig), new MetricUtilWrapper());
@@ -253,6 +256,15 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     private static SchemaStoreApiClient getSchemaStoreApiClient(BicycleConfig bicycleConfig) {
         return new SchemaStoreApiClient(new GenericApiClient(), new ServiceLocator() {
+            @Override
+            public String getBaseUri() {
+                return bicycleConfig.getServerURL();
+            }
+        });
+    }
+
+    private static TenantSummaryDiscovererClient getTenantSummaryDiscovererClient(BicycleConfig bicycleConfig) {
+        return new TenantSummaryDiscovererClient(new GenericApiClient(), new ServiceLocator() {
             @Override
             public String getBaseUri() {
                 return bicycleConfig.getServerURL();

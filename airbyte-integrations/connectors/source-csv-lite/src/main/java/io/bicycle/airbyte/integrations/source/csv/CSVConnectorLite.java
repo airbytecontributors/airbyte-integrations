@@ -4,20 +4,24 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.inception.server.auth.api.SystemAuthenticator;
+import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.bicycle.base.integration.BaseCSVEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.*;
+import io.bicycle.ai.model.tenant.summary.discovery.*;
 import io.bicycle.integration.common.Status;
 import io.bicycle.integration.common.StatusResponse;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.integration.connector.SyncDataResponse;
-import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
+import io.bicycle.server.verticalcontext.tenant.api.Source;
+import io.bicycle.server.verticalcontext.tenant.api.VerticalIdentifier;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -83,19 +87,19 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         for (String fileName : fileVsSignedUrls.keySet()) {
             File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
             files.put(fileName, file);
-            //files.put(fileName, new File("/home/ravi/Downloads/sumup_AllTransactions.csv"));
+            files.put(fileName, new File("/home/ravi/Downloads/sumup_AllTransactions.csv"));
         }
         LOGGER.info("[{}] : Local files Url [{}]", getConnectorId(), files);
         for (String fileName : files.keySet()) {
             try {
-                updateFilesMetadata(files.get(fileName), PREVIEW_RECORDS);
+                updateFilesMetadata(files.get(fileName), PREVIEW_RECORDS, true);
             } catch (IOException e) {
                 throw new IllegalStateException("Failed to resolve ["+fileName+"]");
             }
         }
         try {
             Future<Object> future = processFiles(files);
-            future.get();
+            //future.get();
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -114,7 +118,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                     long total = 0;
                     for (String fileName : files.keySet()) {
                         try {
-                            long count = updateFilesMetadata(files.get(fileName), Integer.MAX_VALUE);
+                            long count = updateFilesMetadata(files.get(fileName), Integer.MAX_VALUE, false);
                             total =  total + count;
                         } catch (IOException e) {
                             throw new IllegalStateException("Failed to resolve [" + fileName + "]");
