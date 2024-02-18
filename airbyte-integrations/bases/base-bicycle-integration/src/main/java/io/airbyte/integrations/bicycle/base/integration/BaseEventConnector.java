@@ -699,8 +699,11 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
         try {
             String state = connectionServiceClient.getReadStateConfigById(authInfo, streamId);
+            if (StringUtils.isEmpty(state) || state.equals("null")) {
+                return null;
+            }
             return state;
-        }catch (Throwable e) {
+        } catch (Throwable e) {
             logger.error("Unable to get state for streamId " + streamId, e);
         }
 
