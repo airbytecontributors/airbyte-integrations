@@ -102,6 +102,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected BlobStoreClient blobStoreClient;
     protected TenantServiceAPIClient tenantServiceApiClient;
     protected CommonUtil commonUtil = new CommonUtil();
+
     protected ObjectMapper mapper = new ObjectMapper();
     protected ConnectorConfigService connectorConfigService;
     private BicycleEventProcessor bicycleEventProcessor;
@@ -117,6 +118,10 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private static final String CONNECTORS_WITH_WAIT_ENABLED = "CONNECTORS_WITH_WAIT_ENABLED";
     private static final String CONNECTORS_WAIT_TIME_IN_MILLIS = "CONNECTORS_WAIT_TIME_IN_MILLIS";
     private static final int MAX_RETRY_COUNT = 3;
+    protected static final int BATCH_SIZE = 30;
+    private static final String PREVIEW_STORE_VALID_RECORDS = "PREVIEW_STORE_VALID_RECORDS";
+    private static final String PREVIEW_STORE_INVALID_RECORDS = "PREVIEW_STORE_INVALID_RECORDS";
+
 
     protected List<String> listOfConnectorsWithSleepEnabled = new ArrayList<>();
 
@@ -1082,6 +1087,53 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return bicycleConfig;
     }
 
+    protected void publishPreviewEvents(File file, EventSourceReader<RawEvent> reader, List<RawEvent> vcEvents,
+                                            int maxRecords, boolean saveState, boolean shouldFlush, boolean updateVC)
+            throws Exception {
+        try {
+            List<RawEvent> validEvents = new ArrayList<>();
+            List<RawEvent> inValidEvents = new ArrayList<>();
+            int valid_count = 0;
+            int invalid_count = 0;
+            while(reader.hasNext()) {
+                RawEvent next = reader.next();
+                if (reader.isValidEvent()) {
+                    validEvents.add(next);
+                    if (updateVC) {
+                        vcEvents.add(next);
+                    }
+                    valid_count++;
+                } else {
+                    inValidEvents.add(next);
+                    invalid_count++;
+                }
+                if (validEvents.size() >= BATCH_SIZE) {
+                    submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
+                    validEvents.clear();
+                }
+                if (inValidEvents.size() >= BATCH_SIZE) {
+                    submitRecordsToPreviewStore(getTenantId(), inValidEvents, shouldFlush);
+                    inValidEvents.clear();
+                }
+                if (valid_count >= maxRecords) {
+                    break;
+                }
+            }
+            logger.info("[{}] : Raw events total - Total Count [{}] Valid[{}] Invalid[{}]",
+                    getConnectorId(), file.getName(), valid_count, invalid_count);
+            submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
+            submitRecordsToPreviewStore(getConnectorId(), inValidEvents, shouldFlush);
+            if (saveState) {
+                saveState(PREVIEW_STORE_VALID_RECORDS, valid_count);
+                saveState(PREVIEW_STORE_INVALID_RECORDS, invalid_count);
+            }
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
+        }
+    }
+
     public static class NonEmptyAutoCloseableIterator implements AutoCloseableIterator {
 
         @Override
@@ -1100,11 +1152,12 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         }
     }
 
-    public static abstract class EventSourceReader {
+    public static abstract class EventSourceReader<T> {
 
         public abstract boolean hasNext();
 
-        public abstract void next();
+        public abstract boolean isValidEvent();
+        public abstract T next();
 
         public abstract void close() throws Exception;
 

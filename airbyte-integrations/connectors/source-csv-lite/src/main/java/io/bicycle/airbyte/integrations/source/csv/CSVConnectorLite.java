@@ -5,29 +5,24 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import com.inception.server.auth.api.SystemAuthenticator;
-import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.bicycle.base.integration.BaseCSVEventConnector;
+import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.protocol.models.*;
-import io.bicycle.ai.model.tenant.summary.discovery.*;
 import io.bicycle.integration.common.Status;
 import io.bicycle.integration.common.StatusResponse;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.integration.connector.SyncDataResponse;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
-import io.bicycle.server.verticalcontext.tenant.api.Source;
-import io.bicycle.server.verticalcontext.tenant.api.VerticalIdentifier;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -44,6 +39,9 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
     private static final int PREVIEW_RECORDS = 100;
     private static final String SYNC_DATA_STATE = "SYNC_DATA_STATE";
+    private static final String TOTAL_RECORDS = "TOTAL_RECORDS";
+    private static final String PREVIEW_STORE_VALID_RECORDS = "PREVIEW_STORE_VALID_RECORDS";
+    private static final String PREVIEW_STORE_INVALID_RECORDS = "PREVIEW_STORE_INVALID_RECORDS";
     private static final String STARTED = "STARTED";
     private static final String IN_PROGRESS = "IN_PROGRESS";
     private static final String FINISHED = "FINISHED";
@@ -89,21 +87,33 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         for (String fileName : fileVsSignedUrls.keySet()) {
             File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
             files.put(fileName, file);
-            //files.put(fileName, new File("/home/ravi/Downloads/sumup_AllTransactions.csv"));
+            files.put(fileName, new File("/home/ravi/Downloads/test.csv"));
         }
         LOGGER.info("[{}] : Local files Url [{}]", getConnectorId(), files);
+        BaseEventConnector connector = this;
         List<RawEvent> vcEvents = new ArrayList<>();
         for (String fileName : files.keySet()) {
+            File file = files.get(fileName);
+            CSVEventSourceReader csvReader = null;
             try {
-                updateFilesMetadata(files.get(fileName), vcEvents, PREVIEW_RECORDS, true);
-            } catch (IOException e) {
-                throw new IllegalStateException("Failed to resolve ["+fileName+"]");
+                csvReader = new CSVEventSourceReader(file, getConnectorId(), connector);
+                try {
+                    csvReader = new CSVEventSourceReader(file, getConnectorId(), connector);
+                    publishPreviewEvents(file, csvReader, vcEvents, PREVIEW_RECORDS,
+                            false, true, true);
+                } finally {
+                    if (csvReader != null) {
+                        csvReader.close();
+                    }
+                }
+            } catch (Throwable t) {
+                throw new IllegalStateException("Failed to register preview events for discovery service ["+fileName+"]", t);
             }
         }
         createTenantVC(vcEvents);
         try {
             Future<Object> future = processFiles(files);
-            //future.get();
+            future.get();
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -115,20 +125,32 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
     private Future<Object> processFiles(Map<String, File> files) throws JsonProcessingException {
         saveState(SYNC_DATA_STATE, IN_PROGRESS);
+        BaseEventConnector connector = this;
         Future<Object> future = executorService.submit(new Callable<Object>() {
             @Override
             public Object call() throws Exception {
                 try {
-                    long total = 0;
+                    int total_records = 0;
                     for (String fileName : files.keySet()) {
+                        File file = files.get(fileName);
+                        int records = totalRecords(file);
+                        total_records = total_records + records;
+                    }
+                    saveState(TOTAL_RECORDS, total_records);
+                    for (String fileName : files.keySet()) {
+                        File file = files.get(fileName);
+                        CSVEventSourceReader csvReader = null;
                         try {
-                            long count = updateFilesMetadata(files.get(fileName), Collections.emptyList(), Integer.MAX_VALUE, false);
-                            total =  total + count;
-                        } catch (IOException e) {
-                            throw new IllegalStateException("Failed to resolve [" + fileName + "]");
+                            csvReader = new CSVEventSourceReader(file, getConnectorId(), connector);
+                            publishPreviewEvents(file, csvReader, Collections.emptyList(), Integer.MAX_VALUE,
+                                    true, false, false);
+                        } finally {
+                            if (csvReader != null) {
+                                csvReader.close();
+                            }
                         }
                     }
-                    LOGGER.info("[{}] : Raw events total - Total Count[{}]", getConnectorId(), total);
+                    LOGGER.info("[{}] : Raw events total - Total Count[{}]", getConnectorId(), total_records);
                     saveState(SYNC_DATA_STATE, FINISHED);
                 } catch (Throwable t) {
                     LOGGER.error("Failed to submit records to preview store [{}]", getConnectorId(), t);
