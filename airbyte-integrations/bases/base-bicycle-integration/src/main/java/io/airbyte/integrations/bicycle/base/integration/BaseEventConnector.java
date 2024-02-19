@@ -246,13 +246,23 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             rawDataKnowledgeBaseBuilder.setMetaData(knowledgeBaseMetadata);
             rawDataKnowledgeBaseBuilder.setVerticalIdentifier(verticalIdentifier);
 
-            Map<String, List<String>> fieldsVsSamples = new HashMap<>();
+            Map<String, Set<String>> fieldsVsSamples = new HashMap<>();
             for (RawEvent rawEvent : rawEvents) {
                 ObjectNode objectNode = (ObjectNode) rawEvent.getRawEventObject();
                 objectNode.fields().forEachRemaining(entry -> {
                     String key = entry.getKey();
                     JsonNode value = entry.getValue();
-                    fieldsVsSamples.computeIfAbsent(key, (k) -> new ArrayList<>()).add(value.textValue());
+                    if (!key.startsWith("bicycle")) {
+                        if (value.isTextual()) {
+                            fieldsVsSamples.computeIfAbsent(key, (k) -> new HashSet<>()).add(value.textValue());
+                        } else if (value.isInt()) {
+                            fieldsVsSamples.computeIfAbsent(key, (k) -> new HashSet<>()).add(String.valueOf(value.intValue()));
+                        } else if (value.isDouble()) {
+                            fieldsVsSamples.computeIfAbsent(key, (k) -> new HashSet<>()).add(String.valueOf(value.doubleValue()));
+                        } else if (value.isBoolean()) {
+                            fieldsVsSamples.computeIfAbsent(key, (k) -> new HashSet<>()).add(String.valueOf(value.booleanValue()));
+                        }
+                    }
                 });
             }
 

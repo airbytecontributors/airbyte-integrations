@@ -183,7 +183,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 String value = record.get(index);
                 node.put(key, value);
             }
-            node.put("bicycle.offset", offset);
+            node.put("bicycle.offset", String.valueOf(offset));
             node.put("bicycle.filename", fileName);
             JsonRawEvent jsonRawEvent = connector.createJsonRawEvent(node);
             return jsonRawEvent;
