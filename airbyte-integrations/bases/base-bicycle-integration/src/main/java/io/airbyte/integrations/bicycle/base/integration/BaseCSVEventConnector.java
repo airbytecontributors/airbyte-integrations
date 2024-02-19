@@ -7,6 +7,8 @@ import com.inception.common.client.ServiceLocator;
 import com.inception.common.client.impl.GenericApiClient;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
+import com.inception.tenant.client.TenantServiceAPIClient;
+import com.inception.tenant.query.TenantInfo;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.ai.model.tenant.summary.discovery.*;
 import io.bicycle.blob.store.client.BlobStoreApiClient;
@@ -35,10 +37,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.io.StringReader;
+import java.io.*;
 import java.net.URL;
 import java.util.*;
 
@@ -47,19 +46,7 @@ import static io.bicycle.utils.metric.MetricNameConstants.PREVIEW_EVENTS_PUBLISH
 public abstract class BaseCSVEventConnector extends BaseEventConnector {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BaseCSVEventConnector.class);
-    private static final int CONNECT_TIMEOUT_IN_MILLIS = 60000;
-    private static final int READ_TIMEOUT_IN_MILLIS = 60000;
     private static final int BATCH_SIZE = 30;
-    protected BlobStoreBroker blobStoreBroker;
-    protected BlobStoreClient blobStoreClient;
-    protected PreviewEventSamplingHandler previewEventSamplingHandler;
-    protected PreviewStoreClient previewStoreClient;
-    protected CommonUtil commonUtil = new CommonUtil();
-    private ObjectMapper mapper = new ObjectMapper();
-
-    protected ConnectorConfigService connectorConfigService;
-
-    private Map<String, Integer> headerNameToIndexMap;
 
     public BaseCSVEventConnector(SystemAuthenticator systemAuthenticator,
                                  EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
@@ -67,98 +54,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         super(systemAuthenticator, eventConnectorJobStatusNotifier, connectorConfigManager);
     }
 
-    protected void initialize(JsonNode config, ConfiguredAirbyteCatalog catalog) {
-        this.config = config;
-        this.additionalProperties = catalog.getAdditionalProperties();
-        this.blobStoreBroker = new BlobStoreBroker(getBlobStoreClient());
-        this.state = getStateAsJsonNode(getAuthInfo(), getConnectorId());
-        BicycleConfig bicycleConfig = getBicycleConfig(additionalProperties, systemAuthenticator);
-        setBicycleEventProcessorAndPublisher(bicycleConfig);
-        getConnectionServiceClient();
-        this.connectorConfigService = new ConnectorConfigServiceImpl(configStoreClient, schemaStoreApiClient,
-                entityStoreApiClient, null, null,
-                null, systemAuthenticator, blobStoreBroker, null, null);
-    }
-
-    protected BlobStoreClient getBlobStoreClient() {
-        if (blobStoreClient == null) {
-            String serverUrl = getBicycleServerURL();
-            if (serverUrl == null || serverUrl.isEmpty()) {
-                throw new IllegalStateException("Bicycle server url is null");
-            }
-            ServiceLocator serviceLocator = new ServiceLocator() {
-                @Override
-                public String getBaseUri() {
-                    return serverUrl;
-                }
-            };
-
-            blobStoreClient = new BlobStoreApiClient(new GenericApiClient(), serviceLocator);
-        }
-
-        return blobStoreClient;
-    }
-
-    protected List<CSVRecord> parseCSVFiles(File csvFile) throws IOException {
-        String streamId = getConnectorId();
-        List<CSVRecord> mismatchRecords = new ArrayList<>();
-        RandomAccessFile accessFile = null;
-        String row = null;
-        long counter = 0;
-        long nullRows = 0;
-        try {
-            accessFile = new RandomAccessFile(csvFile, "r");
-            String headersLine = accessFile.readLine();
-//            bytesRead += headersLine.getBytes().length;
-            headerNameToIndexMap = getHeaderNameToIndexMap(headersLine);
-            if (headerNameToIndexMap.isEmpty()) {
-                throw new RuntimeException("Unable to read headers from csv file " + csvFile + " for " + streamId);
-            }
-
-            do {
-                try {
-                    long offset = accessFile.getFilePointer();
-                    row = accessFile.readLine();
-                    if (!StringUtils.isEmpty(row)) {
-                        CSVRecord csvRecord = getCsvRecord(offset, row, headerNameToIndexMap);
-                        nullRows = 0;
-                        if (csvRecord == null) {
-                            continue;
-                        }
-                        if (headerNameToIndexMap.size() != csvRecord.size()) {
-                            mismatchRecords.add(csvRecord);
-                        }
-                    } else if (StringUtils.isEmpty(row)) {
-                        nullRows++;
-                        continue;
-                    } else {
-                        LOGGER.info("Exiting as coming in else block for stream Id {} and counter is at {}",
-                                streamId, counter);
-                        break;
-                    }
-                    counter++;
-                    //just for logging progress
-                    if (counter % 10000 == 0) {
-                        LOGGER.info("Processing the file for stream Id {} and counter is at {}", streamId, counter);
-                    }
-
-                } catch (Exception e) {
-                    LOGGER.error("Error while calculating timestamp to offset map for a row [{}] for stream Id [{}]",
-                            row, streamId, e);
-                }
-            } while (nullRows <= 5000); // this is assuming once there are consecutive 100 null rows file read is complete.
-
-        } catch (Exception e) {
-            LOGGER.error("Error while calculating timestamp to offset map", e);
-        } finally {
-            if (accessFile != null) {
-                accessFile.close();
-            }
-        }
-        return mismatchRecords;
-    }
-
-    protected long updateFilesMetadata(File csvFile, int recordsCount, boolean updateVC) throws IOException {
+    protected long updateFilesMetadata(File csvFile, List<RawEvent> vcEvents, int recordsCount, boolean updateVC) throws IOException {
         String streamId = getConnectorId();
         RandomAccessFile accessFile = null;
         String row = null;
@@ -168,7 +64,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             accessFile = new RandomAccessFile(csvFile, "r");
             String headersLine = accessFile.readLine();
 //            bytesRead += headersLine.getBytes().length;
-            headerNameToIndexMap = getHeaderNameToIndexMap(headersLine);
+            Map<String, Integer> headerNameToIndexMap = getHeaderNameToIndexMap(headersLine);
             if (headerNameToIndexMap.isEmpty()) {
                 throw new RuntimeException("Unable to read headers from csv file " + csvFile + " for " + streamId);
             }
@@ -192,14 +88,13 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                             rawEvents.add(rawEvent);
                         }
                         if (sanityRawEvents.size() >= BATCH_SIZE) {
-                            submitRecordsToPreviewStore(getConnectorId()+"-sanity", sanityRawEvents, true);
+                            submitRecordsToPreviewStore(getTenantId(), sanityRawEvents, true);
                             sanityRawEvents.clear();
                         }
                         if (rawEvents.size() >= BATCH_SIZE) {
                             submitRecordsToPreviewStore(getConnectorId(), rawEvents, false);
                             if (updateVC) {
-                                updateTenantSummaryVC(getAuthInfo(), "", "", rawEvents, getConnectorId(), "");
-                                updateVC = false;
+                                vcEvents.addAll(rawEvents);
                             }
                             rawEvents.clear();
                         }
@@ -245,78 +140,103 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         return counter;
     }
 
-    protected void submitRecordsToPreviewStore(String eventSourceId, List<RawEvent> rawEvents, boolean shouldFlush) {
-        String eventSourceType = getEventSourceType(additionalProperties);
-        EventSourceInfo eventSourceInfo = new EventSourceInfo(eventSourceId, eventSourceType);
-        bicycleEventPublisher.publishPreviewEvents(getAuthInfo(), eventSourceInfo, rawEvents, shouldFlush);
-        LOGGER.info("[{}] : Published preview events [{}] [{}]", getConnectorId(), eventSourceId,
-                shouldFlush);
-    }
+    /*public static class CSVEventSourceReader extends EventSourceReader {
 
+        private String connectorId;
+        private File csvFile;
 
+        RandomAccessFile accessFile = null;
+        Map<String, Integer> headerNameToIndexMap;
 
-    private void updateTenantSummaryVC(AuthInfo authInfo, String traceId, String companyName,
-                                       List<RawEvent> rawEvents,
-                                       String configId, String configName) {
-        try {
-            VerticalIdentifier verticalIdentifier = getVerticalIdentifier(companyName);
-
-            RawDataKnowledgeBase.Builder rawDataKnowledgeBaseBuilder = RawDataKnowledgeBase.newBuilder();
-            KnowledgeBaseMetadata knowledgeBaseMetadata = KnowledgeBaseMetadata.newBuilder()
-                    .setCompanyName(companyName)
-                    .setSource(Source.RAW_DATA)
-                    .setSourceId(configId)
-                    .setSourceName(configName)
-                    .setConnectorId(configId)
-                    .build();
-
-            rawDataKnowledgeBaseBuilder.setMetaData(knowledgeBaseMetadata);
-            rawDataKnowledgeBaseBuilder.setVerticalIdentifier(verticalIdentifier);
-
-            Map<String, List<String>> fieldsVsSamples = new HashMap<>();
-            for (RawEvent rawEvent : rawEvents) {
-                ObjectNode objectNode = (ObjectNode) rawEvent.getRawEventObject();
-                objectNode.fields().forEachRemaining(entry -> {
-                    String key = entry.getKey();
-                    JsonNode value = entry.getValue();
-                    fieldsVsSamples.computeIfAbsent(key, (k) -> new ArrayList<>()).add(value.textValue());
-                });
-            }
-
-            RawDataSource.Builder rawDataSourceBuilder = RawDataSource.newBuilder();
-            //String topicName = rawEvent.getEventTypeName();
-            //rawDataSourceBuilder.setSourceName(topicName);
-            for (String fieldName : fieldsVsSamples.keySet()) {
-                if (StringUtils.isEmpty(fieldName)) {
-                    continue;
-                }
-                rawDataSourceBuilder.addDimensions(RawDataField.newBuilder()
-                        .setFieldName(fieldName)
-                        .addAllSampleValues(fieldsVsSamples.get(fieldName))
-                        .build());
-            }
-            rawDataKnowledgeBaseBuilder.addRawDataSource(rawDataSourceBuilder.build());
-
-
-
-            DiscoverTenantSummary.Builder builder = DiscoverTenantSummary.newBuilder();
-            builder.setVertical(verticalIdentifier);
-            builder.setRawDataKnowledgeBase(rawDataKnowledgeBaseBuilder.build());
-            builder.setTraceInfo(io.bicycle.server.verticalcontext.tenant.api.TraceInfo
-                    .newBuilder().setTraceId(traceId).build());
-
-            DiscoverTenantSummaryResponse response =
-                    tenantSummaryDiscovererClient.discoverTenantSummary(authInfo, builder.build());
-
-            LOGGER.info("{} Response from tenant summary discoverer {}", traceId, response);
-        } catch (Exception e) {
-            LOGGER.error("{} Unable to update tenant summary for company {} because of {}", traceId, companyName, e);
+        public CSVEventSourceReader(File csvFile, String connectorId) {
+            this.connectorId = connectorId;
+            this.csvFile = csvFile;
+            initialize();
         }
-    }
 
-    private VerticalIdentifier getVerticalIdentifier(String companyName) {
-        return VerticalIdentifier.newBuilder().setVertical(companyName).setCompanyName(companyName).build();
-    }
+
+        private void initialize() {
+            try {
+                accessFile = new RandomAccessFile(csvFile, "r");
+                String headersLine = accessFile.readLine();
+    //          bytesRead += headersLine.getBytes().length;
+                Map<String, Integer> headerNameToIndexMap = getHeaderNameToIndexMap(headersLine);
+                if (headerNameToIndexMap.isEmpty()) {
+                    throw new RuntimeException("Unable to read headers from csv file " + csvFile + " for " + connectorId);
+                }
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to read csv file ["+csvFile+"]", e);
+            }
+        }
+
+        public boolean hasNext() {
+            return false;
+        }
+
+        public void next() {
+            try {
+                long offset = accessFile.getFilePointer();
+                String row = accessFile.readLine();
+                if (!StringUtils.isEmpty(row)) {
+                    CSVRecord csvRecord = getCsvRecord(offset, row, headerNameToIndexMap);
+                    if (csvRecord == null) {
+                        continue;
+                    }
+                    RawEvent rawEvent = convertRecordsToRawEvents(headerNameToIndexMap, csvRecord);
+                    if (headerNameToIndexMap.size() != csvRecord.size()) {
+                        sanityRawEvents.add(rawEvent);
+                        continue;
+                    } else {
+                        rawEvents.add(rawEvent);
+                    }
+                    if (sanityRawEvents.size() >= BATCH_SIZE) {
+                        submitRecordsToPreviewStore(getTenantId(), sanityRawEvents, true);
+                        sanityRawEvents.clear();
+                    }
+                    if (rawEvents.size() >= BATCH_SIZE) {
+                        submitRecordsToPreviewStore(getConnectorId(), rawEvents, false);
+                        if (updateVC) {
+                            vcEvents.addAll(rawEvents);
+                        }
+                        rawEvents.clear();
+                    }
+                    if (counter > recordsCount) {
+                        if (sanityRawEvents.size() > 0) {
+                            submitRecordsToPreviewStore(getConnectorId()+"-sanity", sanityRawEvents, true);
+                            sanityRawEvents.clear();
+                        }
+                        if (rawEvents.size() > 0) {
+                            submitRecordsToPreviewStore(getConnectorId(), rawEvents, false);
+                            rawEvents.clear();
+                        }
+                        return counter;
+                    }
+                } else if (StringUtils.isEmpty(row)) {
+                    nullRows++;
+                    continue;
+                } else {
+                    LOGGER.info("Exiting as coming in else block for stream Id {} and counter is at {}",
+                            streamId, counter);
+                    break;
+                }
+                counter++;
+                //just for logging progress
+                if (counter % 10000 == 0) {
+                    LOGGER.info("Processing the file for stream Id {} and counter is at {}", streamId, counter);
+                }
+
+            } catch (Exception e) {
+                LOGGER.error("Error while calculating timestamp to offset map for a row [{}] for stream Id [{}]",
+                        row, streamId, e);
+            }
+        }
+
+        public void close() throws Exception {
+            if (accessFile != null) {
+                accessFile.close();
+            }
+        }
+    }*/
 
     /*protected Map<Long, List<FileRecordOffset>> updateFilesMetadataOffsets(Map<Long, List<FileRecordOffset>> timestampToFileOffsetMap,
                                                                     List<RawEvent> rawEvents,
@@ -469,74 +389,6 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 connectorId, storeRawEventsResponse);
         return true;
     }*/
-
-    protected File storeFile(String fileName, String signedUrl) {
-        try {
-            File file = File.createTempFile(UUID.randomUUID().toString(), ".csv");
-            file.deleteOnExit();
-            final JsonNode provider = config.get("provider");
-
-            if (provider.get("storage").asText().equals("GCS")) {
-                //csvConnector.storeToFile(config, file);
-            } else {
-                FileUtils.copyURLToFile(new URL(signedUrl), file, CONNECT_TIMEOUT_IN_MILLIS, READ_TIMEOUT_IN_MILLIS);
-            }
-            return file;
-        } catch (Exception e) {
-            throw new RuntimeException("Unable to read file from GCS", e);
-        }
-    }
-
-    protected Map<String, String> readFilesConfig() {
-        Map<String, String> fileNameVsSignedUrl = new HashMap<>();
-        String traceInfo = "";
-        ConfiguredConnectorStream connectorStream = getConfiguredConnectorStream(getAuthInfo(), getConnectorId());
-        Pair namespaceAndUploadIds = commonUtil.getNameSpaceToUploadIdsForKnowledgeBaseConnector(traceInfo, connectorStream);
-        LOGGER.info("{} Fetch the namespace and uploadIds {}", traceInfo, namespaceAndUploadIds);
-        if (namespaceAndUploadIds != null) {
-            String namespace = (String) namespaceAndUploadIds.getLeft();
-            Collection<String> uploadIds = (Collection<String>) namespaceAndUploadIds.getRight();
-
-            for (String uploadId : uploadIds) {
-                BlobObject fileMetadata = getFileMetadata(getAuthInfo(), traceInfo, namespace, uploadId);
-                LOGGER.info("{} Got the file metadata {}", traceInfo, fileMetadata);
-                String signedUrl = getSingedUrl(getAuthInfo(), traceInfo, namespace, uploadId);
-                if (StringUtils.isEmpty(signedUrl)) {
-                    LOGGER.warn("{} Unable to get the signed url for file {}", traceInfo,
-                            fileMetadata.getName());
-                    continue;
-                }
-                LOGGER.info("{} Got the signed url {} for file {}", traceInfo, signedUrl,
-                        fileMetadata.getName());
-                fileNameVsSignedUrl.put(fileMetadata.getName(), signedUrl);
-                //LOGGER.info("{} Got the file content {}", traceInfo, fileContent);
-            }
-        }
-        return fileNameVsSignedUrl;
-    }
-
-    protected ConfiguredConnectorStream getConfiguredConnectorStream(AuthInfo authInfo, String configurationId) {
-        return connectorConfigService.getConnectorStreamConfigById(authInfo, configurationId);
-    }
-
-    private BlobObject getFileMetadata(AuthInfo authInfo, String traceInfo,
-                                       String namespace, String uploadId) {
-        return blobStoreBroker.getFileMetadata(authInfo, traceInfo, uploadId, namespace);
-    }
-
-    private String getFileContent(String traceInfo, String signedUrl) {
-        return blobStoreBroker.getUploadFileContentAsString(traceInfo, signedUrl);
-    }
-
-    public String getSingedUrl(AuthInfo authInfo, String traceInfo, String namespace, String connectorUploadId) {
-        try {
-            return blobStoreBroker.getSingedUrl(authInfo, traceInfo, connectorUploadId, namespace);
-        } catch (Throwable var6) {
-            String message = "Failed to get signed url from blob store for given bicycle upload id";
-            LOGGER.error("{},{} {}", new Object[] {traceInfo, message, connectorUploadId, var6});
-        }
-        return null;
-    }
 
     public static class FileRecordOffset {
 

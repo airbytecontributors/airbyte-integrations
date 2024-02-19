@@ -27,6 +27,8 @@ import com.inception.server.configstore.client.ConfigStoreAPIClient;
 import com.inception.server.configstore.client.ConfigStoreClient;
 import com.inception.server.entitystore.client.EntityStoreApiClient;
 import com.inception.server.scheduler.api.JobExecutionStatus;
+import com.inception.tenant.client.TenantServiceAPIClient;
+import com.inception.tenant.query.TenantInfo;
 import com.inception.traces.web.TraceQueryClient;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.BaseConnector;
@@ -34,6 +36,10 @@ import io.airbyte.integrations.base.Source;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.AirbyteStateMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
+import io.bicycle.ai.model.tenant.summary.discovery.*;
+import io.bicycle.blob.store.client.BlobStoreApiClient;
+import io.bicycle.blob.store.client.BlobStoreClient;
+import io.bicycle.blob.store.schema.BlobObject;
 import io.bicycle.entity.mapping.api.ConnectionServiceClient;
 import io.bicycle.event.processor.ConfigHelper;
 import io.bicycle.event.processor.api.BicycleEventProcessor;
@@ -43,18 +49,18 @@ import io.bicycle.event.publisher.impl.BicycleEventPublisherImpl;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.config.BlackListedFields;
+import io.bicycle.integration.common.config.ConnectorConfigService;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.integration.common.services.config.ConnectorConfigServiceImpl;
+import io.bicycle.integration.common.utils.BlobStoreBroker;
+import io.bicycle.integration.connector.*;
+import io.bicycle.server.verticalcontext.tenant.api.VerticalIdentifier;
 import io.bicycle.tenant.ai.client.TenantSummaryDiscovererClient;
 import io.bicycle.integration.common.transformation.TransformationImpl;
 import io.bicycle.integration.common.utils.CommonUtil;
 import io.bicycle.integration.common.utils.MetricUtilWrapper;
 import io.bicycle.integration.common.writer.Writer;
 import io.bicycle.integration.common.writer.WriterFactory;
-import io.bicycle.integration.connector.ProcessRawEventsResult;
-import io.bicycle.integration.connector.ProcessedEventSourceData;
-import io.bicycle.integration.connector.SyncDataRequest;
-import io.bicycle.integration.connector.SyncDataResponse;
 import io.bicycle.integration.connector.runtime.BackFillConfiguration;
 import io.bicycle.integration.connector.runtime.RuntimeConfig;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
@@ -65,13 +71,15 @@ import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.models.publisher.EventPublisherResult;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+
+import java.io.File;
+import java.net.URL;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
+
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -82,12 +90,20 @@ import org.slf4j.LoggerFactory;
  */
 public abstract class BaseEventConnector extends BaseConnector implements Source {
     private static final int MAX_RETRY = 3;
+    private static final int CONNECT_TIMEOUT_IN_MILLIS = 60000;
+    private static final int READ_TIMEOUT_IN_MILLIS = 60000;
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getName());
     private final ConfigHelper configHelper = new ConfigHelper();
     protected ConfigStoreClient configStoreClient;
     protected SchemaStoreApiClient schemaStoreApiClient;
     protected EntityStoreApiClient entityStoreApiClient;
     protected TenantSummaryDiscovererClient tenantSummaryDiscovererClient;
+    protected BlobStoreBroker blobStoreBroker;
+    protected BlobStoreClient blobStoreClient;
+    protected TenantServiceAPIClient tenantServiceApiClient;
+    protected CommonUtil commonUtil = new CommonUtil();
+    protected ObjectMapper mapper = new ObjectMapper();
+    protected ConnectorConfigService connectorConfigService;
     private BicycleEventProcessor bicycleEventProcessor;
     protected BicycleEventPublisher bicycleEventPublisher;
     protected TransformationImpl dataTransformer;
@@ -183,6 +199,203 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     public EventConnectorJobStatusNotifier getEventConnectorJobStatusNotifier() {
         return eventConnectorJobStatusNotifier;
+    }
+
+    protected void initialize(JsonNode config, ConfiguredAirbyteCatalog catalog) {
+        this.config = config;
+        this.additionalProperties = catalog.getAdditionalProperties();
+        this.blobStoreBroker = new BlobStoreBroker(getBlobStoreClient());
+        this.tenantServiceApiClient = getTenantServiceApiClient();
+        this.state = getStateAsJsonNode(getAuthInfo(), getConnectorId());
+        BicycleConfig bicycleConfig = getBicycleConfig(additionalProperties, systemAuthenticator);
+        setBicycleEventProcessorAndPublisher(bicycleConfig);
+        getConnectionServiceClient();
+        this.connectorConfigService = new ConnectorConfigServiceImpl(configStoreClient, schemaStoreApiClient,
+                entityStoreApiClient, null, null,
+                null, systemAuthenticator, blobStoreBroker, null, null);
+    }
+
+    protected void submitRecordsToPreviewStore(String eventSourceId, List<RawEvent> rawEvents, boolean shouldFlush) {
+        String eventSourceType = getEventSourceType(additionalProperties);
+        EventSourceInfo eventSourceInfo = new EventSourceInfo(eventSourceId, eventSourceType);
+        bicycleEventPublisher.publishPreviewEvents(getAuthInfo(), eventSourceInfo, rawEvents, shouldFlush);
+        logger.info("[{}] : Published preview events [{}] [{}]", getConnectorId(), eventSourceId,
+                shouldFlush);
+    }
+
+    protected void updateTenantSummaryVC(AuthInfo authInfo, String traceId, String companyName,
+                                       List<RawEvent> rawEvents,
+                                       String configId, String configName) {
+        try {
+            VerticalIdentifier verticalIdentifier = getVerticalIdentifier(companyName);
+
+            RawDataKnowledgeBase.Builder rawDataKnowledgeBaseBuilder = RawDataKnowledgeBase.newBuilder();
+            KnowledgeBaseMetadata knowledgeBaseMetadata = KnowledgeBaseMetadata.newBuilder()
+                    .setCompanyName(companyName)
+                    .setSource(io.bicycle.server.verticalcontext.tenant.api.Source.RAW_DATA)
+                    .setSourceId(configId)
+                    .setSourceName(configName)
+                    .setConnectorId(configId)
+                    .build();
+
+            rawDataKnowledgeBaseBuilder.setMetaData(knowledgeBaseMetadata);
+            rawDataKnowledgeBaseBuilder.setVerticalIdentifier(verticalIdentifier);
+
+            Map<String, List<String>> fieldsVsSamples = new HashMap<>();
+            for (RawEvent rawEvent : rawEvents) {
+                ObjectNode objectNode = (ObjectNode) rawEvent.getRawEventObject();
+                objectNode.fields().forEachRemaining(entry -> {
+                    String key = entry.getKey();
+                    JsonNode value = entry.getValue();
+                    fieldsVsSamples.computeIfAbsent(key, (k) -> new ArrayList<>()).add(value.textValue());
+                });
+            }
+
+            RawDataSource.Builder rawDataSourceBuilder = RawDataSource.newBuilder();
+            //String topicName = rawEvent.getEventTypeName();
+            //rawDataSourceBuilder.setSourceName(topicName);
+            for (String fieldName : fieldsVsSamples.keySet()) {
+                if (StringUtils.isEmpty(fieldName)) {
+                    continue;
+                }
+                rawDataSourceBuilder.addDimensions(RawDataField.newBuilder()
+                        .setFieldName(fieldName)
+                        .addAllSampleValues(fieldsVsSamples.get(fieldName))
+                        .build());
+            }
+            rawDataKnowledgeBaseBuilder.addRawDataSource(rawDataSourceBuilder.build());
+
+            DiscoverTenantSummary.Builder builder = DiscoverTenantSummary.newBuilder();
+            builder.setVertical(verticalIdentifier);
+            builder.setRawDataKnowledgeBase(rawDataKnowledgeBaseBuilder.build());
+            builder.setTraceInfo(io.bicycle.server.verticalcontext.tenant.api.TraceInfo
+                    .newBuilder().setTraceId(traceId).build());
+
+            DiscoverTenantSummaryResponse response =
+                    tenantSummaryDiscovererClient.discoverTenantSummary(authInfo, builder.build());
+
+            logger.info("{} Response from tenant summary discoverer {}", traceId, response);
+        } catch (Exception e) {
+            logger.error("{} Unable to update tenant summary for company {} because of {}", traceId, companyName, e);
+        }
+    }
+
+    private VerticalIdentifier getVerticalIdentifier(String companyName) {
+        return VerticalIdentifier.newBuilder().setVertical(companyName).setCompanyName(companyName).build();
+    }
+
+    public void createTenantVC(List<RawEvent> rawEvents) {
+        ConfiguredConnectorStream connectorStream = getConfiguredConnectorStream(getAuthInfo(), getConnectorId());
+        String name = connectorStream.getName();
+        TenantInfo tenantInfo = tenantServiceApiClient.getTenantInfo(getAuthInfo(), getTenantId());
+        updateTenantSummaryVC(getAuthInfo(), "", tenantInfo.getName(), rawEvents, getConnectorId(), name);
+    }
+
+
+    protected Map<String, String> readFilesConfig() {
+        Map<String, String> fileNameVsSignedUrl = new HashMap<>();
+        String traceInfo = "";
+        ConfiguredConnectorStream connectorStream = getConfiguredConnectorStream(getAuthInfo(), getConnectorId());
+        Pair namespaceAndUploadIds = commonUtil.getNameSpaceToUploadIdsForKnowledgeBaseConnector(traceInfo, connectorStream);
+        logger.info("{} Fetch the namespace and uploadIds {}", traceInfo, namespaceAndUploadIds);
+        if (namespaceAndUploadIds != null) {
+            String namespace = (String) namespaceAndUploadIds.getLeft();
+            Collection<String> uploadIds = (Collection<String>) namespaceAndUploadIds.getRight();
+
+            for (String uploadId : uploadIds) {
+                BlobObject fileMetadata = getFileMetadata(getAuthInfo(), traceInfo, namespace, uploadId);
+                logger.info("{} Got the file metadata {}", traceInfo, fileMetadata);
+                String signedUrl = getSingedUrl(getAuthInfo(), traceInfo, namespace, uploadId);
+                if (StringUtils.isEmpty(signedUrl)) {
+                    logger.warn("{} Unable to get the signed url for file {}", traceInfo,
+                            fileMetadata.getName());
+                    continue;
+                }
+                logger.info("{} Got the signed url {} for file {}", traceInfo, signedUrl,
+                        fileMetadata.getName());
+                fileNameVsSignedUrl.put(fileMetadata.getName(), signedUrl);
+                //LOGGER.info("{} Got the file content {}", traceInfo, fileContent);
+            }
+        }
+        return fileNameVsSignedUrl;
+    }
+
+    protected ConfiguredConnectorStream getConfiguredConnectorStream(AuthInfo authInfo, String configurationId) {
+        return connectorConfigService.getConnectorStreamConfigById(authInfo, configurationId);
+    }
+
+    protected File storeFile(String fileName, String signedUrl) {
+        try {
+            File file = File.createTempFile(UUID.randomUUID().toString(), ".csv");
+            file.deleteOnExit();
+            final JsonNode provider = config.get("provider");
+
+            if (provider.get("storage").asText().equals("GCS")) {
+                //csvConnector.storeToFile(config, file);
+            } else {
+                FileUtils.copyURLToFile(new URL(signedUrl), file, CONNECT_TIMEOUT_IN_MILLIS, READ_TIMEOUT_IN_MILLIS);
+            }
+            return file;
+        } catch (Exception e) {
+            throw new RuntimeException("Unable to read file from GCS", e);
+        }
+    }
+
+    private BlobObject getFileMetadata(AuthInfo authInfo, String traceInfo,
+                                       String namespace, String uploadId) {
+        return blobStoreBroker.getFileMetadata(authInfo, traceInfo, uploadId, namespace);
+    }
+
+    private String getFileContent(String traceInfo, String signedUrl) {
+        return blobStoreBroker.getUploadFileContentAsString(traceInfo, signedUrl);
+    }
+
+    public String getSingedUrl(AuthInfo authInfo, String traceInfo, String namespace, String connectorUploadId) {
+        try {
+            return blobStoreBroker.getSingedUrl(authInfo, traceInfo, connectorUploadId, namespace);
+        } catch (Throwable var6) {
+            String message = "Failed to get signed url from blob store for given bicycle upload id";
+            logger.error("{},{} {}", new Object[] {traceInfo, message, connectorUploadId, var6});
+        }
+        return null;
+    }
+
+    protected BlobStoreClient getBlobStoreClient() {
+        if (blobStoreClient == null) {
+            String serverUrl = getBicycleServerURL();
+            if (serverUrl == null || serverUrl.isEmpty()) {
+                throw new IllegalStateException("Bicycle server url is null");
+            }
+            ServiceLocator serviceLocator = new ServiceLocator() {
+                @Override
+                public String getBaseUri() {
+                    return serverUrl;
+                }
+            };
+
+            blobStoreClient = new BlobStoreApiClient(new GenericApiClient(), serviceLocator);
+        }
+
+        return blobStoreClient;
+    }
+
+    protected TenantServiceAPIClient getTenantServiceApiClient() {
+        if (tenantServiceApiClient == null) {
+            String serverUrl = getBicycleServerURL();
+            if (serverUrl == null || serverUrl.isEmpty()) {
+                throw new IllegalStateException("Bicycle server url is null");
+            }
+            ServiceLocator serviceLocator = new ServiceLocator() {
+                @Override
+                public String getBaseUri() {
+                    return serverUrl;
+                }
+            };
+
+            tenantServiceApiClient = new TenantServiceAPIClient(new GenericApiClient(), serviceLocator);
+        }
+
+        return tenantServiceApiClient;
     }
 
     abstract protected int getTotalRecordsConsumed();
@@ -885,6 +1098,16 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         public Object next() {
             return null;
         }
+    }
+
+    public static abstract class EventSourceReader {
+
+        public abstract boolean hasNext();
+
+        public abstract void next();
+
+        public abstract void close() throws Exception;
+
     }
 
 }

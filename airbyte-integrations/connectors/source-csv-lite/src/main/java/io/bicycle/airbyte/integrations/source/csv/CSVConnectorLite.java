@@ -3,6 +3,7 @@ package io.bicycle.airbyte.integrations.source.csv;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Lists;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
@@ -26,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -87,19 +89,21 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         for (String fileName : fileVsSignedUrls.keySet()) {
             File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
             files.put(fileName, file);
-            //files.put(fileName, new File("/home/ravi/Downloads/sumup_AllTransactions.csv"));
+            files.put(fileName, new File("/home/ravi/Downloads/sumup_AllTransactions.csv"));
         }
         LOGGER.info("[{}] : Local files Url [{}]", getConnectorId(), files);
+        List<RawEvent> vcEvents = new ArrayList<>();
         for (String fileName : files.keySet()) {
             try {
-                updateFilesMetadata(files.get(fileName), PREVIEW_RECORDS, true);
+                updateFilesMetadata(files.get(fileName), vcEvents, PREVIEW_RECORDS, true);
             } catch (IOException e) {
                 throw new IllegalStateException("Failed to resolve ["+fileName+"]");
             }
         }
+        createTenantVC(vcEvents);
         try {
             Future<Object> future = processFiles(files);
-            //future.get();
+            future.get();
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -118,7 +122,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                     long total = 0;
                     for (String fileName : files.keySet()) {
                         try {
-                            long count = updateFilesMetadata(files.get(fileName), Integer.MAX_VALUE, false);
+                            long count = updateFilesMetadata(files.get(fileName), Collections.emptyList(), Integer.MAX_VALUE, false);
                             total =  total + count;
                         } catch (IOException e) {
                             throw new IllegalStateException("Failed to resolve [" + fileName + "]");
@@ -137,11 +141,25 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
     }
 
     public AirbyteConnectionStatus check(JsonNode config) throws Exception {
-        return null;
+        LOGGER.info("Check the status");
+        return new AirbyteConnectionStatus()
+                .withStatus(AirbyteConnectionStatus.Status.SUCCEEDED)
+                .withMessage("Success");
     }
 
     public AirbyteCatalog discover(JsonNode config) throws Exception {
-        return null;
+        LOGGER.info("Discover the csv");
+        String datasetName = null;
+        if (getDatasetName(config) != null) {
+            datasetName = getDatasetName(config);
+        } else {
+            throw new IllegalStateException("No dataset name is set");
+        }
+        final List<AirbyteStream> streams = Collections.singletonList(
+                CatalogHelpers.createAirbyteStream(datasetName, Field.of("value", JsonSchemaType.STRING))
+                        .withSupportedSyncModes(Lists.newArrayList(SyncMode.FULL_REFRESH, SyncMode.INCREMENTAL))
+        );
+        return new AirbyteCatalog().withStreams(streams);
     }
 
     public AutoCloseableIterator<AirbyteMessage> doRead(
