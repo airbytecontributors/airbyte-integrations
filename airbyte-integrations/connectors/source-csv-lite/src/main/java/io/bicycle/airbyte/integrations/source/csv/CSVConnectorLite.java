@@ -87,7 +87,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         for (String fileName : fileVsSignedUrls.keySet()) {
             File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
             files.put(fileName, file);
-            files.put(fileName, new File("/home/ravi/Downloads/sumup_AllTransactions.csv"));
+            //files.put(fileName, new File("/home/ravi/Downloads/sumup_AllTransactions.csv"));
         }
         LOGGER.info("[{}] : Local files Url [{}]", getConnectorId(), files);
         for (String fileName : files.keySet()) {
