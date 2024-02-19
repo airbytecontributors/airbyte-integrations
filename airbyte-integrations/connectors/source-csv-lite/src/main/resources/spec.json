@@ -13,13 +13,13 @@
     "properties": {
       "name": {
         "type": "string",
-        "title": "Name",
+        "title": "Dataset Name",
         "description": "The Name of the stream under which this file will be replicated. Could be any name. (should include letters, numbers dash and underscores only)."
       },
       "description": {
         "type": "string",
-        "title": "Name",
-        "description": "The Name of the stream under which this file will be replicated. Could be any name. (should include letters, numbers dash and underscores only)."
+        "title": "Description",
+        "description": "Useful description about data or data source"
       },
       "format": {
         "type": "string",
