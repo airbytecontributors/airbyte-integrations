@@ -90,15 +90,14 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             files.put(fileName, new File("/home/ravi/Downloads/test.csv"));
         }
         LOGGER.info("[{}] : Local files Url [{}]", getConnectorId(), files);
-        BaseEventConnector connector = this;
         List<RawEvent> vcEvents = new ArrayList<>();
         for (String fileName : files.keySet()) {
             File file = files.get(fileName);
             CSVEventSourceReader csvReader = null;
             try {
-                csvReader = new CSVEventSourceReader(file, getConnectorId(), connector);
+                csvReader = null;
                 try {
-                    csvReader = new CSVEventSourceReader(file, getConnectorId(), connector);
+                    csvReader = new CSVEventSourceReader(fileName, file, getConnectorId(), this);
                     publishPreviewEvents(file, csvReader, vcEvents, PREVIEW_RECORDS,
                             false, true, true);
                 } finally {
@@ -141,7 +140,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                         File file = files.get(fileName);
                         CSVEventSourceReader csvReader = null;
                         try {
-                            csvReader = new CSVEventSourceReader(file, getConnectorId(), connector);
+                            csvReader = new CSVEventSourceReader(fileName, file, getConnectorId(), connector);
                             publishPreviewEvents(file, csvReader, Collections.emptyList(), Integer.MAX_VALUE,
                                     true, false, false);
                         } finally {

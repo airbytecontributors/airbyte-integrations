@@ -16,8 +16,6 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.util.*;
 
-import static io.bicycle.utils.metric.MetricNameConstants.PREVIEW_EVENTS_PUBLISH_NETWORK_CALL_TIME;
-
 public abstract class BaseCSVEventConnector extends BaseEventConnector {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BaseCSVEventConnector.class);
@@ -54,12 +52,14 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
 
         protected ObjectMapper mapper = new ObjectMapper();
 
+        private String name;
         long offset = -1;
         String row = null;
         long counter = 0;
         long nullRows = 0;
 
-        public CSVEventSourceReader(File csvFile, String connectorId, BaseEventConnector connector) {
+        public CSVEventSourceReader(String name, File csvFile, String connectorId, BaseEventConnector connector) {
+            this.name = name;
             this.connectorId = connectorId;
             this.csvFile = csvFile;
             this.connector = connector;
@@ -117,7 +117,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         public RawEvent next() {
             CSVRecord csvRecord = getCsvRecord(offset, row, headerNameToIndexMap);
             try {
-                nextEvent = convertRecordsToRawEvents(headerNameToIndexMap, csvRecord);
+                nextEvent = convertRecordsToRawEvents(headerNameToIndexMap, csvRecord, offset, name);
                 if (headerNameToIndexMap.size() != csvRecord.size()) {
                     validEvent = false;
                 } else {
@@ -174,7 +174,8 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             return fieldNameToIndexMap;
         }
 
-        public RawEvent convertRecordsToRawEvents(Map<String, Integer> headerNameToIndexMap, CSVRecord record)
+        public RawEvent convertRecordsToRawEvents(Map<String, Integer> headerNameToIndexMap, CSVRecord record,
+                                                  long offset, String fileName)
                 throws Exception {
             ObjectNode node = mapper.createObjectNode();
             for (String key : headerNameToIndexMap.keySet()) {
@@ -182,112 +183,12 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 String value = record.get(index);
                 node.put(key, value);
             }
+            node.put("bicycle.offset", offset);
+            node.put("bicycle.filename", fileName);
             JsonRawEvent jsonRawEvent = connector.createJsonRawEvent(node);
             return jsonRawEvent;
         }
-
     }
-    protected void processFile(Map<String, String> fileNameVsSignedUrl) {
-        Map<String, File> fileNameVsLocalFiles = new HashMap<>();
-        for (String fileName : fileNameVsSignedUrl.keySet()) {
-            String signedUrl = fileNameVsSignedUrl.get(fileName);
-            File file = storeFile(fileName, signedUrl);
-            fileNameVsLocalFiles.put(fileName, file);
-        }
-    }
-
-    /*protected Map<Long, List<FileRecordOffset>> updateFilesMetadataOffsets(Map<Long, List<FileRecordOffset>> timestampToFileOffsetMap,
-                                                                    List<RawEvent> rawEvents,
-                                                                    String fileName, File csvFile) throws IOException {
-        String streamId = getConnectorId();
-        RandomAccessFile accessFile = null;
-        String row = null;
-        long counter = 0;
-        long nullRows = 0;
-        try {
-            accessFile = new RandomAccessFile(csvFile, "r");
-            String headersLine = accessFile.readLine();
-//            bytesRead += headersLine.getBytes().length;
-            headerNameToIndexMap = getHeaderNameToIndexMap(headersLine);
-            if (headerNameToIndexMap.isEmpty()) {
-                throw new RuntimeException("Unable to read headers from csv file " + csvFile + " for " + streamId);
-            }
-
-            do {
-                try {
-                    long offset = accessFile.getFilePointer();
-                    row = accessFile.readLine();
-                    if (!StringUtils.isEmpty(row)) {
-                        CSVRecord csvRecord = getCsvRecord(offset, row, headerNameToIndexMap);
-                        nullRows = 0;
-                        if (csvRecord == null) {
-                            continue;
-                        }
-                        int dateTimeFieldIndex = headerNameToIndexMap.get(dateTimeFieldColumnName);
-                        String timestampFieldValue = csvRecord.get(dateTimeFieldIndex);
-                        long timestampInMillisInEpoch = convertStringToTimestamp(timestampFieldValue);
-                        timestampToFileOffsetMap.computeIfAbsent(timestampInMillisInEpoch,
-                                (recordOffset) -> new ArrayList<>()).add(new FileRecordOffset(fileName, offset));
-                        RawEvent rawEvent = convertRecordsToRawEvents(csvRecord);
-                        rawEvents.add(rawEvent);
-                    } else if (StringUtils.isEmpty(row)) {
-                        nullRows++;
-                        continue;
-                    } else {
-                        LOGGER.info("Exiting as coming in else block for stream Id {} and counter is at {}",
-                                streamId, counter);
-                        break;
-                    }
-                    counter++;
-                    //just for logging progress
-                    if (counter % 10000 == 0) {
-                        LOGGER.info("Processing the file for stream Id {} and counter is at {}", streamId, counter);
-                    }
-
-                } catch (Exception e) {
-                    LOGGER.error("Error while calculating timestamp to offset map for a row [{}] for stream Id [{}]",
-                            row, streamId, e);
-                }
-            } while (nullRows <= 5000); // this is assuming once there are consecutive 100 null rows file read is complete.
-
-        } catch (Exception e) {
-            LOGGER.error("Error while calculating timestamp to offset map", e);
-        } finally {
-            if (accessFile != null) {
-                accessFile.close();
-            }
-        }
-        LOGGER.info("Total rows processed for file {} with stream Id {} is {}", csvFile, streamId, counter);
-    }*/
-
-    /*private boolean storeRawEventsToPreviewStore(final String connectorId,
-                                                 final AuthInfo authInfo,
-                                                 final List<RawEvent> rawEvents,
-                                                 final boolean shouldFlush) {
-        if (rawEvents != null && rawEvents.isEmpty()) {
-            return true;
-        }
-        if (!previewEventSamplingHandler.shouldPublishPreviewEvents(authInfo, connectorId)) {
-            return false;
-        }
-        List<JsonNode> sampledRawEvents = previewEventSamplingHandler.getPreviewEventsAsJsonNodeArray(connectorId,
-                authInfo, rawEvents);
-        StoreRawJsonEventsRequest storeRawJsonEventsRequest = this.previewStoreRequestResponseUtils
-                .buildStoreRawJsonEventsRequest(connectorId, sampledRawEvents, shouldFlush);
-        logger.debug("Attempting to store raw json events to preview store for connectorId {}", connectorId);
-        Timer.Context previewEventsPublishNetworkCallTime = MetricUtils.getMetricRegistry().timer(
-                PREVIEW_EVENTS_PUBLISH_NETWORK_CALL_TIME
-                        .withTags(SOURCE_ID, connectorId)
-                        .toString()
-        ).time();
-
-        StoreRawEventsResponse storeRawEventsResponse =
-                this.previewStoreClient.storeRawJsonEvents(authInfo, storeRawJsonEventsRequest);
-        previewEventsPublishNetworkCallTime.stop();
-        logger.info("Stored raw json events in preview events for connectorId {}, response {}",
-                connectorId, storeRawEventsResponse);
-        return true;
-    }*/
 
     public static class FileRecordOffset {
 
