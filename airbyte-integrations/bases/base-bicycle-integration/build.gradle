@@ -58,6 +58,7 @@ dependencies {
     implementation group: 'org.springframework.boot', name: 'spring-boot-starter-logging', version: '2.7.1'
     implementation group: 'org.springframework.boot', name: 'spring-boot-starter-web', version: '2.7.1'
     implementation "com.inception:vertical-context-client:0.2.52448"
+    implementation("com.inception:tenant-ai-client:${tenantAiVersion}")
 
     implementation("com.inception:tenant-client:0.2.0-snapshot.202207131743.6aac96e")
 

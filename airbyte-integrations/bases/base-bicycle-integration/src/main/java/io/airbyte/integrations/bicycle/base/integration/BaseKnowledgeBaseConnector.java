@@ -249,7 +249,7 @@ public abstract class BaseKnowledgeBaseConnector extends BaseConnector implement
                 blobStoreBroker = new BlobStoreBroker(getBlobStoreClient());
                 connectorConfigService = new ConnectorConfigServiceImpl(configStoreClient, schemaStoreApiClient,
                         entityStoreApiClient, null, null,
-                        null, systemAuthenticator, blobStoreBroker, null);
+                        null, systemAuthenticator, blobStoreBroker, null, null);
                 return getKnowledgeBaseConnectorResponseInternal(config, catalog);
             } catch (Throwable e) {
                 logger.error(
