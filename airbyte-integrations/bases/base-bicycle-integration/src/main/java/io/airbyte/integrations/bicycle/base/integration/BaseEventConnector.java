@@ -122,7 +122,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     public BaseEventConnector(SystemAuthenticator systemAuthenticator,
                               EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
-                              ConnectorConfigManager connectorConfigManager) {
+                              ConnectorConfigManager connectorConfigManager, EventSourceInfo eventSourceInfo) {
         this.systemAuthenticator = systemAuthenticator;
         this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;
         this.connectorConfigManager = connectorConfigManager;
@@ -134,6 +134,12 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         } else {
             listOfConnectorsWithSleepEnabled.add("ad2e5fb0-4218-462c-8f5d-9dc76f5ac9b6");
         }
+        this.eventSourceInfo = eventSourceInfo;
+    }
+    public BaseEventConnector(SystemAuthenticator systemAuthenticator,
+                              EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
+                              ConnectorConfigManager connectorConfigManager) {
+        this(systemAuthenticator, eventConnectorJobStatusNotifier, connectorConfigManager, null);
     }
 
     public ConnectorConfigManager getConnectorConfigManager() {
@@ -693,8 +699,11 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
         try {
             String state = connectionServiceClient.getReadStateConfigById(authInfo, streamId);
+            if (StringUtils.isEmpty(state) || state.equals("null")) {
+                return null;
+            }
             return state;
-        }catch (Throwable e) {
+        } catch (Throwable e) {
             logger.error("Unable to get state for streamId " + streamId, e);
         }
 

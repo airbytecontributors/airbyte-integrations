@@ -138,6 +138,7 @@ public class FileKnowledgebaseConnector extends BaseKnowledgeBaseConnector imple
                         LOGGER.info("{} Got the file content {}", traceInfo, fileContent);
                         FileSummary fileSummary = FileSummary.newBuilder().setContent(fileContent)
                                 .setIdentifier(uploadId)
+                                .setFileName(fileMetadata.getName())
                                 .setLastModifiedTime(System.currentTimeMillis()).build();
                         fileKnowledgeBaseConnector.addFileSummary(fileSummary);
                     }
