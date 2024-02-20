@@ -4,9 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.inception.server.auth.api.SystemAuthenticator;
 import io.bicycle.entity.mapping.SourceFieldMapping;
+import io.bicycle.event.publisher.api.MetadataPreviewEventType;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.server.event.mapping.UserServiceFieldDef;
+import io.bicycle.server.event.mapping.UserServiceFieldsList;
 import io.bicycle.server.event.mapping.UserServiceFieldsRule;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
@@ -106,7 +108,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             reader = new CSVEventSourceReader(fileName, csvFile, getConnectorId(), this);
             while (reader.hasNext()) {
                 reader.next();
-                long timestampInMillis = reader.getRecordUTCTimestamp();
+                long timestampInMillis = reader.getRecordUTCTimestampInMillis();
                 timestampToFileOffsetsMap.computeIfAbsent(timestampInMillis,
                         (recordOffset) -> new ArrayList<>()).add(new FileRecordOffset(fileName, reader.offset));
             }
@@ -198,29 +200,59 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             return false;
         }
 
-        public long getRecordUTCTimestamp() {
-            return 0;
-            /*UserServiceFieldDef startUserServiceFieldDef = null;
-            List<UserServiceMappingRule> userServiceMappingRules = connector.getUserServiceMappingRules();
+        public long getRecordUTCTimestampInMillis() {
+            UserServiceFieldDef startTimeFieldDef = null;
+            List<UserServiceMappingRule> userServiceMappingRules =
+                    connector.getUserServiceMappingRules(connector.getAuthInfo(), connector.eventSourceInfo);
+            boolean found = false;
             for (UserServiceMappingRule userServiceMappingRule : userServiceMappingRules) {
                 UserServiceFieldsRule userServiceFields = userServiceMappingRule.getUserServiceFields();
                 List<UserServiceFieldDef> commonFieldsList = userServiceFields.getCommonFieldsList();
                 for (UserServiceFieldDef userServiceFieldDef : commonFieldsList) {
                     if (userServiceFieldDef.getPredefinedFieldType().equals("startTimeMicros")) {
-                        startUserServiceFieldDef = userServiceFieldDef;
+                        startTimeFieldDef = userServiceFieldDef;
+                        found = true;
                         break;
                     }
                 }
+                if (found) {
+                    break;
+                }
+
+                Map<String, UserServiceFieldsList> userServiceFieldsMap = userServiceFields.getUserServiceFieldsMap();
+                for (String key : userServiceFieldsMap.keySet()) {
+                    UserServiceFieldsList userServiceFieldsList = userServiceFieldsMap.get(key);
+                    for (UserServiceFieldDef userServiceFieldDef : userServiceFieldsList.getUserServiceFieldList()) {
+                        if (userServiceFieldDef.getPredefinedFieldType().equals("startTimeMicros")) {
+                            startTimeFieldDef = userServiceFieldDef;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found) {
+                        break;
+                    }
+                }
+                if (found) {
+                    break;
+                }
+            }
+            if (startTimeFieldDef == null) {
+                throw new IllegalStateException("timestamp field is not discovered yet");
             }
 
-            SourceFieldMapping fieldMapping = startUserServiceFieldDef.getFieldMapping();
-            Object fieldValueMicors = ((JsonRawEvent) nextEvent).getFieldValue(fieldMapping, Collections.emptyMap(), connector.getAuthInfo());
-            startUserServiceFieldDef.getFieldMapping();
+            SourceFieldMapping fieldMapping = startTimeFieldDef.getFieldMapping();
+            long valueInMicros = (long) nextEvent.getFieldValue(fieldMapping, Collections.emptyMap(), connector.getAuthInfo());
+            return valueInMicros / 1000;
+        }
 
-            int dateTimeFieldIndex = headerNameToIndexMap.get(dateTimeFieldColumnName);
-            String timestampFieldValue = csvRecord.get(dateTimeFieldIndex);
-            long timestampInMillisInEpoch = convertStringToTimestamp(timestampFieldValue);
-            return timestampInMillisInEpoch;*/
+        private UserServiceFieldDef findStartTimeMicros(List<UserServiceFieldDef> fieldsList) {
+            for (UserServiceFieldDef userServiceFieldDef : fieldsList) {
+                if (userServiceFieldDef.getPredefinedFieldType().equals("startTimeMicros")) {
+                    return userServiceFieldDef;
+                }
+            }
+            return null;
         }
 
         public String getJson() {
@@ -252,11 +284,6 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             csvRecord = getCsvRecord(offset, row, headerNameToIndexMap);
             try {
                 nextEvent = convertRecordsToRawEvents(headerNameToIndexMap, csvRecord, offset, name);
-                if (headerNameToIndexMap.size() != csvRecord.size()) {
-                    validEvent = false;
-                } else {
-                    validEvent = true;
-                }
                 counter++;
                 return nextEvent;
             } catch (Exception e) {
@@ -316,7 +343,17 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 String value = record.get(index);
                 node.put(key, value);
             }
-            node.put("bicycle.offset", String.valueOf(offset));
+            if (headerNameToIndexMap.size() != record.size()) {
+                validEvent = false;
+            } else {
+                validEvent = true;
+            }
+            node.put("bicycle.raw.event.identifier", String.valueOf(offset));
+            if (!validEvent) {
+                node.put("bicycle.metadata.eventType", MetadataPreviewEventType.SYNC_ERROR.name());
+            }
+            node.put("bicycle.eventSourceId", connectorId);
+            node.put("bicycle.raw.event.error", "");
             node.put("bicycle.filename", fileName);
             JsonRawEvent jsonRawEvent = connector.createJsonRawEvent(node);
             return jsonRawEvent;

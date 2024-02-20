@@ -232,6 +232,13 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                 shouldFlush);
     }
 
+    protected void submitRecordsToPreviewStoreWithMetadata(String eventSourceId, List<RawEvent> rawEvents) {
+        String eventSourceType = getEventSourceType(additionalProperties);
+        EventSourceInfo eventSourceInfo = new EventSourceInfo(eventSourceId, eventSourceType);
+        bicycleEventPublisher.publishMetadataPreviewEvents(getAuthInfo(), eventSourceInfo, rawEvents);
+        logger.info("[{}] : Published preview events [{}] [{}]", getConnectorId(), eventSourceId);
+    }
+
     protected void updateTenantSummaryVC(AuthInfo authInfo, String traceId, String companyName,
                                        List<RawEvent> rawEvents,
                                        String configId, String configName) {
@@ -1178,7 +1185,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                     }
                 }
                 if (inValidEvents.size() >= BATCH_SIZE) {
-                    submitRecordsToPreviewStore(getTenantId(), inValidEvents, shouldFlush);
+                    submitRecordsToPreviewStoreWithMetadata(getConnectorId(), inValidEvents);
                     inValidEvents.clear();
                 }
                 if (valid_count >= maxRecords) {
@@ -1223,7 +1230,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
         public abstract boolean isValidEvent();
 
-        public abstract long getRecordUTCTimestamp();
+        public abstract long getRecordUTCTimestampInMillis();
         public abstract T next();
 
         public abstract void close() throws Exception;
