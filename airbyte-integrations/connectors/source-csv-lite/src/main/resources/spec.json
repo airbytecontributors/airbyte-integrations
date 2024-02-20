@@ -170,7 +170,7 @@
               },
               "upload_id": {
                 "type": "string",
-                "subtype": "file",
+                "subtype": "multifile",
                 "namespace": "integration",
                 "title": "Data",
                 "description": "Select a file containing data to be processed"

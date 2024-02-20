@@ -14,6 +14,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.util.JsonFormat;
 import com.inception.common.client.ServiceLocator;
 import com.inception.common.client.impl.GenericApiClient;
 import com.inception.schemastore.client.SchemaStoreApiClient;
@@ -27,6 +29,8 @@ import com.inception.server.configstore.client.ConfigStoreAPIClient;
 import com.inception.server.configstore.client.ConfigStoreClient;
 import com.inception.server.entitystore.client.EntityStoreApiClient;
 import com.inception.server.scheduler.api.JobExecutionStatus;
+import com.inception.tenant.client.TenantServiceAPIClient;
+import com.inception.tenant.query.TenantInfo;
 import com.inception.traces.web.TraceQueryClient;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.BaseConnector;
@@ -34,6 +38,10 @@ import io.airbyte.integrations.base.Source;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.AirbyteStateMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
+import io.bicycle.ai.model.tenant.summary.discovery.*;
+import io.bicycle.blob.store.client.BlobStoreApiClient;
+import io.bicycle.blob.store.client.BlobStoreClient;
+import io.bicycle.blob.store.schema.BlobObject;
 import io.bicycle.entity.mapping.api.ConnectionServiceClient;
 import io.bicycle.event.processor.ConfigHelper;
 import io.bicycle.event.processor.api.BicycleEventProcessor;
@@ -41,17 +49,22 @@ import io.bicycle.event.processor.impl.BicycleEventProcessorImpl;
 import io.bicycle.event.publisher.api.BicycleEventPublisher;
 import io.bicycle.event.publisher.impl.BicycleEventPublisherImpl;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.common.Status;
 import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.config.BlackListedFields;
+import io.bicycle.integration.common.config.ConnectorConfigService;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
+import io.bicycle.integration.common.services.config.ConnectorConfigServiceImpl;
+import io.bicycle.integration.common.utils.BlobStoreBroker;
+import io.bicycle.integration.connector.*;
+import io.bicycle.modelling.service.v2.DataUploadStatus;
+import io.bicycle.server.verticalcontext.tenant.api.VerticalIdentifier;
+import io.bicycle.tenant.ai.client.TenantSummaryDiscovererClient;
 import io.bicycle.integration.common.transformation.TransformationImpl;
 import io.bicycle.integration.common.utils.CommonUtil;
 import io.bicycle.integration.common.utils.MetricUtilWrapper;
 import io.bicycle.integration.common.writer.Writer;
 import io.bicycle.integration.common.writer.WriterFactory;
-import io.bicycle.integration.connector.ProcessRawEventsResult;
-import io.bicycle.integration.connector.ProcessedEventSourceData;
-import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.integration.connector.runtime.BackFillConfiguration;
 import io.bicycle.integration.connector.runtime.RuntimeConfig;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
@@ -62,13 +75,15 @@ import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.models.publisher.EventPublisherResult;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+
+import java.io.File;
+import java.net.URL;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
+
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,11 +94,21 @@ import org.slf4j.LoggerFactory;
  */
 public abstract class BaseEventConnector extends BaseConnector implements Source {
     private static final int MAX_RETRY = 3;
+    private static final int CONNECT_TIMEOUT_IN_MILLIS = 60000;
+    private static final int READ_TIMEOUT_IN_MILLIS = 60000;
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getName());
     private final ConfigHelper configHelper = new ConfigHelper();
-    private ConfigStoreClient configStoreClient;
-    private SchemaStoreApiClient schemaStoreApiClient;
-    private EntityStoreApiClient entityStoreApiClient;
+    protected ConfigStoreClient configStoreClient;
+    protected SchemaStoreApiClient schemaStoreApiClient;
+    protected EntityStoreApiClient entityStoreApiClient;
+    protected TenantSummaryDiscovererClient tenantSummaryDiscovererClient;
+    protected BlobStoreBroker blobStoreBroker;
+    protected BlobStoreClient blobStoreClient;
+    protected TenantServiceAPIClient tenantServiceApiClient;
+    protected CommonUtil commonUtil = new CommonUtil();
+
+    protected ObjectMapper mapper = new ObjectMapper();
+    protected ConnectorConfigService connectorConfigService;
     private BicycleEventProcessor bicycleEventProcessor;
     protected BicycleEventPublisher bicycleEventPublisher;
     protected TransformationImpl dataTransformer;
@@ -97,6 +122,10 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private static final String CONNECTORS_WITH_WAIT_ENABLED = "CONNECTORS_WITH_WAIT_ENABLED";
     private static final String CONNECTORS_WAIT_TIME_IN_MILLIS = "CONNECTORS_WAIT_TIME_IN_MILLIS";
     private static final int MAX_RETRY_COUNT = 3;
+    protected static final int BATCH_SIZE = 30;
+    private static final String PREVIEW_STORE_VALID_RECORDS = "PREVIEW_STORE_VALID_RECORDS";
+    private static final String PREVIEW_STORE_INVALID_RECORDS = "PREVIEW_STORE_INVALID_RECORDS";
+
 
     protected List<String> listOfConnectorsWithSleepEnabled = new ArrayList<>();
 
@@ -181,6 +210,229 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return eventConnectorJobStatusNotifier;
     }
 
+    protected void initialize(JsonNode config, ConfiguredAirbyteCatalog catalog) {
+        this.config = config;
+        this.additionalProperties = catalog.getAdditionalProperties();
+        this.blobStoreBroker = new BlobStoreBroker(getBlobStoreClient());
+        this.tenantServiceApiClient = getTenantServiceApiClient();
+        this.state = getStateAsJsonNode(getAuthInfo(), getConnectorId());
+        BicycleConfig bicycleConfig = getBicycleConfig(additionalProperties, systemAuthenticator);
+        setBicycleEventProcessorAndPublisher(bicycleConfig);
+        getConnectionServiceClient();
+        this.connectorConfigService = new ConnectorConfigServiceImpl(configStoreClient, schemaStoreApiClient,
+                entityStoreApiClient, null, null,
+                null, systemAuthenticator, blobStoreBroker, null, null);
+    }
+
+    protected void submitRecordsToPreviewStore(String eventSourceId, List<RawEvent> rawEvents, boolean shouldFlush) {
+        String eventSourceType = getEventSourceType(additionalProperties);
+        EventSourceInfo eventSourceInfo = new EventSourceInfo(eventSourceId, eventSourceType);
+        bicycleEventPublisher.publishPreviewEvents(getAuthInfo(), eventSourceInfo, rawEvents, shouldFlush);
+        logger.info("[{}] : Published preview events [{}] [{}]", getConnectorId(), eventSourceId,
+                shouldFlush);
+    }
+
+    protected void submitRecordsToPreviewStoreWithMetadata(String eventSourceId, List<RawEvent> rawEvents) {
+        String eventSourceType = getEventSourceType(additionalProperties);
+        EventSourceInfo eventSourceInfo = new EventSourceInfo(eventSourceId, eventSourceType);
+        bicycleEventPublisher.publishMetadataPreviewEvents(getAuthInfo(), eventSourceInfo, rawEvents);
+        logger.info("[{}] : Published preview events [{}] [{}]", getConnectorId(), eventSourceId);
+    }
+
+    protected void updateTenantSummaryVC(AuthInfo authInfo, String traceId, String companyName,
+                                       List<RawEvent> rawEvents,
+                                       String configId, String configName) {
+        try {
+            VerticalIdentifier verticalIdentifier = getVerticalIdentifier(companyName);
+
+            RawDataKnowledgeBase.Builder rawDataKnowledgeBaseBuilder = RawDataKnowledgeBase.newBuilder();
+            KnowledgeBaseMetadata knowledgeBaseMetadata = KnowledgeBaseMetadata.newBuilder()
+                    .setCompanyName(companyName)
+                    .setSource(io.bicycle.server.verticalcontext.tenant.api.Source.RAW_DATA)
+                    .setSourceId(configId)
+                    .setSourceName(configName)
+                    .setConnectorId(configId)
+                    .build();
+
+            rawDataKnowledgeBaseBuilder.setMetaData(knowledgeBaseMetadata);
+            rawDataKnowledgeBaseBuilder.setVerticalIdentifier(verticalIdentifier);
+
+            Map<String, Set<String>> fieldsVsSamples = new HashMap<>();
+            for (RawEvent rawEvent : rawEvents) {
+                ObjectNode objectNode = (ObjectNode) rawEvent.getRawEventObject();
+                objectNode.fields().forEachRemaining(entry -> {
+                    String key = entry.getKey();
+                    JsonNode value = entry.getValue();
+                    if (!key.startsWith("bicycle")) {
+                        if (value.isTextual()) {
+                            fieldsVsSamples.computeIfAbsent(key, (k) -> new HashSet<>()).add(value.textValue());
+                        } else if (value.isInt()) {
+                            fieldsVsSamples.computeIfAbsent(key, (k) -> new HashSet<>()).add(String.valueOf(value.intValue()));
+                        } else if (value.isDouble()) {
+                            fieldsVsSamples.computeIfAbsent(key, (k) -> new HashSet<>()).add(String.valueOf(value.doubleValue()));
+                        } else if (value.isBoolean()) {
+                            fieldsVsSamples.computeIfAbsent(key, (k) -> new HashSet<>()).add(String.valueOf(value.booleanValue()));
+                        }
+                    }
+                });
+            }
+
+            RawDataSource.Builder rawDataSourceBuilder = RawDataSource.newBuilder();
+            //String topicName = rawEvent.getEventTypeName();
+            //rawDataSourceBuilder.setSourceName(topicName);
+            for (String fieldName : fieldsVsSamples.keySet()) {
+                if (StringUtils.isEmpty(fieldName)) {
+                    continue;
+                }
+                rawDataSourceBuilder.addDimensions(RawDataField.newBuilder()
+                        .setFieldName(fieldName)
+                        .addAllSampleValues(fieldsVsSamples.get(fieldName))
+                        .build());
+            }
+            rawDataKnowledgeBaseBuilder.addRawDataSource(rawDataSourceBuilder.build());
+
+            DiscoverTenantSummary.Builder builder = DiscoverTenantSummary.newBuilder();
+            builder.setVertical(verticalIdentifier);
+            builder.setRawDataKnowledgeBase(rawDataKnowledgeBaseBuilder.build());
+            builder.setTraceInfo(io.bicycle.server.verticalcontext.tenant.api.TraceInfo
+                    .newBuilder().setTraceId(traceId).build());
+
+            DiscoverTenantSummaryResponse response =
+                    tenantSummaryDiscovererClient.discoverTenantSummary(authInfo, builder.build());
+
+            logger.info("{} Response from tenant summary discoverer {}", traceId, response);
+        } catch (Exception e) {
+            logger.error("{} Unable to update tenant summary for company {} because of {}", traceId, companyName, e);
+        }
+    }
+
+    private VerticalIdentifier getVerticalIdentifier(String companyName) {
+        return VerticalIdentifier.newBuilder().setVertical(companyName).setCompanyName(companyName).build();
+    }
+
+    public void createTenantVC(List<RawEvent> rawEvents) {
+        ConfiguredConnectorStream connectorStream = getConfiguredConnectorStream(getAuthInfo(), getConnectorId());
+        String name = connectorStream.getName();
+        TenantInfo tenantInfo = tenantServiceApiClient.getTenantInfo(getAuthInfo(), getTenantId());
+        updateTenantSummaryVC(getAuthInfo(), "", tenantInfo.getName(), rawEvents, getConnectorId(), name);
+    }
+
+    protected boolean processAndPublishEvents(List<RawEvent> rawEvents) {
+        EventSourceInfo eventSourceInfo = new EventSourceInfo(getConnectorId(), getEventSourceType());
+        EventProcessorResult eventProcessorResult = convertRawEventsToBicycleEvents(getAuthInfo(),
+                eventSourceInfo, rawEvents);
+        boolean publishEvents = true;
+        publishEvents = publishEvents(getAuthInfo(), eventSourceInfo, eventProcessorResult);
+        return publishEvents;
+    }
+
+
+    protected Map<String, String> readFilesConfig() {
+        Map<String, String> fileNameVsSignedUrl = new HashMap<>();
+        String traceInfo = "";
+        ConfiguredConnectorStream connectorStream = getConfiguredConnectorStream(getAuthInfo(), getConnectorId());
+        Pair namespaceAndUploadIds = commonUtil.getNameSpaceToUploadIdsForKnowledgeBaseConnector(traceInfo, connectorStream);
+        logger.info("{} Fetch the namespace and uploadIds {}", traceInfo, namespaceAndUploadIds);
+        if (namespaceAndUploadIds != null) {
+            String namespace = (String) namespaceAndUploadIds.getLeft();
+            Collection<String> uploadIds = (Collection<String>) namespaceAndUploadIds.getRight();
+
+            for (String uploadId : uploadIds) {
+                BlobObject fileMetadata = getFileMetadata(getAuthInfo(), traceInfo, namespace, uploadId);
+                logger.info("{} Got the file metadata {}", traceInfo, fileMetadata);
+                String signedUrl = getSingedUrl(getAuthInfo(), traceInfo, namespace, uploadId);
+                if (StringUtils.isEmpty(signedUrl)) {
+                    logger.warn("{} Unable to get the signed url for file {}", traceInfo,
+                            fileMetadata.getName());
+                    continue;
+                }
+                logger.info("{} Got the signed url {} for file {}", traceInfo, signedUrl,
+                        fileMetadata.getName());
+                fileNameVsSignedUrl.put(fileMetadata.getName(), signedUrl);
+                //LOGGER.info("{} Got the file content {}", traceInfo, fileContent);
+            }
+        }
+        return fileNameVsSignedUrl;
+    }
+
+    protected ConfiguredConnectorStream getConfiguredConnectorStream(AuthInfo authInfo, String configurationId) {
+        return connectorConfigService.getConnectorStreamConfigById(authInfo, configurationId);
+    }
+
+    protected File storeFile(String fileName, String signedUrl) {
+        try {
+            File file = File.createTempFile(UUID.randomUUID().toString(), ".csv");
+            file.deleteOnExit();
+            final JsonNode provider = config.get("provider");
+
+            if (provider.get("storage").asText().equals("GCS")) {
+                //csvConnector.storeToFile(config, file);
+            } else {
+                FileUtils.copyURLToFile(new URL(signedUrl), file, CONNECT_TIMEOUT_IN_MILLIS, READ_TIMEOUT_IN_MILLIS);
+            }
+            return file;
+        } catch (Exception e) {
+            throw new RuntimeException("Unable to read file from GCS", e);
+        }
+    }
+
+    private BlobObject getFileMetadata(AuthInfo authInfo, String traceInfo,
+                                       String namespace, String uploadId) {
+        return blobStoreBroker.getFileMetadata(authInfo, traceInfo, uploadId, namespace);
+    }
+
+    private String getFileContent(String traceInfo, String signedUrl) {
+        return blobStoreBroker.getUploadFileContentAsString(traceInfo, signedUrl);
+    }
+
+    public String getSingedUrl(AuthInfo authInfo, String traceInfo, String namespace, String connectorUploadId) {
+        try {
+            return blobStoreBroker.getSingedUrl(authInfo, traceInfo, connectorUploadId, namespace);
+        } catch (Throwable var6) {
+            String message = "Failed to get signed url from blob store for given bicycle upload id";
+            logger.error("{},{} {}", new Object[] {traceInfo, message, connectorUploadId, var6});
+        }
+        return null;
+    }
+
+    protected BlobStoreClient getBlobStoreClient() {
+        if (blobStoreClient == null) {
+            String serverUrl = getBicycleServerURL();
+            if (serverUrl == null || serverUrl.isEmpty()) {
+                throw new IllegalStateException("Bicycle server url is null");
+            }
+            ServiceLocator serviceLocator = new ServiceLocator() {
+                @Override
+                public String getBaseUri() {
+                    return serverUrl;
+                }
+            };
+
+            blobStoreClient = new BlobStoreApiClient(new GenericApiClient(), serviceLocator);
+        }
+
+        return blobStoreClient;
+    }
+
+    protected TenantServiceAPIClient getTenantServiceApiClient() {
+        if (tenantServiceApiClient == null) {
+            String serverUrl = getBicycleServerURL();
+            if (serverUrl == null || serverUrl.isEmpty()) {
+                throw new IllegalStateException("Bicycle server url is null");
+            }
+            ServiceLocator serviceLocator = new ServiceLocator() {
+                @Override
+                public String getBaseUri() {
+                    return serverUrl;
+                }
+            };
+
+            tenantServiceApiClient = new TenantServiceAPIClient(new GenericApiClient(), serviceLocator);
+        }
+
+        return tenantServiceApiClient;
+    }
+
     abstract protected int getTotalRecordsConsumed();
 
     public void setBicycleEventProcessorAndPublisher(BicycleConfig bicycleConfig) {
@@ -190,6 +442,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             configStoreClient = getConfigClient(bicycleConfig);
             schemaStoreApiClient = getSchemaStoreApiClient(bicycleConfig);
             entityStoreApiClient = getEntityStoreApiClient(bicycleConfig);
+            tenantSummaryDiscovererClient = getTenantSummaryDiscovererClient(bicycleConfig);
             dataTransformer
                     = new TransformationImpl(schemaStoreApiClient, entityStoreApiClient, configStoreClient,
                     getTraceQueryClient(bicycleConfig), new MetricUtilWrapper());
@@ -258,6 +511,15 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         });
     }
 
+    private static TenantSummaryDiscovererClient getTenantSummaryDiscovererClient(BicycleConfig bicycleConfig) {
+        return new TenantSummaryDiscovererClient(new GenericApiClient(), new ServiceLocator() {
+            @Override
+            public String getBaseUri() {
+                return bicycleConfig.getServerURL();
+            }
+        });
+    }
+
     private static TraceQueryClient getTraceQueryClient(BicycleConfig bicycleConfig) {
         return new TraceQueryClient(bicycleConfig.getTraceQueryUrl());
     }
@@ -298,10 +560,10 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     public abstract AutoCloseableIterator<AirbyteMessage> preview(JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state) throws InterruptedException, ExecutionException;
 
-    public AutoCloseableIterator<AirbyteMessage> syncData(JsonNode sourceConfig,
-                                                                   ConfiguredAirbyteCatalog configuredAirbyteCatalog,
-                                                                   JsonNode readState,
-                                                                   SyncDataRequest syncDataRequest) {
+    public SyncDataResponse syncData(JsonNode sourceConfig,
+                                     ConfiguredAirbyteCatalog configuredAirbyteCatalog,
+                                     JsonNode readState,
+                                     SyncDataRequest syncDataRequest) {
 
         String traceInfo = CommonUtil.getTraceInfo(syncDataRequest.getTraceInfo());
         Map<String, Object> additionalProperties = configuredAirbyteCatalog.getAdditionalProperties();
@@ -331,7 +593,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                     eventSourceInfo, System.currentTimeMillis(), writer, rawEvents, false);
             logger.info("Received {} events from preview store for sync data request {} and event source info {}",
                     rawEvents.size(), syncDataRequest, eventSourceInfo);
-            return new NonEmptyAutoCloseableIterator();
+            return null;
         }
         logger.info("Received no events from preview store for sync data request {}, event source info {} " +
                         "and it took {} ms", syncDataRequest, eventSourceInfo, System.currentTimeMillis() - endTime);
@@ -588,6 +850,12 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return additionalProperties.containsKey("bicycleConnectorId") ?
                 additionalProperties.get("bicycleConnectorId").toString() : "";
     }
+
+    protected String getConnectorConfigurationId() {
+        return additionalProperties.containsKey("bicycleConnectorConfigurationId") ?
+                additionalProperties.get("bicycleConnectorConfigurationId").toString() : "";
+    }
+
     private BicycleConfig getBicycleConfig() {
         String serverURL = getBicycleServerURL();
         String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
@@ -612,6 +880,43 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     protected long getStateAsLong(String key) {
         return state != null && state.get(key) != null ? state.get(key).asLong() : -1;
+    }
+
+    protected Status getConnectorSyncStatus() throws InvalidProtocolBufferException {
+        JsonNode syncStatus = getState().get("syncStatus");
+        DataUploadStatus.Builder builder = DataUploadStatus.newBuilder();
+        if (syncStatus != null) {
+            String value = syncStatus.textValue();
+            JsonFormat.parser().ignoringUnknownFields().merge(value, builder);
+            DataUploadStatus dataUploadStatus = builder.build();
+            return dataUploadStatus.getStatus();
+        }
+        return null;
+    }
+
+    protected void updateConnectorSyncState(Status status)
+            throws JsonProcessingException, InvalidProtocolBufferException {
+        JsonNode syncStatus = getState().get("syncStatus");
+        DataUploadStatus.Builder builder = DataUploadStatus.newBuilder();
+        if (syncStatus != null) {
+            String value = syncStatus.textValue();
+            JsonFormat.parser().ignoringUnknownFields().merge(value, builder);
+            builder.setStatus(status);
+            String jsonString = JsonFormat.printer().print(builder.build());
+            saveState("syncStatus", jsonString);
+        } else {
+            updateConnectorSyncState(status, 0);
+        }
+    }
+
+    protected void updateConnectorSyncState(Status status, double progress)
+            throws JsonProcessingException, InvalidProtocolBufferException {
+        DataUploadStatus dataUploadStatus = DataUploadStatus.newBuilder()
+                .setStatus(status)
+                .setProgress(progress)
+                .build();
+        String jsonString = JsonFormat.printer().print(dataUploadStatus);
+        saveState("syncStatus", jsonString);
     }
 
     protected void saveState(String key, String value) throws JsonProcessingException {
@@ -814,7 +1119,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return connectionServiceClient;
     }
 
-    private String getBicycleServerURL() {
+    protected String getBicycleServerURL() {
         String serverURL = additionalProperties.containsKey("bicycleServerURL") ?
                 additionalProperties.get("bicycleServerURL").toString() : "";
         return serverURL;
@@ -842,14 +1147,66 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         boolean isOnPremDeployment = Boolean.parseBoolean(isOnPrem);
         BicycleConfig bicycleConfig = new BicycleConfig(serverURL, metricStoreURL, token, connectorId, uniqueIdentifier, tenantId,
                 systemAuthenticator, isOnPremDeployment);
-        runtimeConfig = this.getConnectorConfigManager().getRuntimeConfig(bicycleConfig.getAuthInfo(), connectorId);
+        runtimeConfig = this.getConnectorConfigManager() != null ? this.getConnectorConfigManager().getRuntimeConfig(bicycleConfig.getAuthInfo(), connectorId) : null;
         if (runtimeConfig != null && connectorConfigManager.isDefaultConfig(runtimeConfig)) {
             runtimeConfig = null;
         }
         return bicycleConfig;
     }
 
-    private static class NonEmptyAutoCloseableIterator implements AutoCloseableIterator {
+    protected void publishPreviewEvents(File file, EventSourceReader<RawEvent> reader, List<RawEvent> vcEvents,
+                                            int maxRecords, int totalRecords,
+                                            boolean saveState, boolean shouldFlush, boolean updateVC)
+            throws Exception {
+        try {
+            List<RawEvent> validEvents = new ArrayList<>();
+            List<RawEvent> inValidEvents = new ArrayList<>();
+            int count = 0;
+            int valid_count = 0;
+            int invalid_count = 0;
+            while(reader.hasNext()) {
+                RawEvent next = reader.next();
+                if (reader.isValidEvent()) {
+                    validEvents.add(next);
+                    if (updateVC) {
+                        vcEvents.add(next);
+                    }
+                    valid_count++;
+                } else {
+                    inValidEvents.add(next);
+                    invalid_count++;
+                }
+                count++;
+                if (validEvents.size() >= BATCH_SIZE) {
+                    submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
+                    validEvents.clear();
+                    if (saveState) {
+                        updateConnectorSyncState(Status.IN_PROGRESS, (double) count/ (double) totalRecords);
+                    }
+                }
+                if (inValidEvents.size() >= BATCH_SIZE) {
+                    submitRecordsToPreviewStoreWithMetadata(getConnectorId(), inValidEvents);
+                    inValidEvents.clear();
+                }
+                if (valid_count >= maxRecords) {
+                    break;
+                }
+            }
+            logger.info("[{}] : Raw events total - Total Count [{}] Valid[{}] Invalid[{}]",
+                    getConnectorId(), file.getName(), valid_count, invalid_count);
+            submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
+            submitRecordsToPreviewStore(getConnectorId(), inValidEvents, shouldFlush);
+            if (saveState) {
+                updateConnectorSyncState(Status.IN_PROGRESS, (double) count/ (double) totalRecords);
+            }
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
+        }
+    }
+
+    public static class NonEmptyAutoCloseableIterator implements AutoCloseableIterator {
 
         @Override
         public void close() throws Exception {
@@ -865,6 +1222,19 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         public Object next() {
             return null;
         }
+    }
+
+    public static abstract class EventSourceReader<T> {
+
+        public abstract boolean hasNext();
+
+        public abstract boolean isValidEvent();
+
+        public abstract long getRecordUTCTimestampInMillis();
+        public abstract T next();
+
+        public abstract void close() throws Exception;
+
     }
 
 }
