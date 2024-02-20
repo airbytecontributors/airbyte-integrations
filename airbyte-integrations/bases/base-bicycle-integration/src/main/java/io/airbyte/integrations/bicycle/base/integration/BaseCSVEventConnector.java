@@ -3,8 +3,12 @@ package io.airbyte.integrations.bicycle.base.integration;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.inception.server.auth.api.SystemAuthenticator;
+import io.bicycle.entity.mapping.SourceFieldMapping;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
+import io.bicycle.server.event.mapping.UserServiceFieldDef;
+import io.bicycle.server.event.mapping.UserServiceFieldsRule;
+import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -19,6 +23,9 @@ import java.util.*;
 public abstract class BaseCSVEventConnector extends BaseEventConnector {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BaseCSVEventConnector.class);
+
+    protected static final String PROCESS_TIMESTAMP = "PROCESS_TIMESTAMP";
+    protected static final String CONNECTOR_STATE = "CONNECTOR_STATE";
 
     public BaseCSVEventConnector(SystemAuthenticator systemAuthenticator,
                                  EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
@@ -39,6 +46,80 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
     }
 
+    protected void processCSVFile(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, File> files)
+                                throws IOException {
+        try {
+            long maxTimestamp = getStateAsLong(PROCESS_TIMESTAMP);
+            long recordsProcessed = 0;
+            List<RawEvent> rawEvents = new ArrayList<>();
+            Map<String, CSVEventSourceReader> readers = new HashMap<>();
+            long timestamp = 0;
+            for (Map.Entry<Long, List<FileRecordOffset>> entry: timestampToFileOffsetsMap.entrySet()) {
+                timestamp = entry.getKey();
+                if (timestamp < maxTimestamp) {
+                    LOGGER.warn("Ignoring events for timestamp {} either because its less than state or " +
+                            "doesn't fall in backfill start time and backfill end time", timestamp);
+                    continue;
+                }
+                List<FileRecordOffset> fileRecordOffsets = entry.getValue();
+                for (FileRecordOffset fileRecordOffset: fileRecordOffsets) {
+                    CSVEventSourceReader reader = readers.computeIfAbsent(fileRecordOffset.fileName,
+                            (fileName) -> new CSVEventSourceReader(fileName, files.get(fileName), getConnectorId(), this));
+                    long offset = fileRecordOffset.offset;
+                    reader.seek(offset);
+                    RawEvent next = reader.next();
+                    rawEvents.add(next);
+                    recordsProcessed++;
+                }
+
+                if (rawEvents.size() >= BATCH_SIZE) {
+                    boolean success = processAndPublishEvents(rawEvents);
+                    if (success) {
+                        saveState(PROCESS_TIMESTAMP, timestamp);
+                    }
+                }
+            }
+
+            if (rawEvents.size() > 0) {
+                boolean success = processAndPublishEvents(rawEvents);
+                if (success && timestamp > 0) {
+                    saveState(PROCESS_TIMESTAMP, timestamp);
+                }
+            }
+
+            for (String fileName : readers.keySet()) {
+                readers.get(fileName).close();
+            }
+
+            LOGGER.info("Total records processed for stream {} and file name {} is {} with max timestamp {}", getConnectorId(),
+                    recordsProcessed, timestamp);
+
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    protected Map<Long, List<FileRecordOffset>> readTimestampToFileOffset(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap,
+                                                                        String fileName, File csvFile) throws Exception {
+        CSVEventSourceReader reader = null;
+        try {
+            reader = new CSVEventSourceReader(fileName, csvFile, getConnectorId(), this);
+            while (reader.hasNext()) {
+                reader.next();
+                long timestampInMillis = reader.getRecordUTCTimestamp();
+                timestampToFileOffsetsMap.computeIfAbsent(timestampInMillis,
+                        (recordOffset) -> new ArrayList<>()).add(new FileRecordOffset(fileName, reader.offset));
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("Error while calculating timestamp to offset map ["+fileName+"]", e);
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
+        }
+        return timestampToFileOffsetsMap;
+    }
+
     public static class CSVEventSourceReader extends EventSourceReader<RawEvent> {
 
         private String connectorId;
@@ -47,16 +128,16 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         Map<String, Integer> headerNameToIndexMap;
         private boolean validEvent = false;
         private RawEvent nextEvent;
-
+        private CSVRecord csvRecord;
+        private long offset = -1;
         private BaseEventConnector connector;
 
         protected ObjectMapper mapper = new ObjectMapper();
 
         private String name;
-        long offset = -1;
-        String row = null;
-        long counter = 0;
-        long nullRows = 0;
+        private String row = null;
+        private long counter = 0;
+        private long nullRows = 0;
 
         public CSVEventSourceReader(String name, File csvFile, String connectorId, BaseEventConnector connector) {
             this.name = name;
@@ -80,10 +161,17 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
 
         private void reset() {
-            validEvent = false;
+            validEvent = true;
             row = null;
             offset = -1;
             nextEvent = null;
+            csvRecord = null;
+        }
+
+        public void seek(long offset) throws IOException {
+            this.accessFile.seek(offset);
+            this.row = accessFile.readLine();
+            this.offset = offset;
         }
 
         public boolean hasNext() {
@@ -110,12 +198,58 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             return false;
         }
 
+        public long getRecordUTCTimestamp() {
+            return 0;
+            /*UserServiceFieldDef startUserServiceFieldDef = null;
+            List<UserServiceMappingRule> userServiceMappingRules = connector.getUserServiceMappingRules();
+            for (UserServiceMappingRule userServiceMappingRule : userServiceMappingRules) {
+                UserServiceFieldsRule userServiceFields = userServiceMappingRule.getUserServiceFields();
+                List<UserServiceFieldDef> commonFieldsList = userServiceFields.getCommonFieldsList();
+                for (UserServiceFieldDef userServiceFieldDef : commonFieldsList) {
+                    if (userServiceFieldDef.getPredefinedFieldType().equals("startTimeMicros")) {
+                        startUserServiceFieldDef = userServiceFieldDef;
+                        break;
+                    }
+                }
+            }
+
+            SourceFieldMapping fieldMapping = startUserServiceFieldDef.getFieldMapping();
+            Object fieldValueMicors = ((JsonRawEvent) nextEvent).getFieldValue(fieldMapping, Collections.emptyMap(), connector.getAuthInfo());
+            startUserServiceFieldDef.getFieldMapping();
+
+            int dateTimeFieldIndex = headerNameToIndexMap.get(dateTimeFieldColumnName);
+            String timestampFieldValue = csvRecord.get(dateTimeFieldIndex);
+            long timestampInMillisInEpoch = convertStringToTimestamp(timestampFieldValue);
+            return timestampInMillisInEpoch;*/
+        }
+
+        public String getJson() {
+            Map<String, String> jsonMap = new HashMap<>();
+            try {
+                for (String headerName : headerNameToIndexMap.keySet()) {
+                    headerName = headerName.replaceAll("\\.", "_");
+                    jsonMap.put(headerName, csvRecord.get(headerName));
+                }
+            } catch (Exception e) {
+                LOGGER.error("Unable to convert a row to json", e);
+                return null;
+            }
+
+
+            try {
+                return mapper.writeValueAsString(jsonMap);
+            } catch (Exception e) {
+                LOGGER.error("Unable to convert a csv row {} to json because of {}", csvRecord, e);
+                return null; // Return an empty JSON object in case of an error
+            }
+        }
+
         public boolean isValidEvent() {
             return validEvent;
         }
 
         public RawEvent next() {
-            CSVRecord csvRecord = getCsvRecord(offset, row, headerNameToIndexMap);
+            csvRecord = getCsvRecord(offset, row, headerNameToIndexMap);
             try {
                 nextEvent = convertRecordsToRawEvents(headerNameToIndexMap, csvRecord, offset, name);
                 if (headerNameToIndexMap.size() != csvRecord.size()) {
@@ -145,7 +279,6 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 if (columns != headerNameToIndexMap.size()) {
                     LOGGER.warn("Ignoring the row {} for stream Id {}", row, streamId);
                 }
-
                 return record;
             } catch (Throwable e) {
                 LOGGER.error("Failed to parse the row [{}] [{}] for stream Id [{}]. Row will be ignored",

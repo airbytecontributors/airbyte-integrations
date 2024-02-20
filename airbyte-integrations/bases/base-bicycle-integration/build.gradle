@@ -27,6 +27,8 @@ dependencies {
     implementation group: 'com.inception', name: 'entity-mapping-api', version: "${metaPipelineVersion}"
     implementation group: 'com.inception', name: 'integration-model', version: "${metaPipelineVersion}"
     implementation group: 'com.inception', name: 'tenant-ai-client', version: "${tenantAiVersion}"
+    implementation group: 'com.inception', name: 'modelling-service-api', version: "${modellingServiceApiVersion}"
+
 
     implementation("com.inception:bicycle-event-publisher:${bicyleEventProcessorVersion}") {
         exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'

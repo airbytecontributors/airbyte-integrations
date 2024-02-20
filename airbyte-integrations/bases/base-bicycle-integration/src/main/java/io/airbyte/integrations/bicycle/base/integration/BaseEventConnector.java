@@ -14,6 +14,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.util.JsonFormat;
 import com.inception.common.client.ServiceLocator;
 import com.inception.common.client.impl.GenericApiClient;
 import com.inception.schemastore.client.SchemaStoreApiClient;
@@ -47,6 +49,7 @@ import io.bicycle.event.processor.impl.BicycleEventProcessorImpl;
 import io.bicycle.event.publisher.api.BicycleEventPublisher;
 import io.bicycle.event.publisher.impl.BicycleEventPublisherImpl;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.common.Status;
 import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.config.BlackListedFields;
 import io.bicycle.integration.common.config.ConnectorConfigService;
@@ -54,6 +57,7 @@ import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.integration.common.services.config.ConnectorConfigServiceImpl;
 import io.bicycle.integration.common.utils.BlobStoreBroker;
 import io.bicycle.integration.connector.*;
+import io.bicycle.modelling.service.v2.DataUploadStatus;
 import io.bicycle.server.verticalcontext.tenant.api.VerticalIdentifier;
 import io.bicycle.tenant.ai.client.TenantSummaryDiscovererClient;
 import io.bicycle.integration.common.transformation.TransformationImpl;
@@ -304,6 +308,15 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         String name = connectorStream.getName();
         TenantInfo tenantInfo = tenantServiceApiClient.getTenantInfo(getAuthInfo(), getTenantId());
         updateTenantSummaryVC(getAuthInfo(), "", tenantInfo.getName(), rawEvents, getConnectorId(), name);
+    }
+
+    protected boolean processAndPublishEvents(List<RawEvent> rawEvents) {
+        EventSourceInfo eventSourceInfo = new EventSourceInfo(getConnectorId(), getEventSourceType());
+        EventProcessorResult eventProcessorResult = convertRawEventsToBicycleEvents(getAuthInfo(),
+                eventSourceInfo, rawEvents);
+        boolean publishEvents = true;
+        publishEvents = publishEvents(getAuthInfo(), eventSourceInfo, eventProcessorResult);
+        return publishEvents;
     }
 
 
@@ -862,6 +875,43 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return state != null && state.get(key) != null ? state.get(key).asLong() : -1;
     }
 
+    protected Status getConnectorSyncStatus() throws InvalidProtocolBufferException {
+        JsonNode syncStatus = getState().get("syncStatus");
+        DataUploadStatus.Builder builder = DataUploadStatus.newBuilder();
+        if (syncStatus != null) {
+            String value = syncStatus.textValue();
+            JsonFormat.parser().ignoringUnknownFields().merge(value, builder);
+            DataUploadStatus dataUploadStatus = builder.build();
+            return dataUploadStatus.getStatus();
+        }
+        return null;
+    }
+
+    protected void updateConnectorSyncState(Status status)
+            throws JsonProcessingException, InvalidProtocolBufferException {
+        JsonNode syncStatus = getState().get("syncStatus");
+        DataUploadStatus.Builder builder = DataUploadStatus.newBuilder();
+        if (syncStatus != null) {
+            String value = syncStatus.textValue();
+            JsonFormat.parser().ignoringUnknownFields().merge(value, builder);
+            builder.setStatus(status);
+            String jsonString = JsonFormat.printer().print(builder.build());
+            saveState("syncStatus", jsonString);
+        } else {
+            updateConnectorSyncState(status, 0);
+        }
+    }
+
+    protected void updateConnectorSyncState(Status status, double progress)
+            throws JsonProcessingException, InvalidProtocolBufferException {
+        DataUploadStatus dataUploadStatus = DataUploadStatus.newBuilder()
+                .setStatus(status)
+                .setProgress(progress)
+                .build();
+        String jsonString = JsonFormat.printer().print(dataUploadStatus);
+        saveState("syncStatus", jsonString);
+    }
+
     protected void saveState(String key, String value) throws JsonProcessingException {
         JsonNode state = getState();
         JsonNode oldValue = state.get(key);
@@ -1098,11 +1148,13 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     }
 
     protected void publishPreviewEvents(File file, EventSourceReader<RawEvent> reader, List<RawEvent> vcEvents,
-                                            int maxRecords, boolean saveState, boolean shouldFlush, boolean updateVC)
+                                            int maxRecords, int totalRecords,
+                                            boolean saveState, boolean shouldFlush, boolean updateVC)
             throws Exception {
         try {
             List<RawEvent> validEvents = new ArrayList<>();
             List<RawEvent> inValidEvents = new ArrayList<>();
+            int count = 0;
             int valid_count = 0;
             int invalid_count = 0;
             while(reader.hasNext()) {
@@ -1117,9 +1169,13 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                     inValidEvents.add(next);
                     invalid_count++;
                 }
+                count++;
                 if (validEvents.size() >= BATCH_SIZE) {
                     submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
                     validEvents.clear();
+                    if (saveState) {
+                        updateConnectorSyncState(Status.IN_PROGRESS, (double) count/ (double) totalRecords);
+                    }
                 }
                 if (inValidEvents.size() >= BATCH_SIZE) {
                     submitRecordsToPreviewStore(getTenantId(), inValidEvents, shouldFlush);
@@ -1134,8 +1190,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
             submitRecordsToPreviewStore(getConnectorId(), inValidEvents, shouldFlush);
             if (saveState) {
-                saveState(PREVIEW_STORE_VALID_RECORDS, valid_count);
-                saveState(PREVIEW_STORE_INVALID_RECORDS, invalid_count);
+                updateConnectorSyncState(Status.IN_PROGRESS, (double) count/ (double) totalRecords);
             }
         } finally {
             if (reader != null) {
@@ -1167,6 +1222,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         public abstract boolean hasNext();
 
         public abstract boolean isValidEvent();
+
+        public abstract long getRecordUTCTimestamp();
         public abstract T next();
 
         public abstract void close() throws Exception;
