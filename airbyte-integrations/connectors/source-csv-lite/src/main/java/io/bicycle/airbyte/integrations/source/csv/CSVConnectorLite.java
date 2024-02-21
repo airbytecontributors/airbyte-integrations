@@ -95,7 +95,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
             files.put(fileName, file);
         }
-        files.put("test", new File("/home/ravi/Downloads/test.csv"));
+        //files.put("test", new File("/home/ravi/Downloads/test.csv"));
         LOGGER.info("[{}] : Local files Url [{}]", getConnectorId(), files);
         List<RawEvent> vcEvents = new ArrayList<>();
         for (String fileName : files.keySet()) {
@@ -116,10 +116,10 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 throw new IllegalStateException("Failed to register preview events for discovery service ["+fileName+"]", t);
             }
         }
-        createTenantVC(vcEvents);
+        //createTenantVC(vcEvents);
         try {
             Future<Object> future = processFiles(files);
-            future.get();
+            //future.get();
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }

@@ -213,10 +213,10 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected void initialize(JsonNode config, ConfiguredAirbyteCatalog catalog) {
         this.config = config;
         this.additionalProperties = catalog.getAdditionalProperties();
-        BicycleConfig bicycleConfig = getBicycleConfig(additionalProperties, systemAuthenticator);
-        setBicycleEventProcessorAndPublisher(bicycleConfig);
         this.blobStoreBroker = new BlobStoreBroker(getBlobStoreClient());
         this.tenantServiceApiClient = getTenantServiceApiClient();
+        this.bicycleConfig = getBicycleConfig(additionalProperties, systemAuthenticator);
+        setBicycleEventProcessorAndPublisher(bicycleConfig);
         this.state = getStateAsJsonNode(getAuthInfo(), getConnectorId());
         getConnectionServiceClient();
         this.connectorConfigService = new ConnectorConfigServiceImpl(configStoreClient, schemaStoreApiClient,
