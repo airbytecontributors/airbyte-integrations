@@ -219,6 +219,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         this.bicycleConfig = getBicycleConfig(additionalProperties, systemAuthenticator);
         setBicycleEventProcessorAndPublisher(bicycleConfig);
         this.state = getStateAsJsonNode(getAuthInfo(), getConnectorId());
+        this.eventSourceInfo = new EventSourceInfo(getConnectorId(), getEventSourceType());
         getConnectionServiceClient();
         this.connectorConfigService = new ConnectorConfigServiceImpl(configStoreClient, schemaStoreApiClient,
                 entityStoreApiClient, null, null,
@@ -1191,7 +1192,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                     submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
                     validEvents.clear();
                     if (saveState) {
-                        updateConnectorSyncState(Status.IN_PROGRESS, (double) count/ (double) totalRecords);
+                        updateConnectorSyncState(Status.IN_PROGRESS, (double) valid_count/ (double) totalRecords);
                     }
                 }
                 if (inValidEvents.size() >= BATCH_SIZE) {
@@ -1207,7 +1208,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
             submitRecordsToPreviewStoreWithMetadata(getConnectorId(), inValidEvents);
             if (saveState) {
-                updateConnectorSyncState(Status.IN_PROGRESS, (double) count/ (double) totalRecords);
+                updateConnectorSyncState(Status.IN_PROGRESS, (double) valid_count/ (double) totalRecords);
             }
         } finally {
             if (reader != null) {

@@ -109,9 +109,17 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             reader = new CSVEventSourceReader(fileName, csvFile, getConnectorId(), this);
             while (reader.hasNext()) {
                 reader.next();
-                long timestampInMillis = reader.getRecordUTCTimestampInMillis();
-                timestampToFileOffsetsMap.computeIfAbsent(timestampInMillis,
-                        (recordOffset) -> new ArrayList<>()).add(new FileRecordOffset(fileName, reader.offset));
+                if (reader.isValidEvent()) {
+                    try {
+                        long timestampInMillis = reader.getRecordUTCTimestampInMillis();
+                        timestampToFileOffsetsMap.computeIfAbsent(timestampInMillis,
+                                (recordOffset) -> new ArrayList<>()).add(new FileRecordOffset(fileName, reader.offset));
+                    } catch (Exception e) {
+                        LOGGER.error("Skipped record row[{}] offset[{}]", reader.row, reader.offset, e);
+                    }
+                } else {
+                    LOGGER.info("Skipped record row[{}] offset[{}]", reader.row, reader.offset);
+                }
             }
         } catch (Exception e) {
             throw new IllegalStateException("Error while calculating timestamp to offset map ["+fileName+"]", e);
@@ -133,6 +141,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         private RawEvent nextEvent;
         private CSVRecord csvRecord;
         private long offset = -1;
+        private String status = "SUCCESS";
         private BaseEventConnector connector;
 
         protected ObjectMapper mapper = new ObjectMapper();
@@ -282,6 +291,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
 
         public RawEvent next() {
+            String errorMessage = null;
             try {
                 counter++;
                 csvRecord = getCsvRecord(offset, row, headerNameToIndexMap);
@@ -291,12 +301,21 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 }
             } catch (Exception e) {
                 validEvent = false;
+                errorMessage = e.getMessage();
                 LOGGER.error("Failed Parsing ["+row+"] ["+offset+"]", e);
+            } finally {
+                if (!isValidEvent()) {
+                    status = "ERROR";
+                }
             }
             ObjectNode node = mapper.createObjectNode();
             node.put("bicycle.raw.event.record", row);
-            nextEvent = getJsonRawEvent(offset, name, node);
+            nextEvent = getJsonRawEvent(offset, name, node, errorMessage);
             return nextEvent;
+        }
+
+        public String getStatus() {
+            return status;
         }
 
         public void close() throws Exception {
@@ -351,6 +370,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             } else {
                 validEvent = true;
             }
+            String errorMessage = null;
             if (validEvent) {
                 for (String key : headerNameToIndexMap.keySet()) {
                     int index = headerNameToIndexMap.get(key);
@@ -358,19 +378,22 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                     node.put(key, value);
                 }
             } else {
-                node.put("bicycle.raw.event.record", record.toString());
+                node.put("bicycle.raw.event.record", row);
+                errorMessage = "Headers and fields count does not match";
             }
-            JsonRawEvent jsonRawEvent = getJsonRawEvent(offset, fileName, node);
+            JsonRawEvent jsonRawEvent = getJsonRawEvent(offset, fileName, node, errorMessage);
             return jsonRawEvent;
         }
 
-        private JsonRawEvent getJsonRawEvent(long offset, String fileName, ObjectNode node) {
+        private JsonRawEvent getJsonRawEvent(long offset, String fileName, ObjectNode node, String errorMessage) {
             node.put("bicycle.raw.event.identifier", String.valueOf(offset));
             if (!validEvent) {
                 node.put("bicycle.metadata.eventType", MetadataPreviewEventType.SYNC_ERROR.name());
             }
             node.put("bicycle.eventSourceId", connectorId);
-            node.put("bicycle.raw.event.error", "");
+            if (errorMessage != null) {
+                node.put("bicycle.raw.event.error", errorMessage);
+            }
             node.put("bicycle.filename", fileName);
             JsonRawEvent jsonRawEvent = connector.createJsonRawEvent(node);
             return jsonRawEvent;
