@@ -155,6 +155,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         this.systemAuthenticator = systemAuthenticator;
         this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;
         this.connectorConfigManager = connectorConfigManager;
+        logger.info("ConnectorConfigManager [{}]", connectorConfigManager);
         String envConnectorsUsingPreviewStore =
                 CommonUtil.getFromEnvironment(CONNECTORS_WITH_WAIT_ENABLED, false);
         if (!StringUtils.isEmpty(envConnectorsUsingPreviewStore)) {
@@ -1204,7 +1205,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             logger.info("[{}] : Raw events total - Total Count [{}] Valid[{}] Invalid[{}]",
                     getConnectorId(), file.getName(), valid_count, invalid_count);
             submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
-            submitRecordsToPreviewStore(getConnectorId(), inValidEvents, shouldFlush);
+            submitRecordsToPreviewStoreWithMetadata(getConnectorId(), inValidEvents);
             if (saveState) {
                 updateConnectorSyncState(Status.IN_PROGRESS, (double) count/ (double) totalRecords);
             }

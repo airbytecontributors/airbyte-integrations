@@ -35,7 +35,7 @@ public class CSVConnectorLiteTest {
         String connectorId = "1e69257c-34f6-4e8e-95b3-0913deb81284";
         String userId = "";
         String eventSourceType= "EVENT";
-        String tenantId = "evt-fbb967ad-25f2-4eee-b2e5-f52b047be2ef";
+        String tenantId = "emt-e9e4ef6c-63c4-4930-b331-2df3af1e788e";
 
         bicycleConfig = new BicycleConfig(serverURL, metricStoreURL,token, connectorId,uniqueIdentifier, tenantId, Mockito.mock(SystemAuthenticator.class),true);
         authInfo = bicycleConfig.getAuthInfo();
