@@ -115,7 +115,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected BicycleConfig bicycleConfig;
     protected SystemAuthenticator systemAuthenticator;
     protected EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier;
-    private ConnectorConfigManager connectorConfigManager;
+    protected ConnectorConfigManager connectorConfigManager;
     protected BlackListedFields blackListedFields;
     protected static final String TENANT_ID = "tenantId";
     protected String ENV_TENANT_ID_KEY = "TENANT_ID";
@@ -155,7 +155,6 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         this.systemAuthenticator = systemAuthenticator;
         this.eventConnectorJobStatusNotifier = eventConnectorJobStatusNotifier;
         this.connectorConfigManager = connectorConfigManager;
-        logger.info("ConnectorConfigManager [{}]", connectorConfigManager);
         String envConnectorsUsingPreviewStore =
                 CommonUtil.getFromEnvironment(CONNECTORS_WITH_WAIT_ENABLED, false);
         if (!StringUtils.isEmpty(envConnectorsUsingPreviewStore)) {

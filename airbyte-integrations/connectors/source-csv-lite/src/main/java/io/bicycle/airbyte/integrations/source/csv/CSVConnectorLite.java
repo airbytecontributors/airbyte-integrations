@@ -78,6 +78,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
     public SyncDataResponse syncData(JsonNode sourceConfig, ConfiguredAirbyteCatalog catalog,
                                      JsonNode readState, SyncDataRequest syncDataRequest) {
+        LOGGER.info("SyncData ConnectorConfigManager [{}]", connectorConfigManager);
         initialize(sourceConfig, catalog);
         Status syncState = null;
         try {
