@@ -282,14 +282,21 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
 
         public RawEvent next() {
-            csvRecord = getCsvRecord(offset, row, headerNameToIndexMap);
             try {
-                nextEvent = convertRecordsToRawEvents(headerNameToIndexMap, csvRecord, offset, name);
                 counter++;
-                return nextEvent;
+                csvRecord = getCsvRecord(offset, row, headerNameToIndexMap);
+                if (csvRecord != null) {
+                    nextEvent = convertRecordsToRawEvents(headerNameToIndexMap, csvRecord, offset, name);
+                    return nextEvent;
+                }
             } catch (Exception e) {
-                throw new IllegalStateException("Failed Parsing ["+row+"] ["+offset+"]");
+                validEvent = false;
+                LOGGER.error("Failed Parsing ["+row+"] ["+offset+"]", e);
             }
+            ObjectNode node = mapper.createObjectNode();
+            node.put("bicycle.raw.event.record", row);
+            nextEvent = getJsonRawEvent(offset, name, node);
+            return nextEvent;
         }
 
         public void close() throws Exception {
@@ -339,16 +346,25 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                                                   long offset, String fileName)
                 throws Exception {
             ObjectNode node = mapper.createObjectNode();
-            for (String key : headerNameToIndexMap.keySet()) {
-                int index = headerNameToIndexMap.get(key);
-                String value = record.get(index);
-                node.put(key, value);
-            }
             if (headerNameToIndexMap.size() != record.size()) {
                 validEvent = false;
             } else {
                 validEvent = true;
             }
+            if (validEvent) {
+                for (String key : headerNameToIndexMap.keySet()) {
+                    int index = headerNameToIndexMap.get(key);
+                    String value = record.get(index);
+                    node.put(key, value);
+                }
+            } else {
+                node.put("bicycle.raw.event.record", record.toString());
+            }
+            JsonRawEvent jsonRawEvent = getJsonRawEvent(offset, fileName, node);
+            return jsonRawEvent;
+        }
+
+        private JsonRawEvent getJsonRawEvent(long offset, String fileName, ObjectNode node) {
             node.put("bicycle.raw.event.identifier", String.valueOf(offset));
             if (!validEvent) {
                 node.put("bicycle.metadata.eventType", MetadataPreviewEventType.SYNC_ERROR.name());

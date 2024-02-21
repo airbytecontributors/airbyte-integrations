@@ -365,7 +365,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             file.deleteOnExit();
             final JsonNode provider = config.get("provider");
 
-            if (provider.get("storage").asText().equals("GCS")) {
+            if (provider !=null && provider.get("storage").asText().equals("GCS")) {
                 //csvConnector.storeToFile(config, file);
             } else {
                 FileUtils.copyURLToFile(new URL(signedUrl), file, CONNECT_TIMEOUT_IN_MILLIS, READ_TIMEOUT_IN_MILLIS);
@@ -1165,17 +1165,26 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             int valid_count = 0;
             int invalid_count = 0;
             while(reader.hasNext()) {
-                RawEvent next = reader.next();
-                if (reader.isValidEvent()) {
-                    validEvents.add(next);
-                    if (updateVC) {
-                        vcEvents.add(next);
+                RawEvent next = null;
+                try {
+                    next = reader.next();
+                    if (reader.isValidEvent()) {
+                        validEvents.add(next);
+                        if (updateVC) {
+                            vcEvents.add(next);
+                        }
+                        valid_count++;
+                    } else {
+                        inValidEvents.add(next);
+                        invalid_count++;
                     }
-                    valid_count++;
-                } else {
-                    inValidEvents.add(next);
+                } catch (Exception e) {
+                    if (next != null) {
+                        inValidEvents.add(next);
+                    }
                     invalid_count++;
                 }
+
                 count++;
                 if (validEvents.size() >= BATCH_SIZE) {
                     submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
