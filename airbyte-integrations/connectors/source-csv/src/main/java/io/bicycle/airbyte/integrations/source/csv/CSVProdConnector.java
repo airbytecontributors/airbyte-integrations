@@ -128,11 +128,12 @@ public class CSVProdConnector {
         boolean doesMappingRulesExist = csvConnector.doesMappingRulesExists(csvConnector.getAuthInfo(),
                 eventSourceInfo);
 
+        boolean publishedEvents = false;
         for (int i = 0; i < files.length; i++) {
-            processCSVFile(files[i], doesMappingRulesExist);
+            publishedEvents = publishedEvents || processCSVFile(files[i], doesMappingRulesExist);
         }
 
-        if (isBackfillEnabled) {
+        if (publishedEvents && isBackfillEnabled) {
             LOGGER.info("Starting publishing dummy events for stream Id {}", streamId);
             publishDummyEvents(eventSourceInfo, dummyMessageInterval);
             LOGGER.info("Done publishing dummy events for stream Id {}", streamId);
@@ -292,9 +293,10 @@ public class CSVProdConnector {
         return false;
     }
 
-    private void processCSVFile(File csvFile, boolean doesMappingRuleExists) throws IOException {
+    private boolean processCSVFile(File csvFile, boolean doesMappingRuleExists) throws IOException {
 
         RandomAccessFile accessFile = null;
+        boolean publishedEvents = false;
 
         try {
             long maxTimestamp = getState();
@@ -336,6 +338,7 @@ public class CSVProdConnector {
                     maxTimestamp = handleCSVRecords(csvRecords, csvFile.getName(), maxTimestamp, doesMappingRuleExists);
                     recordsProcessed += csvRecords.size() - 1;
                     headerAdded = false;
+                    publishedEvents = true;
                     csvRecords.clear();
                 }
             }
@@ -344,6 +347,7 @@ public class CSVProdConnector {
                 maxTimestamp = handleCSVRecords(csvRecords, csvFile.getName(), maxTimestamp, doesMappingRuleExists);
                 recordsProcessed += csvRecords.size() - 1;
                 csvRecords.clear();
+                publishedEvents = true;
             }
 
             LOGGER.info("Total records processed for stream {} and file name {} is {} with max timestamp {}", streamId,
@@ -356,6 +360,7 @@ public class CSVProdConnector {
                 accessFile.close();
             }
         }
+        return publishedEvents;
     }
 
     private boolean shouldProcessRawEvent(long eventTimestamp, long maxTimestamp) {
