@@ -12,6 +12,7 @@ import io.bicycle.server.event.mapping.UserServiceFieldsList;
 import io.bicycle.server.event.mapping.UserServiceFieldsRule;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
+import java.nio.charset.Charset;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
@@ -36,8 +37,8 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
     }
 
     protected int totalRecords(File file) {
-        try (Reader reader = new FileReader(file);
-            CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT)) {
+        try (Reader reader = new FileReader(file, Charset.defaultCharset());
+             CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT)) {
             int recordCount = 0;
             for (CSVRecord record : csvParser) {
                 recordCount++;
