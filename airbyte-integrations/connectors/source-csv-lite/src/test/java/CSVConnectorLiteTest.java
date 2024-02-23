@@ -28,6 +28,7 @@ public class CSVConnectorLiteTest {
 
     @BeforeAll
     public static void setupBicycleConsumer() {
+        System.setProperty("dev.mode", "true");
         String serverURL =  "https://api.dev.bicycle.io";
         String metricStoreURL =  "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details";
         String uniqueIdentifier = UUID.randomUUID().toString();

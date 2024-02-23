@@ -23,6 +23,8 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.util.*;
 
+import static io.airbyte.integrations.bicycle.base.integration.BaseCSVEventConnector.APITYPE.READ;
+
 public abstract class BaseCSVEventConnector extends BaseEventConnector {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BaseCSVEventConnector.class);
@@ -67,7 +69,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 List<FileRecordOffset> fileRecordOffsets = entry.getValue();
                 for (FileRecordOffset fileRecordOffset: fileRecordOffsets) {
                     CSVEventSourceReader reader = readers.computeIfAbsent(fileRecordOffset.fileName,
-                            (fileName) -> new CSVEventSourceReader(fileName, files.get(fileName), getConnectorId(), this));
+                            (fileName) -> new CSVEventSourceReader(fileName, files.get(fileName), getConnectorId(), this, READ));
                     long offset = fileRecordOffset.offset;
                     reader.seek(offset);
                     RawEvent next = reader.next();
@@ -77,6 +79,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
 
                 if (rawEvents.size() >= BATCH_SIZE) {
                     boolean success = processAndPublishEvents(rawEvents);
+                    rawEvents.clear();
                     if (success) {
                         saveState(PROCESS_TIMESTAMP, timestamp);
                     }
@@ -106,9 +109,10 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                                                                         String fileName, File csvFile) throws Exception {
         CSVEventSourceReader reader = null;
         try {
-            reader = new CSVEventSourceReader(fileName, csvFile, getConnectorId(), this);
+            reader = new CSVEventSourceReader(fileName, csvFile, getConnectorId(), this, READ);
+            List<RawEvent> invalidEvents = new ArrayList<>();
             while (reader.hasNext()) {
-                reader.next();
+                RawEvent next = reader.next();
                 if (reader.isValidEvent()) {
                     try {
                         long timestampInMillis = reader.getRecordUTCTimestampInMillis();
@@ -116,10 +120,20 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                                 (recordOffset) -> new ArrayList<>()).add(new FileRecordOffset(fileName, reader.offset));
                     } catch (Exception e) {
                         LOGGER.error("Skipped record row[{}] offset[{}]", reader.row, reader.offset, e);
+                        invalidEvents.add(next);
                     }
                 } else {
                     LOGGER.info("Skipped record row[{}] offset[{}]", reader.row, reader.offset);
+                    invalidEvents.add(next);
                 }
+                if (invalidEvents.size() >= BATCH_SIZE) {
+                    submitRecordsToPreviewStoreWithMetadata(getConnectorId(), invalidEvents);
+                    invalidEvents.clear();
+                }
+            }
+            if (invalidEvents.size() >= 0) {
+                submitRecordsToPreviewStoreWithMetadata(getConnectorId(), invalidEvents);
+                invalidEvents.clear();
             }
         } catch (Exception e) {
             throw new IllegalStateException("Error while calculating timestamp to offset map ["+fileName+"]", e);
@@ -141,8 +155,11 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         private RawEvent nextEvent;
         private CSVRecord csvRecord;
         private long offset = -1;
-        private String status = "SUCCESS";
+        private ReaderStatus status = ReaderStatus.SUCCESS;
         private BaseEventConnector connector;
+        private APITYPE apiType;
+
+        private SourceFieldMapping fieldMapping;
 
         protected ObjectMapper mapper = new ObjectMapper();
 
@@ -151,11 +168,13 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         private long counter = 0;
         private long nullRows = 0;
 
-        public CSVEventSourceReader(String name, File csvFile, String connectorId, BaseEventConnector connector) {
+        public CSVEventSourceReader(String name, File csvFile, String connectorId,
+                                    BaseEventConnector connector, APITYPE apiType) {
             this.name = name;
             this.connectorId = connectorId;
             this.csvFile = csvFile;
             this.connector = connector;
+            this.apiType = apiType;
             initialize();
         }
 
@@ -211,28 +230,23 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
 
         public long getRecordUTCTimestampInMillis() {
-            UserServiceFieldDef startTimeFieldDef = null;
-            List<UserServiceMappingRule> userServiceMappingRules =
-                    connector.getUserServiceMappingRules(connector.getAuthInfo(), connector.eventSourceInfo);
-            boolean found = false;
-            for (UserServiceMappingRule userServiceMappingRule : userServiceMappingRules) {
-                UserServiceFieldsRule userServiceFields = userServiceMappingRule.getUserServiceFields();
-                List<UserServiceFieldDef> commonFieldsList = userServiceFields.getCommonFieldsList();
-                for (UserServiceFieldDef userServiceFieldDef : commonFieldsList) {
-                    if (userServiceFieldDef.getPredefinedFieldType().equals("startTimeMicros")) {
-                        startTimeFieldDef = userServiceFieldDef;
-                        found = true;
-                        break;
-                    }
-                }
-                if (found) {
-                    break;
-                }
+            SourceFieldMapping fieldMapping = getSourceFieldMapping();
+            long valueInMicros = (long) nextEvent.getFieldValue(fieldMapping, Collections.emptyMap(), connector.getAuthInfo());
+            return valueInMicros / 1000;
+        }
 
-                Map<String, UserServiceFieldsList> userServiceFieldsMap = userServiceFields.getUserServiceFieldsMap();
-                for (String key : userServiceFieldsMap.keySet()) {
-                    UserServiceFieldsList userServiceFieldsList = userServiceFieldsMap.get(key);
-                    for (UserServiceFieldDef userServiceFieldDef : userServiceFieldsList.getUserServiceFieldList()) {
+        private SourceFieldMapping getSourceFieldMapping() {
+            if (fieldMapping != null) {
+                return fieldMapping;
+            } else {
+                UserServiceFieldDef startTimeFieldDef = null;
+                List<UserServiceMappingRule> userServiceMappingRules =
+                        connector.getUserServiceMappingRules(connector.getAuthInfo(), connector.getEventSourceInfo());
+                boolean found = false;
+                for (UserServiceMappingRule userServiceMappingRule : userServiceMappingRules) {
+                    UserServiceFieldsRule userServiceFields = userServiceMappingRule.getUserServiceFields();
+                    List<UserServiceFieldDef> commonFieldsList = userServiceFields.getCommonFieldsList();
+                    for (UserServiceFieldDef userServiceFieldDef : commonFieldsList) {
                         if (userServiceFieldDef.getPredefinedFieldType().equals("startTimeMicros")) {
                             startTimeFieldDef = userServiceFieldDef;
                             found = true;
@@ -242,18 +256,32 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                     if (found) {
                         break;
                     }
-                }
-                if (found) {
-                    break;
-                }
-            }
-            if (startTimeFieldDef == null) {
-                throw new IllegalStateException("timestamp field is not discovered yet");
-            }
 
-            SourceFieldMapping fieldMapping = startTimeFieldDef.getFieldMapping();
-            long valueInMicros = (long) nextEvent.getFieldValue(fieldMapping, Collections.emptyMap(), connector.getAuthInfo());
-            return valueInMicros / 1000;
+                    Map<String, UserServiceFieldsList> userServiceFieldsMap = userServiceFields.getUserServiceFieldsMap();
+                    for (String key : userServiceFieldsMap.keySet()) {
+                        UserServiceFieldsList userServiceFieldsList = userServiceFieldsMap.get(key);
+                        for (UserServiceFieldDef userServiceFieldDef : userServiceFieldsList.getUserServiceFieldList()) {
+                            if (userServiceFieldDef.getPredefinedFieldType().equals("startTimeMicros")) {
+                                startTimeFieldDef = userServiceFieldDef;
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (found) {
+                            break;
+                        }
+                    }
+                    if (found) {
+                        break;
+                    }
+                }
+                if (startTimeFieldDef == null) {
+                    throw new IllegalStateException("timestamp field is not discovered yet");
+                }
+
+                fieldMapping = startTimeFieldDef.getFieldMapping();
+                return fieldMapping;
+            }
         }
 
         private UserServiceFieldDef findStartTimeMicros(List<UserServiceFieldDef> fieldsList) {
@@ -301,11 +329,11 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 }
             } catch (Exception e) {
                 validEvent = false;
-                errorMessage = e.getMessage();
+                errorMessage = "["+e.getMessage() + "] ["+offset+"] ["+row+"]";
                 LOGGER.error("Failed Parsing ["+row+"] ["+offset+"]", e);
             } finally {
                 if (!isValidEvent()) {
-                    status = "ERROR";
+                    status = ReaderStatus.FAILED;
                 }
             }
             ObjectNode node = mapper.createObjectNode();
@@ -314,7 +342,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             return nextEvent;
         }
 
-        public String getStatus() {
+        public ReaderStatus getStatus() {
             return status;
         }
 
@@ -388,7 +416,11 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         private JsonRawEvent getJsonRawEvent(long offset, String fileName, ObjectNode node, String errorMessage) {
             node.put("bicycle.raw.event.identifier", String.valueOf(offset));
             if (!validEvent) {
-                node.put("bicycle.metadata.eventType", MetadataPreviewEventType.SYNC_ERROR.name());
+                if (apiType.equals(APITYPE.SYNC_DATA)) {
+                    node.put("bicycle.metadata.eventType", MetadataPreviewEventType.SYNC_ERROR.name());
+                } else if (apiType.equals(READ)) {
+                    node.put("bicycle.metadata.eventType", MetadataPreviewEventType.READ_ERROR.name());
+                }
             }
             node.put("bicycle.eventSourceId", connectorId);
             if (errorMessage != null) {
@@ -398,6 +430,11 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             JsonRawEvent jsonRawEvent = connector.createJsonRawEvent(node);
             return jsonRawEvent;
         }
+    }
+
+    public enum APITYPE {
+        SYNC_DATA,
+        READ
     }
 
     public static class FileRecordOffset {

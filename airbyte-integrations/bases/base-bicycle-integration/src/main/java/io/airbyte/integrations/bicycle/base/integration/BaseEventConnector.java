@@ -467,6 +467,9 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                             bicycleConfig.getServerURL()
                     );
             logger.info("EventMappingConfiguration:: {}", eventMappingConfigurations);
+            if (connectorConfigManager == null && "true".equalsIgnoreCase(System.getProperty("dev.mode", "false"))) {
+                connectorConfigManager = new ConnectorConfigManager(Collections.emptySet(), getConfigClient(bicycleConfig), systemAuthenticator, false);
+            }
             this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, systemAuthenticator,
                     true, dataTransformer, connectorConfigManager);
         } catch (Throwable e) {
@@ -1245,6 +1248,15 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
         public abstract void close() throws Exception;
 
+        public abstract ReaderStatus getStatus();
+
     }
+
+    public enum ReaderStatus {
+        SUCCESS,
+        FAILED
+    }
+
+
 
 }

@@ -28,6 +28,8 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
 
+import static io.airbyte.integrations.bicycle.base.integration.BaseCSVEventConnector.APITYPE.SYNC_DATA;
+
 /**
  * @author <a href="mailto:ravi.noothi@agilitix.ai">Ravi Kiran Noothi</a>
  * @since 14/11/22
@@ -110,7 +112,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             try {
                 csvReader = null;
                 try {
-                    csvReader = new CSVEventSourceReader(fileName, file, getConnectorId(), this);
+                    csvReader = new CSVEventSourceReader(fileName, file, getConnectorId(), this, SYNC_DATA);
                     publishPreviewEvents(file, csvReader, vcEvents, PREVIEW_RECORDS, 1,
                             false, true, true);
                 } finally {
@@ -155,11 +157,11 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                         File file = files.get(fileName);
                         CSVEventSourceReader csvReader = null;
                         try {
-                            csvReader = new CSVEventSourceReader(fileName, file, getConnectorId(), connector);
+                            csvReader = new CSVEventSourceReader(fileName, file, getConnectorId(), connector, SYNC_DATA);
                             publishPreviewEvents(file, csvReader, Collections.emptyList(),
                                     Integer.MAX_VALUE, total_records,
                                     true, false, false);
-                            if (csvReader.getStatus() != null && csvReader.getStatus().equalsIgnoreCase("ERROR")) {
+                            if (csvReader.getStatus() != null && csvReader.getStatus().equals(ReaderStatus.FAILED)) {
                                 status = Status.ERROR;
                             }
                         } finally {
