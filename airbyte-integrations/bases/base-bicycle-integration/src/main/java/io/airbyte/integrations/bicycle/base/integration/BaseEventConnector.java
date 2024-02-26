@@ -125,6 +125,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected static final int BATCH_SIZE = 30;
     private static final String PREVIEW_STORE_VALID_RECORDS = "PREVIEW_STORE_VALID_RECORDS";
     private static final String PREVIEW_STORE_INVALID_RECORDS = "PREVIEW_STORE_INVALID_RECORDS";
+    protected static final String SYNC_STATUS = "syncStatus";
+    protected static final String READ_STATUS = "readStatus";
 
 
     protected List<String> listOfConnectorsWithSleepEnabled = new ArrayList<>();
@@ -886,8 +888,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return state != null && state.get(key) != null ? state.get(key).asLong() : -1;
     }
 
-    protected Status getConnectorSyncStatus() throws InvalidProtocolBufferException {
-        JsonNode syncStatus = getState().get("syncStatus");
+    protected Status getConnectorStatus(String state) throws InvalidProtocolBufferException {
+        JsonNode syncStatus = getState().get(state);
         DataUploadStatus.Builder builder = DataUploadStatus.newBuilder();
         if (syncStatus != null) {
             String value = syncStatus.textValue();
@@ -898,29 +900,29 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return null;
     }
 
-    protected void updateConnectorSyncState(Status status)
+    protected void updateConnectorState(String state, Status status)
             throws JsonProcessingException, InvalidProtocolBufferException {
-        JsonNode syncStatus = getState().get("syncStatus");
+        JsonNode syncStatus = getState().get(state);
         DataUploadStatus.Builder builder = DataUploadStatus.newBuilder();
         if (syncStatus != null) {
             String value = syncStatus.textValue();
             JsonFormat.parser().ignoringUnknownFields().merge(value, builder);
             builder.setStatus(status);
             String jsonString = JsonFormat.printer().print(builder.build());
-            saveState("syncStatus", jsonString);
+            saveState(state, jsonString);
         } else {
-            updateConnectorSyncState(status, 0);
+            updateConnectorState(state, status, 0);
         }
     }
 
-    protected void updateConnectorSyncState(Status status, double progress)
+    protected void updateConnectorState(String state, Status status, double progress)
             throws JsonProcessingException, InvalidProtocolBufferException {
         DataUploadStatus dataUploadStatus = DataUploadStatus.newBuilder()
                 .setStatus(status)
                 .setProgress(progress)
                 .build();
         String jsonString = JsonFormat.printer().print(dataUploadStatus);
-        saveState("syncStatus", jsonString);
+        saveState(state, jsonString);
     }
 
     protected void saveState(String key, String value) throws JsonProcessingException {
@@ -1158,16 +1160,15 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return bicycleConfig;
     }
 
-    protected void publishPreviewEvents(File file, EventSourceReader<RawEvent> reader, List<RawEvent> vcEvents,
-                                            int maxRecords, int totalRecords,
-                                            boolean saveState, boolean shouldFlush, boolean updateVC)
-            throws Exception {
+    protected int publishPreviewEvents(File file, EventSourceReader<RawEvent> reader, List<RawEvent> vcEvents,
+                                        int maxRecords, int totalRecords, int valid_count,
+                                        boolean saveState, boolean shouldFlush, boolean updateVC)
+                                        throws Exception {
+        int count = 0;
+        int invalid_count = 0;
         try {
             List<RawEvent> validEvents = new ArrayList<>();
             List<RawEvent> inValidEvents = new ArrayList<>();
-            int count = 0;
-            int valid_count = 0;
-            int invalid_count = 0;
             while(reader.hasNext()) {
                 RawEvent next = null;
                 try {
@@ -1194,7 +1195,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                     submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
                     validEvents.clear();
                     if (saveState) {
-                        updateConnectorSyncState(Status.IN_PROGRESS, (double) valid_count/ (double) totalRecords);
+                        updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) valid_count/ (double) totalRecords);
                     }
                 }
                 if (inValidEvents.size() >= BATCH_SIZE) {
@@ -1210,13 +1211,14 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
             submitRecordsToPreviewStoreWithMetadata(getConnectorId(), inValidEvents);
             if (saveState) {
-                updateConnectorSyncState(Status.IN_PROGRESS, (double) valid_count/ (double) totalRecords);
+                updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) valid_count/ (double) totalRecords);
             }
         } finally {
             if (reader != null) {
                 reader.close();
             }
         }
+        return valid_count;
     }
 
     public static class NonEmptyAutoCloseableIterator implements AutoCloseableIterator {

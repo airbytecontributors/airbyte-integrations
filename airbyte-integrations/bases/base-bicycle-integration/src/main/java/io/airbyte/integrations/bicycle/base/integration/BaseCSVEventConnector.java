@@ -3,9 +3,11 @@ package io.airbyte.integrations.bicycle.base.integration;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.inception.server.auth.api.SystemAuthenticator;
+import io.airbyte.integrations.bicycle.base.integration.exception.UnsupportedFormatException;
 import io.bicycle.entity.mapping.SourceFieldMapping;
 import io.bicycle.event.publisher.api.MetadataPreviewEventType;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.common.Status;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.server.event.mapping.UserServiceFieldDef;
 import io.bicycle.server.event.mapping.UserServiceFieldsList;
@@ -51,11 +53,11 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
     }
 
-    protected void processCSVFile(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, File> files)
-                                throws IOException {
+    protected void processCSVFile(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, File> files,
+                                  long totalRecords) throws IOException {
+        long recordsProcessed = 0;
         try {
             long maxTimestamp = getStateAsLong(PROCESS_TIMESTAMP);
-            long recordsProcessed = 0;
             List<RawEvent> rawEvents = new ArrayList<>();
             Map<String, CSVEventSourceReader> readers = new HashMap<>();
             long timestamp = 0;
@@ -82,6 +84,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                     rawEvents.clear();
                     if (success) {
                         saveState(PROCESS_TIMESTAMP, timestamp);
+                        updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
                     }
                 }
             }
@@ -90,6 +93,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 boolean success = processAndPublishEvents(rawEvents);
                 if (success && timestamp > 0) {
                     saveState(PROCESS_TIMESTAMP, timestamp);
+                    updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
                 }
             }
 
@@ -97,17 +101,18 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 readers.get(fileName).close();
             }
 
-            LOGGER.info("Total records processed for stream {} and file name {} is {} with max timestamp {}", getConnectorId(),
-                    recordsProcessed, timestamp);
+            LOGGER.info("Total records processed for stream {} records processed {} total records {} with max timestamp {}",
+                    getConnectorId(), recordsProcessed, totalRecords, timestamp);
 
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    protected Map<Long, List<FileRecordOffset>> readTimestampToFileOffset(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap,
+    protected long readTimestampToFileOffset(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap,
                                                                         String fileName, File csvFile) throws Exception {
         CSVEventSourceReader reader = null;
+        int totalRecords = 0;
         try {
             reader = new CSVEventSourceReader(fileName, csvFile, getConnectorId(), this, READ);
             List<RawEvent> invalidEvents = new ArrayList<>();
@@ -118,6 +123,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                         long timestampInMillis = reader.getRecordUTCTimestampInMillis();
                         timestampToFileOffsetsMap.computeIfAbsent(timestampInMillis,
                                 (recordOffset) -> new ArrayList<>()).add(new FileRecordOffset(fileName, reader.offset));
+                        totalRecords++;
                     } catch (Exception e) {
                         LOGGER.error("Skipped record row[{}] offset[{}]", reader.row, reader.offset, e);
                         invalidEvents.add(next);
@@ -142,7 +148,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 reader.close();
             }
         }
-        return timestampToFileOffsetsMap;
+        return totalRecords;
     }
 
     public static class CSVEventSourceReader extends EventSourceReader<RawEvent> {
@@ -189,6 +195,18 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             } catch (Exception e) {
                 throw new IllegalStateException("Failed to read csv file ["+csvFile+"]", e);
             }
+        }
+
+        public void validateFileFormat() throws IOException, UnsupportedFormatException {
+            accessFile = new RandomAccessFile(csvFile, "r");
+            int count = 0;
+            do {
+                String line = accessFile.readLine();
+                if (line != null && !line.contains(",")) {
+                    throw new UnsupportedFormatException(csvFile.getName());
+                }
+                count++;
+            } while (count < 3);
         }
 
         private void reset() {
