@@ -32,7 +32,6 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
     private static final Logger LOGGER = LoggerFactory.getLogger(BaseCSVEventConnector.class);
 
     protected static final String PROCESS_TIMESTAMP = "PROCESS_TIMESTAMP";
-    protected static final String CONNECTOR_STATE = "CONNECTOR_STATE";
 
     public BaseCSVEventConnector(SystemAuthenticator systemAuthenticator,
                                  EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
@@ -85,6 +84,9 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                     if (success) {
                         saveState(PROCESS_TIMESTAMP, timestamp);
                         updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
+                        LOGGER.info("[{}] : Success published records [{}]", getConnectorId(), recordsProcessed);
+                    } else {
+                        LOGGER.info("[{}] : Failed published records [{}]", getConnectorId(), recordsProcessed);
                     }
                 }
             }
@@ -94,6 +96,9 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 if (success && timestamp > 0) {
                     saveState(PROCESS_TIMESTAMP, timestamp);
                     updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
+                    LOGGER.info("[{}] : Success published records [{}]", getConnectorId(), recordsProcessed);
+                } else {
+                    LOGGER.info("[{}] : Failed published records [{}]", getConnectorId(), recordsProcessed);
                 }
             }
 
@@ -124,6 +129,10 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                         timestampToFileOffsetsMap.computeIfAbsent(timestampInMillis,
                                 (recordOffset) -> new ArrayList<>()).add(new FileRecordOffset(fileName, reader.offset));
                         totalRecords++;
+                        if (totalRecords % 1000 == 0) {
+                            LOGGER.info("[{}] : Processed records by timestamp [{}] [{}]", getConnectorId(),
+                                    totalRecords, timestampInMillis);
+                        }
                     } catch (Exception e) {
                         LOGGER.error("Skipped record row[{}] offset[{}]", reader.row, reader.offset, e);
                         invalidEvents.add(next);
@@ -141,6 +150,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 submitRecordsToPreviewStoreWithMetadata(getConnectorId(), invalidEvents);
                 invalidEvents.clear();
             }
+            LOGGER.info("[{}] : Total records processed [{}]", getConnectorId(), totalRecords);
         } catch (Exception e) {
             throw new IllegalStateException("Error while calculating timestamp to offset map ["+fileName+"]", e);
         } finally {

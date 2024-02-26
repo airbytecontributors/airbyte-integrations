@@ -245,6 +245,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
     public AutoCloseableIterator<AirbyteMessage> doRead(
             JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state){
+        LOGGER.info("Starting ingesting records [{}] [{}] [{}]", getConnectorId(), config, state);
         initialize(config, catalog);
         try {
             Status status = getConnectorStatus(READ_STATUS);
@@ -259,7 +260,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         boolean doesMappingRulesExist = doesMappingRulesExists(getAuthInfo(), eventSourceInfo);
 
         Map<String, String> fileVsSignedUrls = readFilesConfig();
-        LOGGER.info("[{}] : Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
+        LOGGER.info("[{}] : doRead Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
         Map<String, File> files = new HashMap<>();
         for (String fileName : fileVsSignedUrls.keySet()) {
             File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
@@ -282,6 +283,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 throw new IllegalStateException("Failed to register preview events for discovery service ["+fileName+"]", t);
             }
         }
+        LOGGER.info("[{}] : Processed files by timestamp [{}] [{}]", getConnectorId(), totalRecords, timestampToFileOffsetsMap.size());
         try {
             processCSVFile(timestampToFileOffsetsMap, files, totalRecords);
             updateConnectorState(READ_STATUS, Status.COMPLETE);
@@ -292,6 +294,8 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 LOGGER.error("Failed to read ["+getConnectorId()+"]", ex);
             }
             throw new IllegalStateException(e);
+        } finally {
+            publishDummyEvents(getAuthInfo(), eventSourceInfo, 60000);
         }
         return null;
     }
