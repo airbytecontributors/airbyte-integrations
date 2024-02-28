@@ -270,6 +270,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 UserServiceFieldDef startTimeFieldDef = null;
                 List<UserServiceMappingRule> userServiceMappingRules =
                         connector.getUserServiceMappingRules(connector.getAuthInfo(), connector.getEventSourceInfo());
+                LOGGER.info("[{}] : Userservice rules downloaded [{}]", connectorId, userServiceMappingRules);
                 boolean found = false;
                 for (UserServiceMappingRule userServiceMappingRule : userServiceMappingRules) {
                     UserServiceFieldsRule userServiceFields = userServiceMappingRule.getUserServiceFields();

@@ -245,8 +245,8 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
     public AutoCloseableIterator<AirbyteMessage> doRead(
             JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state){
-        LOGGER.info("Starting ingesting records [{}] [{}] [{}]", getConnectorId(), config, state);
         initialize(config, catalog);
+        LOGGER.info("Starting ingesting records [{}] [{}] [{}]", getConnectorId(), config, state);
         try {
             Status status = getConnectorStatus(READ_STATUS);
             if (status != null) {
@@ -295,7 +295,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             }
             throw new IllegalStateException(e);
         } finally {
-            publishDummyEvents(getAuthInfo(), eventSourceInfo, 60000);
+            publishDummyEvents(getAuthInfo(), eventSourceInfo, 600);
         }
         return null;
     }
