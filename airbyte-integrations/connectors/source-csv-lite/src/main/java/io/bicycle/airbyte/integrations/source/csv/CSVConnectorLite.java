@@ -90,6 +90,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             throw new IllegalStateException("Failed to fetch the sync state");
         }
         if (syncStatus != null) {
+            LOGGER.info("Already preview ingesting records [{}] [{}]", getConnectorId(), syncStatus);
             return SyncDataResponse.newBuilder()
                     .setStatus(syncStatus)
                     .setResponse(StatusResponse.newBuilder().setMessage(syncStatus.name()).build())
@@ -245,11 +246,13 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
     public AutoCloseableIterator<AirbyteMessage> doRead(
             JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state){
+        LOGGER.info("Starting doRead [{}] [{}]", config, state);
         initialize(config, catalog);
         LOGGER.info("Starting ingesting records [{}] [{}] [{}]", getConnectorId(), config, state);
         try {
             Status status = getConnectorStatus(READ_STATUS);
             if (status != null) {
+                LOGGER.info("Already ingesting records [{}] [{}] [{}]", getConnectorId(), config, state);
                 return null;
             }
             updateConnectorState(READ_STATUS, Status.STARTED, 0);
