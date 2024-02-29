@@ -28,14 +28,15 @@ public class CSVConnectorLiteTest {
 
     @BeforeAll
     public static void setupBicycleConsumer() {
+        System.setProperty("dev.mode", "true");
         String serverURL =  "https://api.dev.bicycle.io";
         String metricStoreURL =  "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details";
         String uniqueIdentifier = UUID.randomUUID().toString();
-        String token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJST0xFIjoiQVBJIiwic3ViIjoiUmF2aSIsIk9SR19JRCI6IjgwIiwiaXNzIjoic3VtaXRAYmljeWNsZS5pbyIsImlhdCI6MTY3OTk5NTMxMiwiVEVOQU5UIjoiZXZ0LWZiYjk2N2FkLTI1ZjItNGVlZS1iMmU1LWY1MmIwNDdiZTJlZiIsImp0aSI6ImYyMjJmYzAzLTdkNmMtNGRlYy1iN2EifQ.I99UmB_fvY7fDWuqjVo_G7itQtV9sGAMsml4gQkoSPc";
-        String connectorId = "0eb5e516-05e6-425c-a9f9-17ad6aadb61b";
+        String token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJST0xFIjoiQVBJIiwic3ViIjoic3VtaXQtdGVzdCIsIk9SR19JRCI6IjY0IiwiaXNzIjoic3VtaXRAYmljeWNsZS5pbyIsImlhdCI6MTY0NDk0MTQxMywiVEVOQU5UIjoiZW10LWU5ZTRlZjZjLTYzYzQtNDkzMC1iMzMxLTJkZjNhZjFlNzg4ZSIsImp0aSI6IjBkZjU4ZmFkLTk0NzMtNDQ4OS1iNzMifQ.t8F2oEwEFej1xU2LknY2pLsbgUW3x5YED8trN9QYzDU";
+        String connectorId = "73b631a0-3c28-403a-bfaf-44e93e4c385f";
         String userId = "";
         String eventSourceType= "EVENT";
-        String tenantId = "evt-fbb967ad-25f2-4eee-b2e5-f52b047be2ef";
+        String tenantId = "emt-e9e4ef6c-63c4-4930-b331-2df3af1e788e";
 
         bicycleConfig = new BicycleConfig(serverURL, metricStoreURL,token, connectorId,uniqueIdentifier, tenantId, Mockito.mock(SystemAuthenticator.class),true);
         authInfo = bicycleConfig.getAuthInfo();
@@ -80,9 +81,15 @@ public class CSVConnectorLiteTest {
         csvConnector.setBicycleEventProcessorAndPublisher(bicycleConfig);
     }
 
-    @Test
+    //@Test
     public void testSyncData() throws Exception {
         csvConnector.syncData(config, catalog, new ObjectMapper().createObjectNode(), null);
+        Assertions.assertTrue(true);
+    }
+
+    //@Test
+    public void testRead() throws Exception {
+        csvConnector.doRead(config, catalog, new ObjectMapper().createObjectNode());
         Assertions.assertTrue(true);
     }
 

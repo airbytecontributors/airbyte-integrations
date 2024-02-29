@@ -11,6 +11,7 @@ import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.bicycle.base.integration.BaseCSVEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
+import io.airbyte.integrations.bicycle.base.integration.exception.UnsupportedFormatException;
 import io.airbyte.protocol.models.*;
 import io.bicycle.integration.common.Status;
 import io.bicycle.integration.common.StatusResponse;
@@ -27,6 +28,8 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
+
+import static io.airbyte.integrations.bicycle.base.integration.BaseCSVEventConnector.APITYPE.SYNC_DATA;
 
 /**
  * @author <a href="mailto:ravi.noothi@agilitix.ai">Ravi Kiran Noothi</a>
@@ -78,15 +81,20 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
     public SyncDataResponse syncData(JsonNode sourceConfig, ConfiguredAirbyteCatalog catalog,
                                      JsonNode readState, SyncDataRequest syncDataRequest) {
+        LOGGER.info("SyncData ConnectorConfigManager [{}]", connectorConfigManager);
         initialize(sourceConfig, catalog);
-        Status syncState = null;
+        Status syncStatus = null;
         try {
-            syncState = getConnectorSyncStatus();
+            syncStatus = getConnectorStatus(SYNC_STATUS);
         } catch (InvalidProtocolBufferException e) {
             throw new IllegalStateException("Failed to fetch the sync state");
         }
-        if (syncState != null) {
-            return SyncDataResponse.getDefaultInstance();
+        if (syncStatus != null) {
+            LOGGER.info("Already preview ingesting records [{}] [{}]", getConnectorId(), syncStatus);
+            return SyncDataResponse.newBuilder()
+                    .setStatus(syncStatus)
+                    .setResponse(StatusResponse.newBuilder().setMessage(syncStatus.name()).build())
+                    .build();
         }
         Map<String, String> fileVsSignedUrls = readFilesConfig();
         LOGGER.info("[{}] : Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
@@ -94,9 +102,19 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         for (String fileName : fileVsSignedUrls.keySet()) {
             File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
             files.put(fileName, file);
+            //files.put("test.csv", new File("/home/ravi/Downloads/test.csv"));
+            //files.put("kit_requests_clean.csv", new File("/home/ravi/Downloads/kit_requests_clean.csv"));
         }
-        files.put("test", new File("/home/ravi/Downloads/test.csv"));
+        try {
+            updateConnectorState(SYNC_STATUS, Status.STARTED, 0);
+        } catch (Exception e) {
+            LOGGER.error("Failed to update the sync state "+getConnectorId(), e);
+        }
         LOGGER.info("[{}] : Local files Url [{}]", getConnectorId(), files);
+        SyncDataResponse syncDataResponse = validateFileFormats(files);
+        if (syncDataResponse != null) {
+            return syncDataResponse;
+        }
         List<RawEvent> vcEvents = new ArrayList<>();
         for (String fileName : files.keySet()) {
             File file = files.get(fileName);
@@ -104,8 +122,8 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             try {
                 csvReader = null;
                 try {
-                    csvReader = new CSVEventSourceReader(fileName, file, getConnectorId(), this);
-                    publishPreviewEvents(file, csvReader, vcEvents, PREVIEW_RECORDS, 1,
+                    csvReader = new CSVEventSourceReader(fileName, file, getConnectorId(), this, SYNC_DATA);
+                    publishPreviewEvents(file, csvReader, vcEvents, PREVIEW_RECORDS, 1, 0,
                             false, true, true);
                 } finally {
                     if (csvReader != null) {
@@ -116,10 +134,10 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 throw new IllegalStateException("Failed to register preview events for discovery service ["+fileName+"]", t);
             }
         }
-        createTenantVC(vcEvents);
+        //createTenantVC(vcEvents);
         try {
             Future<Object> future = processFiles(files);
-            future.get();
+            //future.get();
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -129,15 +147,43 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 .build();
     }
 
-    private Future<Object> processFiles(Map<String, File> files)
-            throws JsonProcessingException, InvalidProtocolBufferException {
-        updateConnectorSyncState(Status.STARTED, 0);
+    private SyncDataResponse validateFileFormats(Map<String, File> files) {
+        List<UnsupportedFormatException> unsupportedFormatExceptions = new ArrayList<>();
+        for (String fileName : files.keySet()) {
+            File file = files.get(fileName);
+            CSVEventSourceReader csvReader = null;
+            try {
+                csvReader = null;
+                try {
+                    csvReader = new CSVEventSourceReader(fileName, file, getConnectorId(), this, SYNC_DATA);
+                    csvReader.validateFileFormat();
+                } finally {
+                    if (csvReader != null) {
+                        csvReader.close();
+                    }
+                }
+            } catch (UnsupportedFormatException t) {
+                unsupportedFormatExceptions.add(t);
+            } catch (Throwable t) {
+                throw new IllegalStateException("Failed to register preview events for discovery service ["+fileName+"]", t);
+            }
+        }
+        if (!unsupportedFormatExceptions.isEmpty()) {
+            return SyncDataResponse.newBuilder()
+                    .setStatus(Status.ERROR)
+                    .setResponse(StatusResponse.newBuilder().setMessage(Status.ERROR.name()).build())
+                    .build();
+        }
+        return null;
+    }
+
+    private Future<Object> processFiles(Map<String, File> files) {
         BaseEventConnector connector = this;
         Future<Object> future = executorService.submit(new Callable<Object>() {
             @Override
             public Object call() throws Exception {
                 try {
-                    updateConnectorSyncState(Status.IN_PROGRESS, 0);
+                    updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, 0);
                     int total_records = 0;
                     for (String fileName : files.keySet()) {
                         File file = files.get(fileName);
@@ -145,14 +191,19 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                         records = records - 1; //remove header
                         total_records = total_records + records;
                     }
+                    Status status = Status.COMPLETE;
+                    int validCount = 0;
                     for (String fileName : files.keySet()) {
                         File file = files.get(fileName);
                         CSVEventSourceReader csvReader = null;
                         try {
-                            csvReader = new CSVEventSourceReader(fileName, file, getConnectorId(), connector);
-                            publishPreviewEvents(file, csvReader, Collections.emptyList(),
-                                    Integer.MAX_VALUE, total_records,
+                            csvReader = new CSVEventSourceReader(fileName, file, getConnectorId(), connector, SYNC_DATA);
+                            validCount = publishPreviewEvents(file, csvReader, Collections.emptyList(),
+                                    Integer.MAX_VALUE, total_records, validCount,
                                     true, false, false);
+                            if (csvReader.getStatus() != null && csvReader.getStatus().equals(ReaderStatus.FAILED)) {
+                                status = Status.ERROR;
+                            }
                         } finally {
                             if (csvReader != null) {
                                 csvReader.close();
@@ -160,10 +211,10 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                         }
                     }
                     LOGGER.info("[{}] : Raw events total - Total Count[{}]", getConnectorId(), total_records);
-                    updateConnectorSyncState(Status.COMPLETE);
+                    updateConnectorState(SYNC_STATUS, status);
                 } catch (Throwable t) {
                     LOGGER.error("Failed to submit records to preview store [{}]", getConnectorId(), t);
-                    updateConnectorSyncState(Status.ERROR);
+                    updateConnectorState(SYNC_STATUS, Status.ERROR);
                 }
                 return null;
             }
@@ -195,40 +246,61 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
     public AutoCloseableIterator<AirbyteMessage> doRead(
             JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state){
-        String connectorState = getStateAsString(CONNECTOR_STATE);
-        if (connectorState != null && connectorState.equalsIgnoreCase("DONE")) {
-            return null;
+        LOGGER.info("Starting doRead [{}] [{}]", config, state);
+        initialize(config, catalog);
+        LOGGER.info("Starting ingesting records [{}] [{}] [{}]", getConnectorId(), config, state);
+        try {
+            Status status = getConnectorStatus(READ_STATUS);
+            if (status != null) {
+                LOGGER.info("Already ingesting records [{}] [{}] [{}]", getConnectorId(), config, state);
+                return null;
+            }
+            updateConnectorState(READ_STATUS, Status.STARTED, 0);
+        } catch (Throwable e) {
+            throw new IllegalStateException("Failed to update the sync state ["+getConnectorId()+"]");
         }
         EventSourceInfo eventSourceInfo = new EventSourceInfo(getConnectorId(), getEventSourceType());
         boolean doesMappingRulesExist = doesMappingRulesExists(getAuthInfo(), eventSourceInfo);
 
         Map<String, String> fileVsSignedUrls = readFilesConfig();
-        LOGGER.info("[{}] : Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
+        LOGGER.info("[{}] : doRead Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
         Map<String, File> files = new HashMap<>();
         for (String fileName : fileVsSignedUrls.keySet()) {
             File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
             files.put(fileName, file);
-            files.put(fileName, new File("/home/ravi/Downloads/test.csv"));
+            //files.put(fileName, new File("/home/ravi/Downloads/test.csv"));
         }
 
+        try {
+            updateConnectorState(READ_STATUS, Status.IN_PROGRESS, 0);
+        } catch (Throwable e) {
+            throw new IllegalStateException("Failed to update the sync state ["+getConnectorId()+"]");
+        }
         Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap = new HashMap<>();
+        long totalRecords = 0;
         for (String fileName : files.keySet()) {
             File file = files.get(fileName);
             try {
-                readTimestampToFileOffset(timestampToFileOffsetsMap, fileName, file);
+                totalRecords = readTimestampToFileOffset(timestampToFileOffsetsMap, fileName, file);
             } catch (Throwable t) {
                 throw new IllegalStateException("Failed to register preview events for discovery service ["+fileName+"]", t);
             }
         }
+        LOGGER.info("[{}] : Processed files by timestamp [{}] [{}]", getConnectorId(), totalRecords, timestampToFileOffsetsMap.size());
         try {
-            processCSVFile(timestampToFileOffsetsMap, files);
-            saveState(CONNECTOR_STATE, "DONE");
+            processCSVFile(timestampToFileOffsetsMap, files, totalRecords);
+            updateConnectorState(READ_STATUS, Status.COMPLETE);
         } catch (IOException e) {
             try {
-                saveState(CONNECTOR_STATE, "FAILED");
-            } catch (JsonProcessingException ex) {
+                updateConnectorState(READ_STATUS, Status.ERROR);
+            } catch (Throwable ex) {
+                LOGGER.error("Failed to read ["+getConnectorId()+"]", ex);
             }
             throw new IllegalStateException(e);
+        } finally {
+            publishDummyEvents(getAuthInfo(), eventSourceInfo, 600);
+            stopEventConnector();
+            LOGGER.info("doRead Done");
         }
         return null;
     }

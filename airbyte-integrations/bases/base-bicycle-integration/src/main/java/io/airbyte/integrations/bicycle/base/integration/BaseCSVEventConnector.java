@@ -3,9 +3,11 @@ package io.airbyte.integrations.bicycle.base.integration;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.inception.server.auth.api.SystemAuthenticator;
+import io.airbyte.integrations.bicycle.base.integration.exception.UnsupportedFormatException;
 import io.bicycle.entity.mapping.SourceFieldMapping;
 import io.bicycle.event.publisher.api.MetadataPreviewEventType;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.common.Status;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.server.event.mapping.UserServiceFieldDef;
 import io.bicycle.server.event.mapping.UserServiceFieldsList;
@@ -23,12 +25,13 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.util.*;
 
+import static io.airbyte.integrations.bicycle.base.integration.BaseCSVEventConnector.APITYPE.READ;
+
 public abstract class BaseCSVEventConnector extends BaseEventConnector {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BaseCSVEventConnector.class);
 
     protected static final String PROCESS_TIMESTAMP = "PROCESS_TIMESTAMP";
-    protected static final String CONNECTOR_STATE = "CONNECTOR_STATE";
 
     public BaseCSVEventConnector(SystemAuthenticator systemAuthenticator,
                                  EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
@@ -49,11 +52,11 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
     }
 
-    protected void processCSVFile(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, File> files)
-                                throws IOException {
+    protected void processCSVFile(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, File> files,
+                                  long totalRecords) throws IOException {
+        long recordsProcessed = 0;
         try {
             long maxTimestamp = getStateAsLong(PROCESS_TIMESTAMP);
-            long recordsProcessed = 0;
             List<RawEvent> rawEvents = new ArrayList<>();
             Map<String, CSVEventSourceReader> readers = new HashMap<>();
             long timestamp = 0;
@@ -67,9 +70,10 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 List<FileRecordOffset> fileRecordOffsets = entry.getValue();
                 for (FileRecordOffset fileRecordOffset: fileRecordOffsets) {
                     CSVEventSourceReader reader = readers.computeIfAbsent(fileRecordOffset.fileName,
-                            (fileName) -> new CSVEventSourceReader(fileName, files.get(fileName), getConnectorId(), this));
+                            (fileName) -> new CSVEventSourceReader(fileName, files.get(fileName), getConnectorId(), this, READ));
                     long offset = fileRecordOffset.offset;
-                    reader.seek(offset);
+                    long rowCounter = fileRecordOffset.rowCounter;
+                    reader.seek(offset, rowCounter);
                     RawEvent next = reader.next();
                     rawEvents.add(next);
                     recordsProcessed++;
@@ -77,8 +81,13 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
 
                 if (rawEvents.size() >= BATCH_SIZE) {
                     boolean success = processAndPublishEvents(rawEvents);
+                    rawEvents.clear();
                     if (success) {
                         saveState(PROCESS_TIMESTAMP, timestamp);
+                        updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
+                        LOGGER.info("[{}] : Success published records [{}]", getConnectorId(), recordsProcessed);
+                    } else {
+                        LOGGER.info("[{}] : Failed published records [{}]", getConnectorId(), recordsProcessed);
                     }
                 }
             }
@@ -87,6 +96,10 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 boolean success = processAndPublishEvents(rawEvents);
                 if (success && timestamp > 0) {
                     saveState(PROCESS_TIMESTAMP, timestamp);
+                    updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
+                    LOGGER.info("[{}] : Success published records [{}]", getConnectorId(), recordsProcessed);
+                } else {
+                    LOGGER.info("[{}] : Failed published records [{}]", getConnectorId(), recordsProcessed);
                 }
             }
 
@@ -94,25 +107,51 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 readers.get(fileName).close();
             }
 
-            LOGGER.info("Total records processed for stream {} and file name {} is {} with max timestamp {}", getConnectorId(),
-                    recordsProcessed, timestamp);
-
+            LOGGER.info("Total records processed for stream {} records processed {} total records {} with max timestamp {}",
+                    getConnectorId(), recordsProcessed, totalRecords, timestamp);
+            updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    protected Map<Long, List<FileRecordOffset>> readTimestampToFileOffset(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap,
+    protected long readTimestampToFileOffset(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap,
                                                                         String fileName, File csvFile) throws Exception {
         CSVEventSourceReader reader = null;
+        int totalRecords = 0;
         try {
-            reader = new CSVEventSourceReader(fileName, csvFile, getConnectorId(), this);
+            reader = new CSVEventSourceReader(fileName, csvFile, getConnectorId(), this, READ);
+            List<RawEvent> invalidEvents = new ArrayList<>();
             while (reader.hasNext()) {
-                reader.next();
-                long timestampInMillis = reader.getRecordUTCTimestampInMillis();
-                timestampToFileOffsetsMap.computeIfAbsent(timestampInMillis,
-                        (recordOffset) -> new ArrayList<>()).add(new FileRecordOffset(fileName, reader.offset));
+                RawEvent next = reader.next();
+                if (reader.isValidEvent()) {
+                    try {
+                        long timestampInMillis = reader.getRecordUTCTimestampInMillis();
+                        timestampToFileOffsetsMap.computeIfAbsent(timestampInMillis,
+                                (recordOffset) -> new ArrayList<>()).add(new FileRecordOffset(fileName, reader.offset, reader.rowCounter));
+                        totalRecords++;
+                        if (totalRecords % 1000 == 0) {
+                            LOGGER.info("[{}] : Processed records by timestamp [{}] [{}]", getConnectorId(),
+                                    totalRecords, timestampInMillis);
+                        }
+                    } catch (Exception e) {
+                        LOGGER.error("Skipped record row[{}] offset[{}]", reader.row, reader.rowCounter, e);
+                        invalidEvents.add(next);
+                    }
+                } else {
+                    LOGGER.info("Skipped record row[{}] offset[{}]", reader.row, reader.rowCounter);
+                    invalidEvents.add(next);
+                }
+                if (invalidEvents.size() >= BATCH_SIZE) {
+                    submitRecordsToPreviewStoreWithMetadata(getConnectorId(), invalidEvents);
+                    invalidEvents.clear();
+                }
             }
+            if (invalidEvents.size() >= 0) {
+                submitRecordsToPreviewStoreWithMetadata(getConnectorId(), invalidEvents);
+                invalidEvents.clear();
+            }
+            LOGGER.info("[{}] : Total records processed [{}]", getConnectorId(), totalRecords);
         } catch (Exception e) {
             throw new IllegalStateException("Error while calculating timestamp to offset map ["+fileName+"]", e);
         } finally {
@@ -120,7 +159,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 reader.close();
             }
         }
-        return timestampToFileOffsetsMap;
+        return totalRecords;
     }
 
     public static class CSVEventSourceReader extends EventSourceReader<RawEvent> {
@@ -133,7 +172,12 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         private RawEvent nextEvent;
         private CSVRecord csvRecord;
         private long offset = -1;
+        private long rowCounter = 0;
+        private ReaderStatus status = ReaderStatus.SUCCESS;
         private BaseEventConnector connector;
+        private APITYPE apiType;
+
+        private SourceFieldMapping fieldMapping;
 
         protected ObjectMapper mapper = new ObjectMapper();
 
@@ -142,11 +186,13 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         private long counter = 0;
         private long nullRows = 0;
 
-        public CSVEventSourceReader(String name, File csvFile, String connectorId, BaseEventConnector connector) {
+        public CSVEventSourceReader(String name, File csvFile, String connectorId,
+                                    BaseEventConnector connector, APITYPE apiType) {
             this.name = name;
             this.connectorId = connectorId;
             this.csvFile = csvFile;
             this.connector = connector;
+            this.apiType = apiType;
             initialize();
         }
 
@@ -154,6 +200,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             try {
                 accessFile = new RandomAccessFile(csvFile, "r");
                 String headersLine = accessFile.readLine();
+                rowCounter++;
                 headerNameToIndexMap = getHeaderNameToIndexMap(headersLine);
                 if (headerNameToIndexMap.isEmpty()) {
                     throw new RuntimeException("Unable to read headers from csv file " + csvFile + " for " + connectorId);
@@ -161,6 +208,18 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             } catch (Exception e) {
                 throw new IllegalStateException("Failed to read csv file ["+csvFile+"]", e);
             }
+        }
+
+        public void validateFileFormat() throws IOException, UnsupportedFormatException {
+            RandomAccessFile accessFile = new RandomAccessFile(csvFile, "r");
+            int count = 0;
+            do {
+                String line = accessFile.readLine();
+                if (line != null && !line.contains(",")) {
+                    throw new UnsupportedFormatException(csvFile.getName());
+                }
+                count++;
+            } while (count < 3);
         }
 
         private void reset() {
@@ -171,10 +230,11 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             csvRecord = null;
         }
 
-        public void seek(long offset) throws IOException {
+        public void seek(long offset, long rowCounter) throws IOException {
             this.accessFile.seek(offset);
             this.row = accessFile.readLine();
             this.offset = offset;
+            this.rowCounter = rowCounter;
         }
 
         public boolean hasNext() {
@@ -183,6 +243,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 try {
                     row = accessFile.readLine();
                     offset = accessFile.getFilePointer();
+                    rowCounter++;
                     if (!StringUtils.isEmpty(row)) {
                         return true;
                     } else if (StringUtils.isEmpty(row)) {
@@ -202,28 +263,24 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
 
         public long getRecordUTCTimestampInMillis() {
-            UserServiceFieldDef startTimeFieldDef = null;
-            List<UserServiceMappingRule> userServiceMappingRules =
-                    connector.getUserServiceMappingRules(connector.getAuthInfo(), connector.eventSourceInfo);
-            boolean found = false;
-            for (UserServiceMappingRule userServiceMappingRule : userServiceMappingRules) {
-                UserServiceFieldsRule userServiceFields = userServiceMappingRule.getUserServiceFields();
-                List<UserServiceFieldDef> commonFieldsList = userServiceFields.getCommonFieldsList();
-                for (UserServiceFieldDef userServiceFieldDef : commonFieldsList) {
-                    if (userServiceFieldDef.getPredefinedFieldType().equals("startTimeMicros")) {
-                        startTimeFieldDef = userServiceFieldDef;
-                        found = true;
-                        break;
-                    }
-                }
-                if (found) {
-                    break;
-                }
+            SourceFieldMapping fieldMapping = getSourceFieldMapping();
+            long valueInMicros = (long) nextEvent.getFieldValue(fieldMapping, Collections.emptyMap(), connector.getAuthInfo());
+            return valueInMicros / 1000;
+        }
 
-                Map<String, UserServiceFieldsList> userServiceFieldsMap = userServiceFields.getUserServiceFieldsMap();
-                for (String key : userServiceFieldsMap.keySet()) {
-                    UserServiceFieldsList userServiceFieldsList = userServiceFieldsMap.get(key);
-                    for (UserServiceFieldDef userServiceFieldDef : userServiceFieldsList.getUserServiceFieldList()) {
+        private SourceFieldMapping getSourceFieldMapping() {
+            if (fieldMapping != null) {
+                return fieldMapping;
+            } else {
+                UserServiceFieldDef startTimeFieldDef = null;
+                List<UserServiceMappingRule> userServiceMappingRules =
+                        connector.getUserServiceMappingRules(connector.getAuthInfo(), connector.getEventSourceInfo());
+                LOGGER.info("[{}] : Userservice rules downloaded [{}]", connectorId, userServiceMappingRules);
+                boolean found = false;
+                for (UserServiceMappingRule userServiceMappingRule : userServiceMappingRules) {
+                    UserServiceFieldsRule userServiceFields = userServiceMappingRule.getUserServiceFields();
+                    List<UserServiceFieldDef> commonFieldsList = userServiceFields.getCommonFieldsList();
+                    for (UserServiceFieldDef userServiceFieldDef : commonFieldsList) {
                         if (userServiceFieldDef.getPredefinedFieldType().equals("startTimeMicros")) {
                             startTimeFieldDef = userServiceFieldDef;
                             found = true;
@@ -233,18 +290,32 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                     if (found) {
                         break;
                     }
-                }
-                if (found) {
-                    break;
-                }
-            }
-            if (startTimeFieldDef == null) {
-                throw new IllegalStateException("timestamp field is not discovered yet");
-            }
 
-            SourceFieldMapping fieldMapping = startTimeFieldDef.getFieldMapping();
-            long valueInMicros = (long) nextEvent.getFieldValue(fieldMapping, Collections.emptyMap(), connector.getAuthInfo());
-            return valueInMicros / 1000;
+                    Map<String, UserServiceFieldsList> userServiceFieldsMap = userServiceFields.getUserServiceFieldsMap();
+                    for (String key : userServiceFieldsMap.keySet()) {
+                        UserServiceFieldsList userServiceFieldsList = userServiceFieldsMap.get(key);
+                        for (UserServiceFieldDef userServiceFieldDef : userServiceFieldsList.getUserServiceFieldList()) {
+                            if (userServiceFieldDef.getPredefinedFieldType().equals("startTimeMicros")) {
+                                startTimeFieldDef = userServiceFieldDef;
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (found) {
+                            break;
+                        }
+                    }
+                    if (found) {
+                        break;
+                    }
+                }
+                if (startTimeFieldDef == null) {
+                    throw new IllegalStateException("timestamp field is not discovered yet");
+                }
+
+                fieldMapping = startTimeFieldDef.getFieldMapping();
+                return fieldMapping;
+            }
         }
 
         private UserServiceFieldDef findStartTimeMicros(List<UserServiceFieldDef> fieldsList) {
@@ -282,14 +353,31 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
 
         public RawEvent next() {
-            csvRecord = getCsvRecord(offset, row, headerNameToIndexMap);
+            String errorMessage = null;
             try {
-                nextEvent = convertRecordsToRawEvents(headerNameToIndexMap, csvRecord, offset, name);
                 counter++;
-                return nextEvent;
+                csvRecord = getCsvRecord(rowCounter, row, headerNameToIndexMap);
+                if (csvRecord != null) {
+                    nextEvent = convertRecordsToRawEvents(headerNameToIndexMap, csvRecord, rowCounter, name);
+                    return nextEvent;
+                }
             } catch (Exception e) {
-                throw new IllegalStateException("Failed Parsing ["+row+"] ["+offset+"]");
+                validEvent = false;
+                errorMessage = "["+e.getMessage() + "] ["+rowCounter+"] ["+row+"]";
+                LOGGER.error("Failed Parsing ["+row+"] ["+rowCounter+"]", e);
+            } finally {
+                if (!isValidEvent()) {
+                    status = ReaderStatus.FAILED;
+                }
             }
+            ObjectNode node = mapper.createObjectNode();
+            node.put("bicycle.raw.event.record", row);
+            nextEvent = getJsonRawEvent(rowCounter, name, node, errorMessage);
+            return nextEvent;
+        }
+
+        public ReaderStatus getStatus() {
+            return status;
         }
 
         public void close() throws Exception {
@@ -298,7 +386,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             }
         }
 
-        private CSVRecord getCsvRecord(long offset, String row, Map<String, Integer> headerNameToIndexMap) {
+        private CSVRecord getCsvRecord(long rowCounter, String row, Map<String, Integer> headerNameToIndexMap) {
             String streamId = connectorId;
             try {
                 CSVParser csvParser = CSVParser.parse(new StringReader(row), CSVFormat.DEFAULT);
@@ -310,7 +398,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 return record;
             } catch (Throwable e) {
                 LOGGER.error("Failed to parse the row [{}] [{}] for stream Id [{}]. Row will be ignored",
-                        offset, row, streamId, e);
+                        rowCounter, row, streamId, e);
             }
             return null;
         }
@@ -336,38 +424,63 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
 
         public RawEvent convertRecordsToRawEvents(Map<String, Integer> headerNameToIndexMap, CSVRecord record,
-                                                  long offset, String fileName)
+                                                  long rowCounter, String fileName)
                 throws Exception {
             ObjectNode node = mapper.createObjectNode();
-            for (String key : headerNameToIndexMap.keySet()) {
-                int index = headerNameToIndexMap.get(key);
-                String value = record.get(index);
-                node.put(key, value);
-            }
             if (headerNameToIndexMap.size() != record.size()) {
                 validEvent = false;
             } else {
                 validEvent = true;
             }
-            node.put("bicycle.raw.event.identifier", String.valueOf(offset));
+            String errorMessage = null;
+            if (validEvent) {
+                for (String key : headerNameToIndexMap.keySet()) {
+                    int index = headerNameToIndexMap.get(key);
+                    String value = record.get(index);
+                    node.put(key, value);
+                }
+            } else {
+                node.put("bicycle.raw.event.record", row);
+                errorMessage = "Headers and fields count does not match";
+            }
+            JsonRawEvent jsonRawEvent = getJsonRawEvent(rowCounter, fileName, node, errorMessage);
+            return jsonRawEvent;
+        }
+
+        private JsonRawEvent getJsonRawEvent(long rowCounter, String fileName, ObjectNode node, String errorMessage) {
+            node.put("bicycle.raw.event.identifier", String.valueOf(rowCounter));
             if (!validEvent) {
-                node.put("bicycle.metadata.eventType", MetadataPreviewEventType.SYNC_ERROR.name());
+                if (apiType.equals(APITYPE.SYNC_DATA)) {
+                    node.put("bicycle.metadata.eventType", MetadataPreviewEventType.SYNC_ERROR.name());
+                } else if (apiType.equals(READ)) {
+                    node.put("bicycle.metadata.eventType", MetadataPreviewEventType.READ_ERROR.name());
+                }
             }
             node.put("bicycle.eventSourceId", connectorId);
-            node.put("bicycle.raw.event.error", "");
+            if (errorMessage != null) {
+                node.put("bicycle.raw.event.error", errorMessage);
+            }
             node.put("bicycle.filename", fileName);
             JsonRawEvent jsonRawEvent = connector.createJsonRawEvent(node);
             return jsonRawEvent;
         }
     }
 
+    public enum APITYPE {
+        SYNC_DATA,
+        READ
+    }
+
     public static class FileRecordOffset {
 
         private String fileName;
         private long offset;
-        public FileRecordOffset(String fileName, long offset) {
+        private long rowCounter;
+
+        public FileRecordOffset(String fileName, long offset, long rowCounter) {
             this.fileName = fileName;
             this.offset = offset;
+            this.rowCounter = rowCounter;
         }
 
     }
