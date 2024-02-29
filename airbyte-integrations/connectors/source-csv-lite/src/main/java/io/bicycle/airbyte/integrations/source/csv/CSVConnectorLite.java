@@ -299,6 +299,8 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             throw new IllegalStateException(e);
         } finally {
             publishDummyEvents(getAuthInfo(), eventSourceInfo, 600);
+            stopEventConnector();
+            LOGGER.info("doRead Done");
         }
         return null;
     }

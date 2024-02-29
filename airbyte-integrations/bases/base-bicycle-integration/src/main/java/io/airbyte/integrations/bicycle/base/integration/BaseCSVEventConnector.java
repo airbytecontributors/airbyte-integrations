@@ -109,7 +109,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
 
             LOGGER.info("Total records processed for stream {} records processed {} total records {} with max timestamp {}",
                     getConnectorId(), recordsProcessed, totalRecords, timestamp);
-
+            updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
