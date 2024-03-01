@@ -241,8 +241,8 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             reset();
             do {
                 try {
-                    row = accessFile.readLine();
                     offset = accessFile.getFilePointer();
+                    row = accessFile.readLine();
                     rowCounter++;
                     if (!StringUtils.isEmpty(row)) {
                         return true;
@@ -258,7 +258,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                     LOGGER.error("Error while calculating timestamp to offset map for a row [{}] for stream Id [{}]",
                             row, connectorId, e);
                 }
-            } while (nullRows < 5000);
+            } while (nullRows < 200);
             return false;
         }
 
