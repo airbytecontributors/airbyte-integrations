@@ -1,0 +1,72 @@
+{
+  "documentationUrl" : " https://docs.airbyte.io/integrations/sources/google-sheets",
+  "connectionSpecification" : {
+    "$schema" : "http://json-schema.org/draft-07/schema#",
+    "title" : "Google Sheets Spec",
+    "type" : "object",
+    "required" : [
+      "spreadsheet_id",
+      "credentials"
+    ],
+    "additionalProperties" : true,
+    "properties" : {
+      "spreadsheet_id" : {
+        "order" : 1,
+        "type" : "string",
+        "title" : "Spreadsheet Link",
+        "description" : "The link to your spreadsheet. See <a\n        href='https://docs.airbyte.com/integrations/sources/google-sheets#sheetlink'>this\n        guide</a> for more details.",
+        "examples" : [
+          "https://docs.google.com/spreadsheets/d/1hLd9Qqti3UyLXZB2aFfUWDT7BG-arw2xy4HR3D-dwUb/edit"
+        ]
+      },
+      "credentials" : {
+        "order" : 2,
+        "type" : "object",
+        "title" : "Credentials",
+        "description" : "Credentials for the service",
+        "oneOf" : [
+          {
+            "type" : "object",
+            "title" : "Service Account Key Authentication",
+            "required" : [
+              "credentials_json"
+            ],
+            "properties" : {
+              "auth_type" : {
+                "type" : "string",
+                "const" : "Service",
+                "order" : 0
+              },
+              "credentials_json" : {
+                "title" : "Service Account JSON Key",
+                "type" : "string",
+                "description" : "The JSON key of the service account to use for authorization",
+                "examples" : [
+                  "{ \"type\": \"service_account\", \"project_id\": YOUR_PROJECT_ID, \"private_key_id\": YOUR_PRIVATE_KEY, ... }"
+                ],
+                "airbyte_secret" : true
+              }
+            }
+          }
+        ]
+      },
+      "readTrackingColumn" : {
+        "order" : 3,
+        "type" : "string",
+        "title" : "Read Tracking Column",
+        "description" : "Column that can be used to track the read progress. ",
+        "default" : "rowNumber",
+        "examples" : [
+          "Any timestamp field that represents the event time"
+        ]
+      },
+      "readTrackingColumnFormat" : {
+        "order" : 3,
+        "type" : "string",
+        "title" : "Read Tracking Column Format",
+        "description" : "The format of Read Tracking Column if column value represents a timestamp",
+        "default" : "NA"
+      }
+    }
+  }
+}

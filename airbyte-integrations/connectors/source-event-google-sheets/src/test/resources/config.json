@@ -1,0 +1,9 @@
+{
+  "spreadsheet_id": "",
+  "readTrackingColumn": "rowNumber",
+  "readTrackingColumnFormat": "NA",
+  "credentials": {
+    "auth_type": "Service",
+    "credentials_json": ""
+  }
+}
