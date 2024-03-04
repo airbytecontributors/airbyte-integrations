@@ -1,0 +1,33 @@
+{
+  "streams" : [
+    {
+      "stream" : {
+        "name" : "Payfactory.MerchantTable.csv",
+        "json_schema" : {
+          "$schema" : "http://json-schema.org/draft-07/schema#",
+          "type" : "object",
+          "properties" : {
+            "ID" : {
+              "type" : "string"
+            },
+            "Name" : {
+              "type" : "string"
+            }
+          }
+        },
+        "supported_sync_modes" : [
+          "full_refresh"
+        ],
+        "source_defined_cursor" : false
+      },
+      "sync_mode" : "full_refresh",
+      "destination_sync_mode" : "overwrite"
+    }
+  ],
+  "bicycleServerURL" : "https://api.dev.bicycle.io",
+  "bicycleConnectorId" : "6e132796-390e-495b-ba86-70dba9935343",
+  "bicycleEventSourceType" : "source-event-google-sheets",
+  "bicycleMetricStoreURL" : "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details",
+  "isOnPrem" : false,
+  "bicycleTenantId" : "evt-fbb967ad-25f2-4eee-b2e5-f52b047be2ef"
+}
