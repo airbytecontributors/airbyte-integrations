@@ -32,7 +32,7 @@ repositories {
     mavenCentral()
 }
 
-ext.bicyleEventProcessorVersion = "0.2.55440"
+ext.bicyleEventProcessorVersion = "0.2.56608"
 ext.modellingServiceApiVersion = "0.2.55441"
 ext.metaPipelineVersion = "0.2.55447"
 ext.tenantAiVersion = "0.2.54028"

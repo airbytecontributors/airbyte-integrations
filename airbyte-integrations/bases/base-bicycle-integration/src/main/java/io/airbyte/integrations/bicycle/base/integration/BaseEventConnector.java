@@ -58,6 +58,7 @@ import io.bicycle.integration.common.services.config.ConnectorConfigServiceImpl;
 import io.bicycle.integration.common.utils.BlobStoreBroker;
 import io.bicycle.integration.connector.*;
 import io.bicycle.modelling.service.v2.DataUploadStatus;
+import io.bicycle.preview.store.PreviewStoreClient;
 import io.bicycle.server.verticalcontext.tenant.api.VerticalIdentifier;
 import io.bicycle.tenant.ai.client.TenantSummaryDiscovererClient;
 import io.bicycle.integration.common.transformation.TransformationImpl;
@@ -98,6 +99,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private static final int READ_TIMEOUT_IN_MILLIS = 60000;
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getName());
     private final ConfigHelper configHelper = new ConfigHelper();
+    protected PreviewStoreClient previewStoreClient;
     protected ConfigStoreClient configStoreClient;
     protected SchemaStoreApiClient schemaStoreApiClient;
     protected EntityStoreApiClient entityStoreApiClient;
@@ -109,7 +111,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     protected ObjectMapper mapper = new ObjectMapper();
     protected ConnectorConfigService connectorConfigService;
-    private BicycleEventProcessor bicycleEventProcessor;
+    protected BicycleEventProcessor bicycleEventProcessor;
     protected BicycleEventPublisher bicycleEventPublisher;
     protected TransformationImpl dataTransformer;
     protected BicycleConfig bicycleConfig;
@@ -445,18 +447,11 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             configStoreClient = getConfigClient(bicycleConfig);
             schemaStoreApiClient = getSchemaStoreApiClient(bicycleConfig);
             entityStoreApiClient = getEntityStoreApiClient(bicycleConfig);
+            previewStoreClient = getPreviewStoreClient(bicycleConfig);
             tenantSummaryDiscovererClient = getTenantSummaryDiscovererClient(bicycleConfig);
             dataTransformer
                     = new TransformationImpl(schemaStoreApiClient, entityStoreApiClient, configStoreClient,
                     getTraceQueryClient(bicycleConfig), new MetricUtilWrapper());
-            this.bicycleEventProcessor =
-                    new BicycleEventProcessorImpl(
-                            BicycleEventPublisherType.BICYCLE_EVENTS,
-                            configStoreClient,
-                            schemaStoreApiClient,
-                            entityStoreApiClient,
-                            dataTransformer
-                    );
             EventMappingConfigurations eventMappingConfigurations =
                     new EventMappingConfigurations(
                             bicycleConfig.getServerURL(),
@@ -472,11 +467,23 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             if (connectorConfigManager == null && "true".equalsIgnoreCase(System.getProperty("dev.mode", "false"))) {
                 connectorConfigManager = new ConnectorConfigManager(Collections.emptySet(), getConfigClient(bicycleConfig), systemAuthenticator, false);
             }
+            setBicycleEventProcessor();
             this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, systemAuthenticator,
                     true, dataTransformer, connectorConfigManager);
         } catch (Throwable e) {
             logger.error("Exception while setting bicycle event process and publisher", e);
         }
+    }
+
+    protected void setBicycleEventProcessor() {
+        this.bicycleEventProcessor =
+                new BicycleEventProcessorImpl(
+                        BicycleEventPublisherType.BICYCLE_EVENTS,
+                        configStoreClient,
+                        schemaStoreApiClient,
+                        entityStoreApiClient,
+                        dataTransformer
+                );
     }
 
     public JsonRawEvent createJsonRawEvent(JsonNode jsonNode) {
@@ -532,6 +539,15 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     private static EntityStoreApiClient getEntityStoreApiClient(BicycleConfig bicycleConfig) {
         return new EntityStoreApiClient(new GenericApiClient(), new ServiceLocator() {
+            @Override
+            public String getBaseUri() {
+                return bicycleConfig.getServerURL();
+            }
+        });
+    }
+
+    private PreviewStoreClient getPreviewStoreClient(BicycleConfig bicycleConfig) {
+        return new PreviewStoreClient(new GenericApiClient(), new ServiceLocator() {
             @Override
             public String getBaseUri() {
                 return bicycleConfig.getServerURL();

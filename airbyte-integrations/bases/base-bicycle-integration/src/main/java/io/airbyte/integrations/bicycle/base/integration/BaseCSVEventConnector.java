@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.inception.server.auth.api.SystemAuthenticator;
 import io.airbyte.integrations.bicycle.base.integration.exception.UnsupportedFormatException;
 import io.bicycle.entity.mapping.SourceFieldMapping;
-import io.bicycle.event.publisher.api.MetadataPreviewEventType;
+import io.bicycle.event.processor.impl.BicycleEventProcessorImpl;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.integration.common.Status;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
@@ -13,6 +13,8 @@ import io.bicycle.server.event.mapping.UserServiceFieldDef;
 import io.bicycle.server.event.mapping.UserServiceFieldsList;
 import io.bicycle.server.event.mapping.UserServiceFieldsRule;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
+import io.bicycle.server.event.mapping.api.MetadataPreviewEventType;
+import io.bicycle.server.event.mapping.constants.BicycleEventPublisherType;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import java.nio.charset.Charset;
 import org.apache.commons.csv.CSVFormat;
@@ -37,6 +39,20 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                                  EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
                                  ConnectorConfigManager connectorConfigManager) {
         super(systemAuthenticator, eventConnectorJobStatusNotifier, connectorConfigManager);
+    }
+
+    protected void setBicycleEventProcessor() {
+        this.bicycleEventProcessor =
+                new BicycleEventProcessorImpl(
+                        BicycleEventPublisherType.BICYCLE_EVENTS,
+                        configStoreClient,
+                        schemaStoreApiClient,
+                        entityStoreApiClient,
+                        previewStoreClient,
+                        systemAuthenticator,
+                        connectorConfigManager,
+                        dataTransformer
+                );
     }
 
     protected int totalRecords(File file) {
