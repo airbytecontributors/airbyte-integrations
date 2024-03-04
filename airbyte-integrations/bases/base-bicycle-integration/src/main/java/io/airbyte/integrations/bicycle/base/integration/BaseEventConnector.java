@@ -220,10 +220,10 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         this.blobStoreBroker = new BlobStoreBroker(getBlobStoreClient());
         this.tenantServiceApiClient = getTenantServiceApiClient();
         this.bicycleConfig = getBicycleConfig(additionalProperties, systemAuthenticator);
+        getConnectionServiceClient();
         setBicycleEventProcessorAndPublisher(bicycleConfig);
         this.state = getStateAsJsonNode(getAuthInfo(), getConnectorId());
         this.eventSourceInfo = new EventSourceInfo(getConnectorId(), getEventSourceType());
-        getConnectionServiceClient();
         this.connectorConfigService = new ConnectorConfigServiceImpl(configStoreClient, schemaStoreApiClient,
                 entityStoreApiClient, null, null,
                 null, systemAuthenticator, blobStoreBroker, null, null);
