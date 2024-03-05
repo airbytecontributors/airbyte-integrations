@@ -162,7 +162,7 @@ public class GoogleSheetReadUtil {
             recordsProcessedCounter += recordsProcessed.size() - 1;
         }
 
-        LOGGER.info("Records processed for spread sheet Id {}, sheet name {} are {}", sheetId, sheetId,
+        LOGGER.info("Records processed for spread sheet Id {}, sheet name {} are", sheetId, sheetId,
                 recordsProcessedCounter);
 
         return publishedEvents;
