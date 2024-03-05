@@ -12,5 +12,7 @@ public class GoogleSheetConstants {
     public static final String CONFIG_CREDENTIALS_JSON = "credentials_json";
     public static final String CONFIG_READ_TRACKING_COLUMN = "readTrackingColumn";
     public static final String CONFIG_READ_TRACKING_COLUMN_PATTERN = "readTrackingColumnFormat";
+    public static final String READ_TRACKING_COLUMN_DEFAULT_VALUE = "rowNumber";
+    public static final String READ_TRACKING_COLUMN_FORMAT_DEFAULT_VALUE = "NA";
 
 }

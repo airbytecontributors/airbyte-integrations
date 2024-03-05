@@ -177,8 +177,12 @@ public class GoogleSheetsEventConnector extends BaseEventConnector {
         JsonNode credential = config.get(GoogleSheetConstants.CONFIG_CREDENTIALS);
         String authType = credential.get(GoogleSheetConstants.CONFIG_AUTH_TYPE).asText();
         String token = credential.get(GoogleSheetConstants.CONFIG_CREDENTIALS_JSON).asText();
-        String trackingColumnName = config.get(GoogleSheetConstants.CONFIG_READ_TRACKING_COLUMN).asText();
-        String trackingColumnPattern = config.get(GoogleSheetConstants.CONFIG_READ_TRACKING_COLUMN_PATTERN).asText();
+        String trackingColumnName = config.has(GoogleSheetConstants.CONFIG_READ_TRACKING_COLUMN) ?
+                config.get(GoogleSheetConstants.CONFIG_READ_TRACKING_COLUMN).asText() :
+                GoogleSheetConstants.READ_TRACKING_COLUMN_DEFAULT_VALUE;
+        String trackingColumnPattern = config.has(GoogleSheetConstants.CONFIG_READ_TRACKING_COLUMN_PATTERN) ?
+                config.get(GoogleSheetConstants.CONFIG_READ_TRACKING_COLUMN_PATTERN).asText():
+                GoogleSheetConstants.READ_TRACKING_COLUMN_FORMAT_DEFAULT_VALUE;
 
         ConnectorConfigManager configManager = getConnectorConfigManager();
         LOGGER.info("{} connector config manager {}", connectorId, configManager);
