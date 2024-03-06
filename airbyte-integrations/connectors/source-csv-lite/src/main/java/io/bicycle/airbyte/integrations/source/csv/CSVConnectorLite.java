@@ -124,7 +124,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 try {
                     csvReader = new CSVEventSourceReader(fileName, file, getConnectorId(), this, SYNC_DATA);
                     publishPreviewEvents(file, csvReader, vcEvents, PREVIEW_RECORDS, 1, 0,
-                            false, true, true);
+                            false, true, true, false);
                 } finally {
                     if (csvReader != null) {
                         csvReader.close();
@@ -200,7 +200,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                             csvReader = new CSVEventSourceReader(fileName, file, getConnectorId(), connector, SYNC_DATA);
                             validCount = publishPreviewEvents(file, csvReader, Collections.emptyList(),
                                     Integer.MAX_VALUE, total_records, validCount,
-                                    true, false, false);
+                                    true, false, false, true);
                             if (csvReader.getStatus() != null && csvReader.getStatus().equals(ReaderStatus.FAILED)) {
                                 status = Status.ERROR;
                             }
@@ -287,10 +287,15 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             }
         }
         LOGGER.info("[{}] : Processed files by timestamp [{}] [{}]", getConnectorId(), totalRecords, timestampToFileOffsetsMap.size());
+        boolean success = false;
         try {
-            processCSVFile(timestampToFileOffsetsMap, files, totalRecords);
+            long processed = processCSVFile(timestampToFileOffsetsMap, files, totalRecords);
             updateConnectorState(READ_STATUS, Status.COMPLETE);
+            if (processed > 0) {
+                success = true;
+            }
         } catch (IOException e) {
+            LOGGER.error("Failed to process records ["+getConnectorId()+"]", e);
             try {
                 updateConnectorState(READ_STATUS, Status.ERROR);
             } catch (Throwable ex) {
@@ -298,7 +303,9 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             }
             throw new IllegalStateException(e);
         } finally {
-            publishDummyEvents(getAuthInfo(), eventSourceInfo, 600);
+            if (success) {
+                publishDummyEvents(getAuthInfo(), eventSourceInfo, 600);
+            }
             stopEventConnector();
             LOGGER.info("doRead Done");
         }

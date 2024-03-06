@@ -68,7 +68,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
     }
 
-    protected void processCSVFile(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, File> files,
+    protected long processCSVFile(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, File> files,
                                   long totalRecords) throws IOException {
         long recordsProcessed = 0;
         try {
@@ -126,6 +126,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             LOGGER.info("Total records processed for stream {} records processed {} total records {} with max timestamp {}",
                     getConnectorId(), recordsProcessed, totalRecords, timestamp);
             updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
+            return recordsProcessed;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

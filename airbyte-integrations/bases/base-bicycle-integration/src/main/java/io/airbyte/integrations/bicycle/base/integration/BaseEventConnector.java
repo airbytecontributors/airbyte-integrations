@@ -1178,7 +1178,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     protected int publishPreviewEvents(File file, EventSourceReader<RawEvent> reader, List<RawEvent> vcEvents,
                                         int maxRecords, int totalRecords, int valid_count,
-                                        boolean saveState, boolean shouldFlush, boolean updateVC)
+                                        boolean saveState, boolean shouldFlush, boolean updateVC,
+                                        boolean publishErrors)
                                         throws Exception {
         int count = 0;
         int invalid_count = 0;
@@ -1225,7 +1226,9 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             logger.info("[{}] : Raw events total - Total Count [{}] Valid[{}] Invalid[{}]",
                     getConnectorId(), file.getName(), valid_count, invalid_count);
             submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
-            submitRecordsToPreviewStoreWithMetadata(getConnectorId(), inValidEvents);
+            if (publishErrors) {
+                submitRecordsToPreviewStoreWithMetadata(getConnectorId(), inValidEvents);
+            }
             if (saveState) {
                 updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) valid_count/ (double) totalRecords);
             }
