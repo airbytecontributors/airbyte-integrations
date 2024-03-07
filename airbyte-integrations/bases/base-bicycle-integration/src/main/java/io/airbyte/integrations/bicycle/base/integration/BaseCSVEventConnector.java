@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.inception.server.auth.api.SystemAuthenticator;
 import io.airbyte.integrations.bicycle.base.integration.exception.UnsupportedFormatException;
 import io.bicycle.entity.mapping.SourceFieldMapping;
-import io.bicycle.event.publisher.api.MetadataPreviewEventType;
+import io.bicycle.event.processor.impl.BicycleEventProcessorImpl;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.integration.common.Status;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
@@ -13,6 +13,8 @@ import io.bicycle.server.event.mapping.UserServiceFieldDef;
 import io.bicycle.server.event.mapping.UserServiceFieldsList;
 import io.bicycle.server.event.mapping.UserServiceFieldsRule;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
+import io.bicycle.server.event.mapping.api.MetadataPreviewEventType;
+import io.bicycle.server.event.mapping.constants.BicycleEventPublisherType;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import java.nio.charset.Charset;
 import org.apache.commons.csv.CSVFormat;
@@ -39,6 +41,20 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         super(systemAuthenticator, eventConnectorJobStatusNotifier, connectorConfigManager);
     }
 
+    protected void setBicycleEventProcessor() {
+        this.bicycleEventProcessor =
+                new BicycleEventProcessorImpl(
+                        BicycleEventPublisherType.BICYCLE_EVENTS,
+                        configStoreClient,
+                        schemaStoreApiClient,
+                        entityStoreApiClient,
+                        previewStoreClient,
+                        systemAuthenticator,
+                        connectorConfigManager,
+                        dataTransformer
+                );
+    }
+
     protected int totalRecords(File file) {
         try (Reader reader = new FileReader(file, Charset.defaultCharset());
              CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT)) {
@@ -52,7 +68,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
     }
 
-    protected void processCSVFile(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, File> files,
+    protected long processCSVFile(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, File> files,
                                   long totalRecords) throws IOException {
         long recordsProcessed = 0;
         try {
@@ -110,6 +126,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             LOGGER.info("Total records processed for stream {} records processed {} total records {} with max timestamp {}",
                     getConnectorId(), recordsProcessed, totalRecords, timestamp);
             updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
+            return recordsProcessed;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
