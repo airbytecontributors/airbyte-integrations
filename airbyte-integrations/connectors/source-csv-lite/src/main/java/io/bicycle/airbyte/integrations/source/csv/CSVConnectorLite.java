@@ -276,7 +276,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         } catch (Throwable e) {
             throw new IllegalStateException("Failed to update the sync state ["+getConnectorId()+"]");
         }
-        Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap = new HashMap<>();
+        Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap = new TreeMap<>();
         long totalRecords = 0;
         for (String fileName : files.keySet()) {
             File file = files.get(fileName);

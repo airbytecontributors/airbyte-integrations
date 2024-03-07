@@ -100,7 +100,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                     rawEvents.clear();
                     if (success) {
                         saveState(PROCESS_TIMESTAMP, timestamp);
-                        updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
+                        updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
                         LOGGER.info("[{}] : Success published records [{}]", getConnectorId(), recordsProcessed);
                     } else {
                         LOGGER.info("[{}] : Failed published records [{}]", getConnectorId(), recordsProcessed);
@@ -112,7 +112,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 boolean success = processAndPublishEvents(rawEvents);
                 if (success && timestamp > 0) {
                     saveState(PROCESS_TIMESTAMP, timestamp);
-                    updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
+                    updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
                     LOGGER.info("[{}] : Success published records [{}]", getConnectorId(), recordsProcessed);
                 } else {
                     LOGGER.info("[{}] : Failed published records [{}]", getConnectorId(), recordsProcessed);
@@ -125,7 +125,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
 
             LOGGER.info("Total records processed for stream {} records processed {} total records {} with max timestamp {}",
                     getConnectorId(), recordsProcessed, totalRecords, timestamp);
-            updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
+            updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
             return recordsProcessed;
         } catch (Exception e) {
             throw new RuntimeException(e);
