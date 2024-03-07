@@ -64,8 +64,11 @@
         "order" : 3,
         "type" : "string",
         "title" : "Read Tracking Column Format",
-        "description" : "The format of Read Tracking Column if column value represents a timestamp",
-        "default" : "NA"
+        "description" : "The format of Read Tracking Column if column value represents a timestamp. Supported values are epoch_micros, epoch_millis, java date time format",
+        "default" : "NA",
+        "examples" : [
+          "java date time format, epoch_micros, epoch_millis"
+        ]
       }
     }
   }

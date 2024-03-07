@@ -14,5 +14,7 @@ public class GoogleSheetConstants {
     public static final String CONFIG_READ_TRACKING_COLUMN_PATTERN = "readTrackingColumnFormat";
     public static final String READ_TRACKING_COLUMN_DEFAULT_VALUE = "rowNumber";
     public static final String READ_TRACKING_COLUMN_FORMAT_DEFAULT_VALUE = "NA";
+    public static final String READ_TRACKING_COLUMN_FORMAT_EPOCH_MILLIS = "epoch_millis";
+    public static final String READ_TRACKING_COLUMN_FORMAT_EPOCH_MICROS = "epoch_micros";
 
 }

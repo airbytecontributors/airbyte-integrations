@@ -86,9 +86,15 @@ public class GoogleSheetsEventConnector extends BaseEventConnector {
             String authType = credential.get(GoogleSheetConstants.CONFIG_AUTH_TYPE).asText();
             String token = credential.get(GoogleSheetConstants.CONFIG_CREDENTIALS_JSON).asText();
             String spreadSheetId = getSpreadsheetIdFromUrl(url);
+            String trackingColumnName = config.has(GoogleSheetConstants.CONFIG_READ_TRACKING_COLUMN) ?
+                    config.get(GoogleSheetConstants.CONFIG_READ_TRACKING_COLUMN).asText() :
+                    GoogleSheetConstants.READ_TRACKING_COLUMN_DEFAULT_VALUE;
+            String trackingColumnPattern = config.has(GoogleSheetConstants.CONFIG_READ_TRACKING_COLUMN_PATTERN) ?
+                    config.get(GoogleSheetConstants.CONFIG_READ_TRACKING_COLUMN_PATTERN).asText():
+                    GoogleSheetConstants.READ_TRACKING_COLUMN_FORMAT_DEFAULT_VALUE;
             LOGGER.info("SpreadSheetId {} for stream {}", spreadSheetId, streamName);
             List<JsonNode> jsonNodes = readSheetForPreview(spreadsheet, streamName, token, spreadSheetId,
-                    googleSheetReadUtil);
+                    trackingColumnName, trackingColumnPattern, googleSheetReadUtil);
 
             Iterator<JsonNode> iterator = jsonNodes.iterator();
 
@@ -170,9 +176,7 @@ public class GoogleSheetsEventConnector extends BaseEventConnector {
         String streamName = configuredAirbyteStream.getStream().getName();
         String connectorId = getConnectorId();
         String eventSourceType = getEventSourceType();
-
         AuthInfo authInfo = getAuthInfo();
-
         String url = config.get(GoogleSheetConstants.CONFIG_SPREAD_SHEET_ID).asText();
         JsonNode credential = config.get(GoogleSheetConstants.CONFIG_CREDENTIALS);
         String authType = credential.get(GoogleSheetConstants.CONFIG_AUTH_TYPE).asText();
@@ -181,7 +185,7 @@ public class GoogleSheetsEventConnector extends BaseEventConnector {
                 config.get(GoogleSheetConstants.CONFIG_READ_TRACKING_COLUMN).asText() :
                 GoogleSheetConstants.READ_TRACKING_COLUMN_DEFAULT_VALUE;
         String trackingColumnPattern = config.has(GoogleSheetConstants.CONFIG_READ_TRACKING_COLUMN_PATTERN) ?
-                config.get(GoogleSheetConstants.CONFIG_READ_TRACKING_COLUMN_PATTERN).asText():
+                config.get(GoogleSheetConstants.CONFIG_READ_TRACKING_COLUMN_PATTERN).asText() :
                 GoogleSheetConstants.READ_TRACKING_COLUMN_FORMAT_DEFAULT_VALUE;
 
         ConnectorConfigManager configManager = getConnectorConfigManager();
@@ -196,24 +200,31 @@ public class GoogleSheetsEventConnector extends BaseEventConnector {
                 backFillConfig.getEndTimeInMillis();
 
         GoogleSheetReadUtil googleSheetReadUtil = new GoogleSheetReadUtil(this, connectorId,
-                streamName, eventSourceType, token, backFillStartTime, backFillEndTime);
+                streamName, eventSourceType, token, backFillStartTime, backFillEndTime, isBackFillEnabled);
 
         Spreadsheet spreadsheet = getSpreadSheet(googleSheetReadUtil, config);
         String spreadSheetId = getSpreadsheetIdFromUrl(url);
 
 
-        boolean publishedEvents = googleSheetReadUtil.readSheet(spreadsheet, spreadSheetId, trackingColumnName,
-                trackingColumnPattern);
+        if (isBackFillEnabled) {
+            boolean publishedEvents = googleSheetReadUtil.readSheet(spreadsheet, spreadSheetId, trackingColumnName,
+                    trackingColumnPattern);
 
-        long dummyMessageInterval = 600;
+            long dummyMessageInterval = 600;
 
-        if (publishedEvents && isBackFillEnabled) {
-            LOGGER.info("Starting publishing dummy events for stream Id {}", connectorId);
-            publishDummyEvents(authInfo, eventSourceInfo, dummyMessageInterval);
-            LOGGER.info("Done publishing dummy events for stream Id {}", connectorId);
+            if (publishedEvents && isBackFillEnabled) {
+                LOGGER.info("Starting publishing dummy events for stream Id {}", connectorId);
+                publishDummyEvents(authInfo, eventSourceInfo, dummyMessageInterval);
+                LOGGER.info("Done publishing dummy events for stream Id {}", connectorId);
+            }
+            stopEventConnector();
+        } else {
+            while (true) {
+                googleSheetReadUtil.readSheet(spreadsheet, spreadSheetId, trackingColumnName,
+                        trackingColumnPattern);
+                Thread.sleep(10000);
+            }
         }
-
-        stopEventConnector();
 
         return null;
     }
@@ -246,7 +257,8 @@ public class GoogleSheetsEventConnector extends BaseEventConnector {
     }
 
     private List<JsonNode> readSheetForPreview(Spreadsheet spreadsheet, String streamName, String credentialJson,
-                                               String spreadSheetId,
+                                               String spreadSheetId, String trackingColumnValue,
+                                               String trackingColumnValuePattern,
                                                GoogleSheetReadUtil googleSheetReadUtil)
             throws IOException, GeneralSecurityException {
 
@@ -269,7 +281,8 @@ public class GoogleSheetsEventConnector extends BaseEventConnector {
                 // Process the data
                 List<List<Object>> values = response.getValues();
                 if (values != null && !values.isEmpty()) {
-                    List<JsonNode> jsonRows = googleSheetReadUtil.convertSheetDataToJson(sheetName, values, limit);
+                    List<JsonNode> jsonRows = googleSheetReadUtil.convertSheetDataToJson(sheetName, values, limit,
+                            trackingColumnValue, trackingColumnValuePattern);
                     limit = limit - jsonRows.size();
                     jsonNodes.addAll(jsonRows);
                 }

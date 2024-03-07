@@ -57,6 +57,7 @@ public class GoogleSheetReadUtil {
     private long backfillStartTimeInMillis = -1;
     private long backfillEndTimeInMillis = -1;
     private int batchSize = 2000;
+    private boolean isBackfillEnabled;
 
 
     public GoogleSheetReadUtil() {
@@ -66,7 +67,7 @@ public class GoogleSheetReadUtil {
     //This is used for read command
     public GoogleSheetReadUtil(BaseEventConnector baseEventConnector, String streamId, String streamName,
                                String sourceType, String credentialJson, long backfillStartTimeInMillis,
-                               long backfillEndTimeInMillis) {
+                               long backfillEndTimeInMillis, boolean isBackfillEnabled) {
         this.baseEventConnector = baseEventConnector;
         this.streamName = streamName;
         this.streamId = streamId;
@@ -74,9 +75,10 @@ public class GoogleSheetReadUtil {
         this.credentialJson = credentialJson;
         this.backfillStartTimeInMillis = backfillStartTimeInMillis;
         this.backfillEndTimeInMillis = backfillEndTimeInMillis;
+        this.isBackfillEnabled  = isBackfillEnabled;
         LOGGER.info("{} Initialized google sheet read util with streamName {}, sourceType {}, " +
-                "backfillStartTimeInMillis {}, backfillEndTimeInMillis", streamId, streamName, sourceType,
-                backfillStartTimeInMillis, backfillEndTimeInMillis);
+                "backfillStartTimeInMillis {}, backfillEndTimeInMillis, isBackfillEnabled", streamId, streamName,
+                sourceType, backfillStartTimeInMillis, backfillEndTimeInMillis, isBackfillEnabled);
     }
 
     public boolean readSheet(Spreadsheet spreadsheet, String spreadSheetId, String trackingColumnName,
@@ -172,6 +174,9 @@ public class GoogleSheetReadUtil {
 
         if (eventTimestamp <= maxTimestamp) {
             return false;
+        }
+        if (!isBackfillEnabled) {
+            return true;
         }
         if (backfillStartTimeInMillis != -1 && eventTimestamp < backfillStartTimeInMillis) {
             return false;
@@ -307,13 +312,17 @@ public class GoogleSheetReadUtil {
         } catch (Exception e) {
             LOGGER.error("{} Unable to convert to timestamp for tracking column pattern {} and value {} {}",
                     streamId, trackingColumnPattern, value, e);
+            throw e;
         }
-        return null;
     }
 
     private long convertStringToTimestamp(String dateString, String dateTimePattern) {
         if (dateString == null) {
             return -1;
+        }
+        if (dateTimePattern.equals(GoogleSheetConstants.READ_TRACKING_COLUMN_FORMAT_EPOCH_MILLIS) ||
+                dateTimePattern.equals(GoogleSheetConstants.READ_TRACKING_COLUMN_FORMAT_EPOCH_MICROS)) {
+            return Long.parseLong(dateString);
         }
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern(dateTimePattern);
         long milliseconds = 0;
@@ -388,13 +397,15 @@ public class GoogleSheetReadUtil {
                 .build();
     }
 
-    public List<JsonNode> convertSheetDataToJson(String sheetName, List<List<Object>> data, int limit) {
+    public List<JsonNode> convertSheetDataToJson(String sheetName, List<List<Object>> data, int limit,
+                                                 String trackingColumnName, String trackingColumnPattern) {
         LOGGER.info("Sheet: " + sheetName);
         List<JsonNode> jsonNodes = new ArrayList<>();
         int counter = 0;
         boolean applyLimit = limit == -1 ? false : true;
         List<Object> headers = data.get(0);
 
+        int trackingColumnIndex = findHeaderIndexByName(headers, trackingColumnName);
         // Iterate over rows starting from the second row (index 1)
         for (int i = 1; i < data.size(); i++) {
             List<Object> rowData = data.get(i);
@@ -408,7 +419,11 @@ public class GoogleSheetReadUtil {
                 String columnName = headers.get(j).toString();
                 Object columnValue = rowData.get(j);
                 rowMap.put(columnName, columnValue);
+                if (trackingColumnIndex == j) {
+                    getTrackingColumnValue(trackingColumnIndex, trackingColumnPattern, columnValue);
+                }
             }
+
             // Convert the map to a JSON node
             JsonNode jsonNode = objectMapper.valueToTree(rowMap);
             jsonNodes.add(jsonNode);

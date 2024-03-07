@@ -33,7 +33,7 @@ public class GoogleSheetsEventConnectorLiveTest {
         String configString = readFileAsString("config.json");
         JsonNode config = objectMapper.readValue(configString, JsonNode.class);
         String catalogString = readFileAsString("catalog.json");
-        AuthInfo authInfo = new BicycleAuthInfo("", "");
+        AuthInfo authInfo = new BicycleAuthInfo("eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJST0xFIjoiQVBJIiwic3ViIjoiZXZlbnQtZGVtby1hcHAtMiIsIk9SR19JRCI6IjgwIiwiaXNzIjoiamF5YUBiaWN5Y2xlLmlvIiwiaWF0IjoxNjYzNTgyNjgwLCJURU5BTlQiOiJldnQtZmJiOTY3YWQtMjVmMi00ZWVlLWIyZTUtZjUyYjA0N2JlMmVmIiwianRpIjoiZTQxMDhhNDMtYjVmNC00ZmRkLTg5NiJ9.wC6lMnpMvlNMvvyI_TPP4vzHRgPQstu0IUSpkD5aIPg", "evt-fbb967ad-25f2-4eee-b2e5-f52b047be2ef");
         SystemAuthenticator systemAuthenticator = Mockito.mock(SystemAuthenticator.class);
         Mockito.when(systemAuthenticator.authenticateAs(Mockito.anyString(),
                 Mockito.anyString(), Mockito.anyString())).thenReturn(authInfo);
