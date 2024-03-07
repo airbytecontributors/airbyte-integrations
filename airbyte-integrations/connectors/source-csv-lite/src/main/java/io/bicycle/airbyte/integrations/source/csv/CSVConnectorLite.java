@@ -281,7 +281,8 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         for (String fileName : files.keySet()) {
             File file = files.get(fileName);
             try {
-                totalRecords = readTimestampToFileOffset(timestampToFileOffsetsMap, fileName, file);
+                long records = readTimestampToFileOffset(timestampToFileOffsetsMap, fileName, file);
+                totalRecords = totalRecords + records;
             } catch (Throwable t) {
                 throw new IllegalStateException("Failed to register preview events for discovery service ["+fileName+"]", t);
             }
