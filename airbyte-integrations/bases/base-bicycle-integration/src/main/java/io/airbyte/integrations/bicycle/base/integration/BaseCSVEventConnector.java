@@ -15,6 +15,8 @@ import io.bicycle.server.event.mapping.UserServiceFieldsRule;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.api.MetadataPreviewEventType;
 import io.bicycle.server.event.mapping.constants.BicycleEventPublisherType;
+import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
+import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import java.nio.charset.Charset;
 import org.apache.commons.csv.CSVFormat;
@@ -32,6 +34,8 @@ import static io.airbyte.integrations.bicycle.base.integration.BaseCSVEventConne
 public abstract class BaseCSVEventConnector extends BaseEventConnector {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BaseCSVEventConnector.class);
+
+    private List<UserServiceMappingRule> userserviceRules = null;
 
     protected static final String PROCESS_TIMESTAMP = "PROCESS_TIMESTAMP";
 
@@ -96,7 +100,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 }
 
                 if (rawEvents.size() >= BATCH_SIZE) {
-                    boolean success = processAndPublishEvents(rawEvents);
+                    boolean success = processAndPublishEventsWithRules(rawEvents);
                     rawEvents.clear();
                     if (success) {
                         saveState(PROCESS_TIMESTAMP, timestamp);
@@ -109,7 +113,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             }
 
             if (rawEvents.size() > 0) {
-                boolean success = processAndPublishEvents(rawEvents);
+                boolean success = processAndPublishEventsWithRules(rawEvents);
                 if (success && timestamp > 0) {
                     saveState(PROCESS_TIMESTAMP, timestamp);
                     updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
@@ -177,6 +181,39 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             }
         }
         return totalRecords;
+    }
+
+
+    protected boolean processAndPublishEventsWithRules(List<RawEvent> rawEvents) {
+        EventSourceInfo eventSourceInfo = new EventSourceInfo(getConnectorId(), getEventSourceType());
+        EventProcessorResult eventProcessorResult = convertRawEventsToBicycleEvents(getAuthInfo(),
+                eventSourceInfo, rawEvents, getUserServiceMappingRules());
+        boolean publishEvents = true;
+        publishEvents = publishEvents(getAuthInfo(), eventSourceInfo, eventProcessorResult);
+        return publishEvents;
+    }
+
+    private List<UserServiceMappingRule> getUserServiceMappingRules() {
+        if (userserviceRules != null) {
+            return userserviceRules;
+        }
+        int retries = 0;
+        do {
+            try {
+                userserviceRules = getUserServiceMappingRules(getAuthInfo(), eventSourceInfo);
+                if (userserviceRules != null) {
+                    break;
+                }
+                Thread.sleep(500);
+            } catch (Throwable t) {
+                LOGGER.error("Failed to download us rules[{}]", getConnectorId(), t);
+            }
+            retries++;
+        } while (userserviceRules == null && retries < 10);
+        if (userserviceRules == null) {
+            throw new IllegalStateException("Failed to download userservice userserviceRules ["+getConnectorId()+"]");
+        }
+        return userserviceRules;
     }
 
     public static class CSVEventSourceReader extends EventSourceReader<RawEvent> {

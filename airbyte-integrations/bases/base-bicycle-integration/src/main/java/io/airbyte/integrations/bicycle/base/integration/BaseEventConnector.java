@@ -124,7 +124,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private static final String CONNECTORS_WITH_WAIT_ENABLED = "CONNECTORS_WITH_WAIT_ENABLED";
     private static final String CONNECTORS_WAIT_TIME_IN_MILLIS = "CONNECTORS_WAIT_TIME_IN_MILLIS";
     private static final int MAX_RETRY_COUNT = 3;
-    protected static final int BATCH_SIZE = 30;
+    protected static final int BATCH_SIZE = 100;
     private static final String PREVIEW_STORE_VALID_RECORDS = "PREVIEW_STORE_VALID_RECORDS";
     private static final String PREVIEW_STORE_INVALID_RECORDS = "PREVIEW_STORE_INVALID_RECORDS";
     protected static final String SYNC_STATUS = "syncStatus";

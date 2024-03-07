@@ -81,6 +81,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
     public SyncDataResponse syncData(JsonNode sourceConfig, ConfiguredAirbyteCatalog catalog,
                                      JsonNode readState, SyncDataRequest syncDataRequest) {
+        LOGGER.info("Starting syncdata [{}] [{}]", sourceConfig, readState);
         LOGGER.info("SyncData ConnectorConfigManager [{}]", connectorConfigManager);
         initialize(sourceConfig, catalog);
         Status syncStatus = null;
@@ -330,6 +331,10 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
     private String getDatasetName(JsonNode config) {
         return config.get("datasetName") != null ? config.get("datasetName").asText() : null;
+    }
+
+    private int getBatchSize(JsonNode config) {
+        return config.get("batchSize") != null ? config.get("batchSize").asInt() : BATCH_SIZE;
     }
 
     private CSVRecord getCsvRecord(long offset, String row) {
