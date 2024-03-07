@@ -277,12 +277,13 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         } catch (Throwable e) {
             throw new IllegalStateException("Failed to update the sync state ["+getConnectorId()+"]");
         }
+        int batchSize = getBatchSize(config);
         Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap = new TreeMap<>();
         long totalRecords = 0;
         for (String fileName : files.keySet()) {
             File file = files.get(fileName);
             try {
-                long records = readTimestampToFileOffset(timestampToFileOffsetsMap, fileName, file);
+                long records = readTimestampToFileOffset(timestampToFileOffsetsMap, fileName, file, batchSize);
                 totalRecords = totalRecords + records;
             } catch (Throwable t) {
                 throw new IllegalStateException("Failed to register preview events for discovery service ["+fileName+"]", t);
@@ -291,7 +292,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         LOGGER.info("[{}] : Processed files by timestamp [{}] [{}]", getConnectorId(), totalRecords, timestampToFileOffsetsMap.size());
         boolean success = false;
         try {
-            long processed = processCSVFile(timestampToFileOffsetsMap, files, totalRecords);
+            long processed = processCSVFile(timestampToFileOffsetsMap, files, totalRecords, batchSize);
             updateConnectorState(READ_STATUS, Status.COMPLETE);
             if (processed > 0) {
                 success = true;
@@ -306,7 +307,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             throw new IllegalStateException(e);
         } finally {
             if (success) {
-                publishDummyEvents(getAuthInfo(), eventSourceInfo, 600);
+                publishDummyEvents(getAuthInfo(), eventSourceInfo, getDummyMessagesInSecs(config));
             }
             stopEventConnector();
             LOGGER.info("doRead Done");
@@ -335,6 +336,10 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
     private int getBatchSize(JsonNode config) {
         return config.get("batchSize") != null ? config.get("batchSize").asInt() : BATCH_SIZE;
+    }
+
+    private int getDummyMessagesInSecs(JsonNode config) {
+        return config.get("dummyMessageInterval") != null ? config.get("dummyMessageInterval").asInt() : 600;
     }
 
     private CSVRecord getCsvRecord(long offset, String row) {

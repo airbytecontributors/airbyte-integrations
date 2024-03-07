@@ -85,13 +85,13 @@
         "type": "integer",
         "title": "Batch Size",
         "description": "Specifies the size of batches for publishing records.",
-        "default": 2000
+        "default": 100
       },
       "dummyMessageInterval": {
         "type": "integer",
         "title": "Interval for Sending Dummy Messages",
         "description": "Specifies the interval till when the dummy message should be published in seconds",
-        "default": 120
+        "default": 600
       },
       "data_source": {
         "type": "object",

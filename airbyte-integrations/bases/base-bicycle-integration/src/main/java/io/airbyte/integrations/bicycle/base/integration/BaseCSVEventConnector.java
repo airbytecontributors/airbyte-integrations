@@ -73,7 +73,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
     }
 
     protected long processCSVFile(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, File> files,
-                                  long totalRecords) throws IOException {
+                                  long totalRecords, int batchSize) throws IOException {
         long recordsProcessed = 0;
         try {
             long maxTimestamp = getStateAsLong(PROCESS_TIMESTAMP);
@@ -99,7 +99,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                     recordsProcessed++;
                 }
 
-                if (rawEvents.size() >= BATCH_SIZE) {
+                if (rawEvents.size() >= batchSize) {
                     boolean success = processAndPublishEventsWithRules(rawEvents);
                     rawEvents.clear();
                     if (success) {
@@ -137,7 +137,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
     }
 
     protected long readTimestampToFileOffset(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap,
-                                                                        String fileName, File csvFile) throws Exception {
+                                                        String fileName, File csvFile, int batchSize) throws Exception {
         CSVEventSourceReader reader = null;
         int totalRecords = 0;
         try {
@@ -163,7 +163,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                     LOGGER.info("Skipped record row[{}] offset[{}]", reader.row, reader.rowCounter);
                     invalidEvents.add(next);
                 }
-                if (invalidEvents.size() >= BATCH_SIZE) {
+                if (invalidEvents.size() >= batchSize) {
                     submitRecordsToPreviewStoreWithMetadata(getConnectorId(), invalidEvents);
                     invalidEvents.clear();
                 }
