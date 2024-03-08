@@ -50,13 +50,13 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
     private File file;
     private String[] headers;
 
-    private static AtomicLong counter = new AtomicLong(0);
+    private static AtomicLong threadcounter = new AtomicLong(0);
     private int threads = 4;
     private ExecutorService executorService = Executors.newFixedThreadPool(threads, new ThreadFactory() {
                 @Override
                 public Thread newThread(Runnable r) {
                     Thread t = new Thread(r);
-                    t.setName("csvconnector-lite-"+counter.incrementAndGet());
+                    t.setName("csvconnector-lite-"+ threadcounter.incrementAndGet());
                     return t;
                 }
             });
@@ -306,7 +306,8 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
     }
 
     private Object[] sortEvents(Map<String, File> files, int batchSize) {
-        AtomicLong counter = new AtomicLong(0);
+        AtomicLong successCounter = new AtomicLong(0);
+        AtomicLong failedCounter = new AtomicLong(0);
         Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap = new ConcurrentSkipListMap<>();
         Map<String, Future<Void>> futures = new HashMap<>();
         for (String fileName : files.keySet()) {
@@ -314,7 +315,8 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             Future<Void> future = executorService.submit(new Callable<Void>() {
                 @Override
                 public Void call() throws Exception {
-                    readTimestampToFileOffset(timestampToFileOffsetsMap, fileName, file, batchSize, counter);
+                    readTimestampToFileOffset(timestampToFileOffsetsMap, fileName, file, batchSize,
+                            successCounter, failedCounter);
                     return null;
                 }
             });
@@ -328,9 +330,9 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 throw new IllegalStateException("Failed to sort events [" + fileName + "]", t);
             }
         }
-        LOGGER.info("[{}] : Processed files by timestamp [{}] [{}]", getConnectorId(), counter.get(),
-                                                                     timestampToFileOffsetsMap.size());
-        return new Object[]{counter.get(), timestampToFileOffsetsMap};
+        LOGGER.info("[{}] : Processed files by timestamp [{}] [{}] [{}]", getConnectorId(),
+                                        successCounter.get(), failedCounter.get(), timestampToFileOffsetsMap.size());
+        return new Object[]{successCounter.get(), timestampToFileOffsetsMap};
     }
 
     private long publishEvents(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap,
@@ -339,19 +341,20 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 .collect(Collectors.groupingBy(entry -> entry.getKey().hashCode() % threads,
                         HashMap::new, Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
                                                       (oldValue, newValue) -> oldValue, TreeMap::new)));
+        LOGGER.info("Timestamp buckets size [{}] [{}]", getConnectorId(), buckets.size());
         AtomicLong successCounter = new AtomicLong(0);
         AtomicLong failedCounter = new AtomicLong(0);
         Map<Integer, Future<Void>> futures = new HashMap<>();
-        for (int i : buckets.keySet()) {
-            Map<Long, List<FileRecordOffset>> bucket = buckets.get(i);
+        for (int index : buckets.keySet()) {
+            Map<Long, List<FileRecordOffset>> bucket = buckets.get(index);
             Future<Void> future = executorService.submit(new Callable<Void>() {
                 @Override
                 public Void call() throws Exception {
-                    processCSVFile(bucket, files, totalRecords, batchSize, successCounter, failedCounter);
+                    processCSVFile(index, bucket, files, totalRecords, batchSize, successCounter, failedCounter);
                     return null;
                 }
             });
-            futures.put(i, future);
+            futures.put(index, future);
         }
         for (int i : futures.keySet()) {
             try {
@@ -361,7 +364,9 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 throw new IllegalStateException("Failed to publish events [" + i + "]", t);
             }
         }
-        return counter.get();
+        LOGGER.info("[{}] : Published events [{}] [{}] [{}]", getConnectorId(),
+                successCounter.get(), failedCounter.get(), timestampToFileOffsetsMap.size());
+        return successCounter.get();
     }
 
     private CSVRecord getCsvRecord(long recordOffset, RandomAccessFile accessFile) throws Exception {

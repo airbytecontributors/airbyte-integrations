@@ -77,7 +77,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
     }
 
-    protected long processCSVFile(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, File> files,
+    protected long processCSVFile(int index, Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, File> files,
                                   long totalRecords, int batchSize, AtomicLong successCounter, AtomicLong failedCounter)
                                   throws IOException {
         try {
@@ -111,9 +111,9 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                     if (success) {
                         saveState(PROCESS_TIMESTAMP, timestamp);
                         updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) successCounter.get()/ (double) totalRecords);
-                        LOGGER.info("[{}] : Success published records [{}]", getConnectorId(), successCounter.get());
+                        LOGGER.info("[{}] : Success published records [{}] [{}]", getConnectorId(), index, successCounter.get());
                     } else {
-                        LOGGER.info("[{}] : Failed published records [{}]", getConnectorId(), failedCounter.get());
+                        LOGGER.info("[{}] : Failed published records [{}] [{}]", getConnectorId(), index, failedCounter.get());
                     }
                 }
             }
@@ -123,9 +123,9 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 if (success && timestamp > 0) {
                     saveState(PROCESS_TIMESTAMP, timestamp);
                     updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) successCounter.get()/ (double) totalRecords);
-                    LOGGER.info("[{}] : Success published records [{}]", getConnectorId(), successCounter.get());
+                    LOGGER.info("[{}] : Success published records [{}] [{}]", getConnectorId(), index, successCounter.get());
                 } else {
-                    LOGGER.info("[{}] : Failed published records [{}]", getConnectorId(), failedCounter.get());
+                    LOGGER.info("[{}] : Failed published records [{}] [{}]", getConnectorId(), index, failedCounter.get());
                 }
             }
 
@@ -133,8 +133,10 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 readers.get(fileName).close();
             }
 
-            LOGGER.info("Total records processed for stream {} records processed {} total records {} with max timestamp {} time{}",
-                    getConnectorId(), successCounter.get(), totalRecords, timestamp, (System.currentTimeMillis() - start));
+            LOGGER.info("Total records processed for stream {} records processed index {} success {} failed {} total records {} " +
+                            "failed {} with max timestamp {} time {}",
+                            getConnectorId(), index, successCounter.get(), failedCounter.get(), totalRecords,
+                            timestamp, (System.currentTimeMillis() - start));
             updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) successCounter.get()/ (double) totalRecords);
             return successCounter.get();
         } catch (Exception e) {
@@ -143,7 +145,8 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
     }
 
     protected long readTimestampToFileOffset(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap,
-                                             String fileName, File csvFile, int batchSize, AtomicLong counter)
+                                             String fileName, File csvFile, int batchSize, AtomicLong successCounter,
+                                             AtomicLong failedCounter)
                                              throws Exception {
         CSVEventSourceReader reader = null;
         try {
@@ -157,17 +160,19 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                         long timestampInMillis = reader.getRecordUTCTimestampInMillis();
                         timestampToFileOffsetsMap.computeIfAbsent(timestampInMillis,
                                 (recordOffset) -> new ArrayList<>()).add(new FileRecordOffset(fileName, reader.offset, reader.rowCounter));
-                        counter.incrementAndGet();
-                        if (counter.get() % 1000 == 0) {
+                        successCounter.incrementAndGet();
+                        if (successCounter.get() % 1000 == 0) {
                             LOGGER.info("[{}] : Processed records by timestamp [{}] [{}]", getConnectorId(),
-                                    counter.get(), timestampInMillis);
+                                    successCounter.get(), timestampInMillis);
                         }
                     } catch (Exception e) {
                         LOGGER.error("Skipped record row[{}] offset[{}]", reader.row, reader.rowCounter, e);
+                        failedCounter.incrementAndGet();
                         invalidEvents.add(next);
                     }
                 } else {
                     LOGGER.info("Skipped record row[{}] offset[{}]", reader.row, reader.rowCounter);
+                    failedCounter.incrementAndGet();
                     invalidEvents.add(next);
                 }
                 if (invalidEvents.size() >= batchSize) {
@@ -179,7 +184,8 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 submitRecordsToPreviewStoreWithMetadata(getConnectorId(), invalidEvents);
                 invalidEvents.clear();
             }
-            LOGGER.info("[{}] : Total records processed [{}] [{}]", getConnectorId(), counter.get(), (System.currentTimeMillis() - start));
+            LOGGER.info("[{}] : Total records processed [{}] [{}] [{}]", getConnectorId(), successCounter.get(),
+                    failedCounter.get(), (System.currentTimeMillis() - start));
         } catch (Exception e) {
             throw new IllegalStateException("Error while calculating timestamp to offset map ["+fileName+"]", e);
         } finally {
@@ -187,7 +193,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 reader.close();
             }
         }
-        return counter.get();
+        return successCounter.get();
     }
 
 
