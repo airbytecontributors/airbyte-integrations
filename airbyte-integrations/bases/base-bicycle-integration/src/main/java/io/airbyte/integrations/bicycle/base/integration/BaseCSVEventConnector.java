@@ -80,7 +80,9 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
     protected long processCSVFile(int index, Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, File> files,
                                   long totalRecords, int batchSize, AtomicLong successCounter, AtomicLong failedCounter)
                                   throws IOException {
+        int records = 0;
         try {
+            LOGGER.info("Starting processing index[{}] [{}]", index, timestampToFileOffsetsMap.size());
             long start = System.currentTimeMillis();
             long maxTimestamp = getStateAsLong(PROCESS_TIMESTAMP);
             List<RawEvent> rawEvents = new ArrayList<>();
@@ -103,28 +105,33 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                     RawEvent next = reader.next();
                     rawEvents.add(next);
                     successCounter.incrementAndGet();
+                    records++;
                 }
 
                 if (rawEvents.size() >= batchSize) {
+                    int size = rawEvents.size();
                     boolean success = processAndPublishEventsWithRules(rawEvents);
                     rawEvents.clear();
                     if (success) {
                         saveState(PROCESS_TIMESTAMP, timestamp);
                         updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) successCounter.get()/ (double) totalRecords);
-                        LOGGER.info("[{}] : Success published records [{}] [{}]", getConnectorId(), index, successCounter.get());
+                        LOGGER.info("[{}] : Success published records [{}] [{}] [{}]", getConnectorId(), index, records, successCounter.get());
                     } else {
+                        failedCounter.addAndGet(size);
                         LOGGER.info("[{}] : Failed published records [{}] [{}]", getConnectorId(), index, failedCounter.get());
                     }
                 }
             }
 
             if (rawEvents.size() > 0) {
+                int size = rawEvents.size();
                 boolean success = processAndPublishEventsWithRules(rawEvents);
                 if (success && timestamp > 0) {
                     saveState(PROCESS_TIMESTAMP, timestamp);
                     updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) successCounter.get()/ (double) totalRecords);
-                    LOGGER.info("[{}] : Success published records [{}] [{}]", getConnectorId(), index, successCounter.get());
+                    LOGGER.info("[{}] : Success published records [{}] [{}] [{}]", getConnectorId(), index, records, successCounter.get());
                 } else {
+                    failedCounter.addAndGet(size);
                     LOGGER.info("[{}] : Failed published records [{}] [{}]", getConnectorId(), index, failedCounter.get());
                 }
             }
@@ -133,10 +140,11 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 readers.get(fileName).close();
             }
 
-            LOGGER.info("Total records processed for stream {} records processed index {} success {} failed {} total records {} " +
-                            "failed {} with max timestamp {} time {}",
-                            getConnectorId(), index, successCounter.get(), failedCounter.get(), totalRecords,
-                            timestamp, (System.currentTimeMillis() - start));
+            LOGGER.info("Total records processed for stream {} records processed index {} success {} failed {} " +
+                            "expected {} records {} total-records {} with max timestamp {} time {}",
+                            getConnectorId(), index, successCounter.get(), failedCounter.get(),
+                            timestampToFileOffsetsMap.size(), records, totalRecords, timestamp,
+                            (System.currentTimeMillis() - start));
             updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) successCounter.get()/ (double) totalRecords);
             return successCounter.get();
         } catch (Exception e) {

@@ -338,10 +338,13 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
     private long publishEvents(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap,
                                Map<String, File> files, int batchSize, long totalRecords) {
         Map<Integer, Map<Long, List<FileRecordOffset>>> buckets = timestampToFileOffsetsMap.entrySet().stream()
-                .collect(Collectors.groupingBy(entry -> entry.getKey().hashCode() % threads,
+                .collect(Collectors.groupingBy(entry -> Math.abs(entry.getKey().hashCode() % threads),
                         HashMap::new, Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
                                                       (oldValue, newValue) -> oldValue, TreeMap::new)));
-        LOGGER.info("Timestamp buckets size [{}] [{}]", getConnectorId(), buckets.size());
+        for (int index : buckets.keySet()) {
+            Map<Long, List<FileRecordOffset>> bucket = buckets.get(index);
+            LOGGER.info("Timestamp buckets size [{}] [{}]", getConnectorId(), buckets.size(), index, bucket.size());
+        }
         AtomicLong successCounter = new AtomicLong(0);
         AtomicLong failedCounter = new AtomicLong(0);
         Map<Integer, Future<Void>> futures = new HashMap<>();
