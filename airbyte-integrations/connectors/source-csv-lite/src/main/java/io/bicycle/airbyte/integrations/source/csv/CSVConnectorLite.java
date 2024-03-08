@@ -1,6 +1,5 @@
 package io.bicycle.airbyte.integrations.source.csv;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
@@ -28,6 +27,8 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import static io.airbyte.integrations.bicycle.base.integration.BaseCSVEventConnector.APITYPE.SYNC_DATA;
 
@@ -43,21 +44,22 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
     private static final String SEPARATOR_CHAR = ",";
 
     private static final int PREVIEW_RECORDS = 100;
-    private static final String SYNC_DATA_STATE = "SYNC_DATA_STATE";
-    private static final String TOTAL_RECORDS = "TOTAL_RECORDS";
-    private static final String PREVIEW_STORE_VALID_RECORDS = "PREVIEW_STORE_VALID_RECORDS";
-    private static final String PREVIEW_STORE_INVALID_RECORDS = "PREVIEW_STORE_INVALID_RECORDS";
-    private static final String STARTED = "STARTED";
-    private static final String IN_PROGRESS = "IN_PROGRESS";
-    private static final String FINISHED = "FINISHED";
-    private static final String FAILED = "FAILED";
 
     private volatile boolean shutdown = false;
 
     private File file;
     private String[] headers;
 
-    private ExecutorService executorService = Executors.newSingleThreadExecutor();
+    private static AtomicLong counter = new AtomicLong(0);
+    private int threads = 4;
+    private ExecutorService executorService = Executors.newFixedThreadPool(threads, new ThreadFactory() {
+                @Override
+                public Thread newThread(Runnable r) {
+                    Thread t = new Thread(r);
+                    t.setName("csvconnector-lite-"+counter.incrementAndGet());
+                    return t;
+                }
+            });
     private ObjectMapper mapper = new ObjectMapper();
 
     public CSVConnectorLite(SystemAuthenticator systemAuthenticator,
@@ -92,10 +94,6 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         }
         if (syncStatus != null) {
             LOGGER.info("Already preview ingesting records [{}] [{}]", getConnectorId(), syncStatus);
-            return SyncDataResponse.newBuilder()
-                    .setStatus(syncStatus)
-                    .setResponse(StatusResponse.newBuilder().setMessage(syncStatus.name()).build())
-                    .build();
         }
         Map<String, String> fileVsSignedUrls = readFilesConfig();
         LOGGER.info("[{}] : Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
@@ -278,21 +276,13 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             throw new IllegalStateException("Failed to update the sync state ["+getConnectorId()+"]");
         }
         int batchSize = getBatchSize(config);
-        Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap = new TreeMap<>();
-        long totalRecords = 0;
-        for (String fileName : files.keySet()) {
-            File file = files.get(fileName);
-            try {
-                long records = readTimestampToFileOffset(timestampToFileOffsetsMap, fileName, file, batchSize);
-                totalRecords = totalRecords + records;
-            } catch (Throwable t) {
-                throw new IllegalStateException("Failed to register preview events for discovery service ["+fileName+"]", t);
-            }
-        }
-        LOGGER.info("[{}] : Processed files by timestamp [{}] [{}]", getConnectorId(), totalRecords, timestampToFileOffsetsMap.size());
+        Object[] objects = sortEvents(files, batchSize);
+        long totalRecords = (long) objects[0];
+        Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap = (Map<Long, List<FileRecordOffset>>) objects[1];
+
         boolean success = false;
         try {
-            long processed = processCSVFile(timestampToFileOffsetsMap, files, totalRecords, batchSize);
+            long processed = publishEvents(timestampToFileOffsetsMap, files, batchSize, totalRecords);
             updateConnectorState(READ_STATUS, Status.COMPLETE);
             if (processed > 0) {
                 success = true;
@@ -313,6 +303,65 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             LOGGER.info("doRead Done");
         }
         return null;
+    }
+
+    private Object[] sortEvents(Map<String, File> files, int batchSize) {
+        AtomicLong counter = new AtomicLong(0);
+        Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap = new ConcurrentSkipListMap<>();
+        Map<String, Future<Void>> futures = new HashMap<>();
+        for (String fileName : files.keySet()) {
+            File file = files.get(fileName);
+            Future<Void> future = executorService.submit(new Callable<Void>() {
+                @Override
+                public Void call() throws Exception {
+                    readTimestampToFileOffset(timestampToFileOffsetsMap, fileName, file, batchSize, counter);
+                    return null;
+                }
+            });
+            futures.put(fileName, future);
+        }
+        for (String fileName : futures.keySet()) {
+            try {
+                Future<Void> future = futures.get(fileName);
+                future.get();
+            } catch (Throwable t) {
+                throw new IllegalStateException("Failed to sort events [" + fileName + "]", t);
+            }
+        }
+        LOGGER.info("[{}] : Processed files by timestamp [{}] [{}]", getConnectorId(), counter.get(),
+                                                                     timestampToFileOffsetsMap.size());
+        return new Object[]{counter.get(), timestampToFileOffsetsMap};
+    }
+
+    private long publishEvents(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap,
+                               Map<String, File> files, int batchSize, long totalRecords) {
+        Map<Integer, Map<Long, List<FileRecordOffset>>> buckets = timestampToFileOffsetsMap.entrySet().stream()
+                .collect(Collectors.groupingBy(entry -> entry.getKey().hashCode() % threads,
+                        HashMap::new, Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+                                                      (oldValue, newValue) -> oldValue, TreeMap::new)));
+        AtomicLong successCounter = new AtomicLong(0);
+        AtomicLong failedCounter = new AtomicLong(0);
+        Map<Integer, Future<Void>> futures = new HashMap<>();
+        for (int i : buckets.keySet()) {
+            Map<Long, List<FileRecordOffset>> bucket = buckets.get(i);
+            Future<Void> future = executorService.submit(new Callable<Void>() {
+                @Override
+                public Void call() throws Exception {
+                    processCSVFile(bucket, files, totalRecords, batchSize, successCounter, failedCounter);
+                    return null;
+                }
+            });
+            futures.put(i, future);
+        }
+        for (int i : futures.keySet()) {
+            try {
+                Future<Void> future = futures.get(i);
+                future.get();
+            } catch (Throwable t) {
+                throw new IllegalStateException("Failed to publish events [" + i + "]", t);
+            }
+        }
+        return counter.get();
     }
 
     private CSVRecord getCsvRecord(long recordOffset, RandomAccessFile accessFile) throws Exception {
