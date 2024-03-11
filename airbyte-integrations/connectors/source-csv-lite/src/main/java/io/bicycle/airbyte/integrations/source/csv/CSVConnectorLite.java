@@ -318,6 +318,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 }
             });
         }
+        LOGGER.info("Executor pool size [{}] [{}]", getConnectorId(), backlogExecutorPoolSize);
         return backlogExecutorPoolSize;
     }
 
