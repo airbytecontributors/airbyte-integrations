@@ -302,7 +302,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
     private int initializeExecutors() {
         runtimeConfig = connectorConfigManager.getRuntimeConfig(bicycleConfig.getAuthInfo(),
                                                                                 bicycleConfig.getConnectorId());
-        if (connectorConfigManager.isDefaultConfig(runtimeConfig)) {
+        if (runtimeConfig != null && connectorConfigManager.isDefaultConfig(runtimeConfig)) {
             runtimeConfig = null;
         }
         int backlogExecutorPoolSize = runtimeConfig == null ?
