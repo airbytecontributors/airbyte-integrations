@@ -21,6 +21,7 @@ import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,15 +52,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
     private String[] headers;
 
     private static AtomicLong threadcounter = new AtomicLong(0);
-    private int threads = 4;
-    private ExecutorService executorService = Executors.newFixedThreadPool(threads, new ThreadFactory() {
-                @Override
-                public Thread newThread(Runnable r) {
-                    Thread t = new Thread(r);
-                    t.setName("csvconnector-lite-"+ threadcounter.incrementAndGet());
-                    return t;
-                }
-            });
+    private ExecutorService executorService;
     private ObjectMapper mapper = new ObjectMapper();
 
     public CSVConnectorLite(SystemAuthenticator systemAuthenticator,
@@ -247,6 +240,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state){
         LOGGER.info("Starting doRead [{}] [{}]", config, state);
         initialize(config, catalog);
+        initializeExecutors();
         LOGGER.info("Starting ingesting records [{}] [{}] [{}]", getConnectorId(), config, state);
         try {
             Status status = getConnectorStatus(READ_STATUS);
@@ -303,6 +297,39 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             LOGGER.info("doRead Done");
         }
         return null;
+    }
+
+    private void initializeExecutors() {
+        if (executorService != null) {
+            return;
+        }
+        runtimeConfig = connectorConfigManager.getRuntimeConfig(bicycleConfig.getAuthInfo(),
+                                                                                bicycleConfig.getConnectorId());
+        if (connectorConfigManager.isDefaultConfig(runtimeConfig)) {
+            runtimeConfig = null;
+        }
+        int backlogExecutorPoolSize = runtimeConfig == null ?
+                Integer.parseInt(getPropertyValue("BACKLOG_EXECUTOR_POOL_SIZE", "10")) :
+                runtimeConfig.getConcurrencyConfig().getBacklogExecutorPoolSize();
+        executorService = Executors.newFixedThreadPool(backlogExecutorPoolSize, new ThreadFactory() {
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread t = new Thread(r);
+                t.setName("csvconnector-lite-"+ threadcounter.incrementAndGet());
+                return t;
+            }
+        });
+    }
+
+    private String getPropertyValue(String propertyName, String defaultValue) {
+        String propValue = System.getenv(propertyName);
+        if (StringUtils.isEmpty(propValue)) {
+            propValue = System.getProperty(propertyName);
+            if (StringUtils.isEmpty(propValue)) {
+                propValue = defaultValue;
+            }
+        }
+        return propValue;
     }
 
     private Object[] sortEvents(Map<String, File> files, int batchSize) {
