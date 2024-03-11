@@ -240,7 +240,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             JsonNode config, ConfiguredAirbyteCatalog catalog, JsonNode state){
         LOGGER.info("Starting doRead [{}] [{}]", config, state);
         initialize(config, catalog);
-        initializeExecutors();
+        int threads = initializeExecutors();
         LOGGER.info("Starting ingesting records [{}] [{}] [{}]", getConnectorId(), config, state);
         try {
             Status status = getConnectorStatus(READ_STATUS);
@@ -276,7 +276,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
         boolean success = false;
         try {
-            long processed = publishEvents(timestampToFileOffsetsMap, files, batchSize, totalRecords);
+            long processed = publishEvents(timestampToFileOffsetsMap, files, batchSize, totalRecords, threads);
             updateConnectorState(READ_STATUS, Status.COMPLETE);
             if (processed > 0) {
                 success = true;
@@ -299,10 +299,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         return null;
     }
 
-    private void initializeExecutors() {
-        if (executorService != null) {
-            return;
-        }
+    private int initializeExecutors() {
         runtimeConfig = connectorConfigManager.getRuntimeConfig(bicycleConfig.getAuthInfo(),
                                                                                 bicycleConfig.getConnectorId());
         if (connectorConfigManager.isDefaultConfig(runtimeConfig)) {
@@ -311,14 +308,17 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         int backlogExecutorPoolSize = runtimeConfig == null ?
                 Integer.parseInt(getPropertyValue("BACKLOG_EXECUTOR_POOL_SIZE", "10")) :
                 runtimeConfig.getConcurrencyConfig().getBacklogExecutorPoolSize();
-        executorService = Executors.newFixedThreadPool(backlogExecutorPoolSize, new ThreadFactory() {
-            @Override
-            public Thread newThread(Runnable r) {
-                Thread t = new Thread(r);
-                t.setName("csvconnector-lite-"+ threadcounter.incrementAndGet());
-                return t;
-            }
-        });
+        if (executorService == null) {
+            executorService = Executors.newFixedThreadPool(backlogExecutorPoolSize, new ThreadFactory() {
+                @Override
+                public Thread newThread(Runnable r) {
+                    Thread t = new Thread(r);
+                    t.setName("csvconnector-lite-"+ threadcounter.incrementAndGet());
+                    return t;
+                }
+            });
+        }
+        return backlogExecutorPoolSize;
     }
 
     private String getPropertyValue(String propertyName, String defaultValue) {
@@ -363,7 +363,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
     }
 
     private long publishEvents(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap,
-                               Map<String, File> files, int batchSize, long totalRecords) {
+                               Map<String, File> files, int batchSize, long totalRecords, int threads) {
         Map<Integer, Map<Long, List<FileRecordOffset>>> buckets = timestampToFileOffsetsMap.entrySet().stream()
                 .collect(Collectors.groupingBy(entry -> Math.abs(entry.getKey().hashCode() % threads),
                         HashMap::new, Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
