@@ -28,6 +28,11 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static io.airbyte.integrations.bicycle.base.integration.BaseCSVEventConnector.APITYPE.READ;
 
@@ -72,10 +77,13 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
     }
 
-    protected long processCSVFile(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, File> files,
-                                  long totalRecords, int batchSize) throws IOException {
-        long recordsProcessed = 0;
+    protected long processCSVFile(int index, Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, File> files,
+                                  long totalRecords, int batchSize, AtomicLong successCounter, AtomicLong failedCounter)
+                                  throws IOException {
+        int records = 0;
         try {
+            LOGGER.info("Starting processing index[{}] [{}]", index, timestampToFileOffsetsMap.size());
+            long start = System.currentTimeMillis();
             long maxTimestamp = getStateAsLong(PROCESS_TIMESTAMP);
             List<RawEvent> rawEvents = new ArrayList<>();
             Map<String, CSVEventSourceReader> readers = new HashMap<>();
@@ -96,30 +104,35 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                     reader.seek(offset, rowCounter);
                     RawEvent next = reader.next();
                     rawEvents.add(next);
-                    recordsProcessed++;
+                    successCounter.incrementAndGet();
+                    records++;
                 }
 
                 if (rawEvents.size() >= batchSize) {
+                    int size = rawEvents.size();
                     boolean success = processAndPublishEventsWithRules(rawEvents);
                     rawEvents.clear();
                     if (success) {
                         saveState(PROCESS_TIMESTAMP, timestamp);
-                        updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
-                        LOGGER.info("[{}] : Success published records [{}]", getConnectorId(), recordsProcessed);
+                        updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) successCounter.get()/ (double) totalRecords);
+                        LOGGER.info("[{}] : Success published records [{}] [{}] [{}]", getConnectorId(), index, records, successCounter.get());
                     } else {
-                        LOGGER.info("[{}] : Failed published records [{}]", getConnectorId(), recordsProcessed);
+                        failedCounter.addAndGet(size);
+                        LOGGER.info("[{}] : Failed published records [{}] [{}]", getConnectorId(), index, failedCounter.get());
                     }
                 }
             }
 
             if (rawEvents.size() > 0) {
+                int size = rawEvents.size();
                 boolean success = processAndPublishEventsWithRules(rawEvents);
                 if (success && timestamp > 0) {
                     saveState(PROCESS_TIMESTAMP, timestamp);
-                    updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
-                    LOGGER.info("[{}] : Success published records [{}]", getConnectorId(), recordsProcessed);
+                    updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) successCounter.get()/ (double) totalRecords);
+                    LOGGER.info("[{}] : Success published records [{}] [{}] [{}]", getConnectorId(), index, records, successCounter.get());
                 } else {
-                    LOGGER.info("[{}] : Failed published records [{}]", getConnectorId(), recordsProcessed);
+                    failedCounter.addAndGet(size);
+                    LOGGER.info("[{}] : Failed published records [{}] [{}]", getConnectorId(), index, failedCounter.get());
                 }
             }
 
@@ -127,20 +140,25 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 readers.get(fileName).close();
             }
 
-            LOGGER.info("Total records processed for stream {} records processed {} total records {} with max timestamp {}",
-                    getConnectorId(), recordsProcessed, totalRecords, timestamp);
-            updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) recordsProcessed/ (double) totalRecords);
-            return recordsProcessed;
+            LOGGER.info("Total records processed for stream {} records processed index {} success {} failed {} " +
+                            "expected {} records {} total-records {} with max timestamp {} time {}",
+                            getConnectorId(), index, successCounter.get(), failedCounter.get(),
+                            timestampToFileOffsetsMap.size(), records, totalRecords, timestamp,
+                            (System.currentTimeMillis() - start));
+            updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) successCounter.get()/ (double) totalRecords);
+            return successCounter.get();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
     protected long readTimestampToFileOffset(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap,
-                                                        String fileName, File csvFile, int batchSize) throws Exception {
+                                             String fileName, File csvFile, int batchSize, AtomicLong successCounter,
+                                             AtomicLong failedCounter)
+                                             throws Exception {
         CSVEventSourceReader reader = null;
-        int totalRecords = 0;
         try {
+            long start = System.currentTimeMillis();
             reader = new CSVEventSourceReader(fileName, csvFile, getConnectorId(), this, READ);
             List<RawEvent> invalidEvents = new ArrayList<>();
             while (reader.hasNext()) {
@@ -150,17 +168,19 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                         long timestampInMillis = reader.getRecordUTCTimestampInMillis();
                         timestampToFileOffsetsMap.computeIfAbsent(timestampInMillis,
                                 (recordOffset) -> new ArrayList<>()).add(new FileRecordOffset(fileName, reader.offset, reader.rowCounter));
-                        totalRecords++;
-                        if (totalRecords % 1000 == 0) {
+                        successCounter.incrementAndGet();
+                        if (successCounter.get() % 1000 == 0) {
                             LOGGER.info("[{}] : Processed records by timestamp [{}] [{}]", getConnectorId(),
-                                    totalRecords, timestampInMillis);
+                                    successCounter.get(), timestampInMillis);
                         }
                     } catch (Exception e) {
                         LOGGER.error("Skipped record row[{}] offset[{}]", reader.row, reader.rowCounter, e);
+                        failedCounter.incrementAndGet();
                         invalidEvents.add(next);
                     }
                 } else {
                     LOGGER.info("Skipped record row[{}] offset[{}]", reader.row, reader.rowCounter);
+                    failedCounter.incrementAndGet();
                     invalidEvents.add(next);
                 }
                 if (invalidEvents.size() >= batchSize) {
@@ -172,7 +192,8 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 submitRecordsToPreviewStoreWithMetadata(getConnectorId(), invalidEvents);
                 invalidEvents.clear();
             }
-            LOGGER.info("[{}] : Total records processed [{}]", getConnectorId(), totalRecords);
+            LOGGER.info("[{}] : Total records processed [{}] [{}] [{}]", getConnectorId(), successCounter.get(),
+                    failedCounter.get(), (System.currentTimeMillis() - start));
         } catch (Exception e) {
             throw new IllegalStateException("Error while calculating timestamp to offset map ["+fileName+"]", e);
         } finally {
@@ -180,7 +201,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 reader.close();
             }
         }
-        return totalRecords;
+        return successCounter.get();
     }
 
 
