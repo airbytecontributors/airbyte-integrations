@@ -10,6 +10,7 @@ import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.bicycle.base.integration.BaseCSVEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
+import io.airbyte.integrations.bicycle.base.integration.csv.CSVEventSourceReader;
 import io.airbyte.integrations.bicycle.base.integration.exception.UnsupportedFormatException;
 import io.airbyte.protocol.models.*;
 import io.bicycle.integration.common.Status;
@@ -104,10 +105,11 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             LOGGER.error("Failed to update the sync state "+getConnectorId(), e);
         }
         LOGGER.info("[{}] : Local files Url [{}]", getConnectorId(), files);
-        SyncDataResponse syncDataResponse = validateFileFormats(files);
+        /*SyncDataResponse syncDataResponse = validateFileFormats(files);
         if (syncDataResponse != null) {
+            LOGGER.info("validation of files failed [{}]", getConnectorId());
             return syncDataResponse;
-        }
+        }*/
         List<RawEvent> vcEvents = new ArrayList<>();
         for (String fileName : files.keySet()) {
             File file = files.get(fileName);
@@ -115,7 +117,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             try {
                 csvReader = null;
                 try {
-                    csvReader = new CSVEventSourceReader(fileName, file, getConnectorId(), this, SYNC_DATA);
+                    csvReader = getCSVReader(fileName, file, getConnectorId(), this, SYNC_DATA);
                     publishPreviewEvents(file, csvReader, vcEvents, PREVIEW_RECORDS, 1, 0,
                             false, true, true, false);
                 } finally {
@@ -148,7 +150,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             try {
                 csvReader = null;
                 try {
-                    csvReader = new CSVEventSourceReader(fileName, file, getConnectorId(), this, SYNC_DATA);
+                    csvReader = getCSVReader(fileName, file, getConnectorId(), this, SYNC_DATA);
                     csvReader.validateFileFormat();
                 } finally {
                     if (csvReader != null) {
@@ -156,6 +158,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                     }
                 }
             } catch (UnsupportedFormatException t) {
+                LOGGER.info("validation of files failed [{}] [{}]", getConnectorId(), fileName, t);
                 unsupportedFormatExceptions.add(t);
             } catch (Throwable t) {
                 throw new IllegalStateException("Failed to register preview events for discovery service ["+fileName+"]", t);
@@ -190,7 +193,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                         File file = files.get(fileName);
                         CSVEventSourceReader csvReader = null;
                         try {
-                            csvReader = new CSVEventSourceReader(fileName, file, getConnectorId(), connector, SYNC_DATA);
+                            csvReader = getCSVReader(fileName, file, getConnectorId(), connector, SYNC_DATA);
                             validCount = publishPreviewEvents(file, csvReader, Collections.emptyList(),
                                     Integer.MAX_VALUE, total_records, validCount,
                                     true, false, false, true);
