@@ -685,6 +685,12 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     public boolean publishDummyEvents(AuthInfo authInfo, EventSourceInfo eventSourceInfo, long durationInSeconds) {
         return bicycleEventPublisher.publishDummyEvents(authInfo, eventSourceInfo, durationInSeconds, 5000);
     }
+
+    public boolean publishDummyEvents(AuthInfo authInfo, EventSourceInfo eventSourceInfo, long durationInSeconds,
+                                      long sleepTimeInMillis) {
+        return bicycleEventPublisher.publishDummyEvents(authInfo, eventSourceInfo, durationInSeconds, sleepTimeInMillis);
+    }
+
     public boolean publishEvents(AuthInfo authInfo, EventSourceInfo eventSourceInfo,
                                  EventProcessorResult eventProcessorResult) {
 

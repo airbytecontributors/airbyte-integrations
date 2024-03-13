@@ -79,6 +79,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         LOGGER.info("Starting syncdata [{}] [{}]", sourceConfig, readState);
         LOGGER.info("SyncData ConnectorConfigManager [{}]", connectorConfigManager);
         initialize(sourceConfig, catalog);
+        initializeExecutors();
         Status syncStatus = null;
         try {
             syncStatus = getConnectorStatus(SYNC_STATUS);
@@ -291,7 +292,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             throw new IllegalStateException(e);
         } finally {
             if (success) {
-                publishDummyEvents(getAuthInfo(), eventSourceInfo, getDummyMessagesInSecs(config));
+                publishDummyEvents(getAuthInfo(), eventSourceInfo, getDummyMessagesInSecs(config), 200);
             }
             stopEventConnector();
             LOGGER.info("doRead Done");
