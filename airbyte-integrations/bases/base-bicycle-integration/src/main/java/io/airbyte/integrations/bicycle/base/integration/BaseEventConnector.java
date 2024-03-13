@@ -232,16 +232,16 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected void submitRecordsToPreviewStore(String eventSourceId, List<RawEvent> rawEvents, boolean shouldFlush) {
         String eventSourceType = getEventSourceType(additionalProperties);
         EventSourceInfo eventSourceInfo = new EventSourceInfo(eventSourceId, eventSourceType);
-        bicycleEventPublisher.publishPreviewEvents(getAuthInfo(), eventSourceInfo, rawEvents, shouldFlush);
-        logger.info("[{}] : Published preview events [{}] [{}]", getConnectorId(), eventSourceId,
-                shouldFlush);
+        boolean success = bicycleEventPublisher.publishPreviewEvents(getAuthInfo(), eventSourceInfo, rawEvents, shouldFlush);
+        logger.info("[{}] : Published preview events [{}] [{}] [{}]", getConnectorId(), eventSourceId,
+                shouldFlush, success);
     }
 
     protected void submitRecordsToPreviewStoreWithMetadata(String eventSourceId, List<RawEvent> rawEvents) {
         String eventSourceType = getEventSourceType(additionalProperties);
         EventSourceInfo eventSourceInfo = new EventSourceInfo(eventSourceId, eventSourceType);
-        bicycleEventPublisher.publishMetadataPreviewEvents(getAuthInfo(), eventSourceInfo, rawEvents);
-        logger.info("[{}] : Published preview events [{}] [{}]", getConnectorId(), eventSourceId);
+        boolean success = bicycleEventPublisher.publishMetadataPreviewEvents(getAuthInfo(), eventSourceInfo, rawEvents);
+        logger.info("[{}] : Published preview events with metadata [{}] [{}]", getConnectorId(), eventSourceId, success);
     }
 
     protected void updateTenantSummaryVC(AuthInfo authInfo, String traceId, String companyName,
@@ -1216,6 +1216,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                 count++;
                 if (validEvents.size() >= BATCH_SIZE) {
                     submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
+                    logger.info("[{}] : Raw events total - published count [{}] Valid[{}] Invalid[{}]",
+                            getConnectorId(), file.getName(), valid_count, invalid_count);
                     validEvents.clear();
                     if (saveState) {
                         updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) valid_count/ (double) totalRecords);
