@@ -295,6 +295,10 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             throw new IllegalStateException(e);
         } finally {
             if (success) {
+                try {
+                    Thread.sleep(60000);
+                } catch (InterruptedException e) {
+                }
                 publishDummyEvents(getAuthInfo(), eventSourceInfo, getDummyMessagesInSecs(config), 200);
             }
             stopEventConnector();
@@ -390,24 +394,24 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         }
         AtomicLong successCounter = new AtomicLong(0);
         AtomicLong failedCounter = new AtomicLong(0);
-        Map<Integer, Future<Void>> futures = new HashMap<>();
-        for (int index : buckets.keySet()) {
-            Map<Long, List<FileRecordOffset>> bucket = buckets.get(index);
+        Map<String, Future<Void>> futures = new HashMap<>();
+        for (String fileName : files.keySet()) {
+            File file = files.get(fileName);
             Future<Void> future = executorService.submit(new Callable<Void>() {
                 @Override
                 public Void call() throws Exception {
-                    processCSVFile(index, bucket, files, totalRecords, batchSize, successCounter, failedCounter);
+                    processCSVFileWithoutTimestamps(1, fileName, file, totalRecords, batchSize, successCounter, failedCounter);
                     return null;
                 }
             });
-            futures.put(index, future);
+            futures.put(fileName, future);
         }
-        for (int i : futures.keySet()) {
+        for (String fileName : futures.keySet()) {
             try {
-                Future<Void> future = futures.get(i);
+                Future<Void> future = futures.get(fileName);
                 future.get();
             } catch (Throwable t) {
-                throw new IllegalStateException("Failed to publish events [" + i + "]", t);
+                throw new IllegalStateException("Failed to publish events [" + fileName + "]", t);
             }
         }
         LOGGER.info("[{}] : Published events [{}] [{}] [{}] [{}]", getConnectorId(),
