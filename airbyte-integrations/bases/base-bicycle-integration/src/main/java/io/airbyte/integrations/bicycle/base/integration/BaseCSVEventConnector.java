@@ -62,60 +62,6 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
     }
 
-    protected long processCSVFileWithoutTimestamps(int index, String fileName, File file,
-                                                   long totalRecords, int batchSize, AtomicLong successCounter,
-                                                   AtomicLong failedCounter) {
-        int records = 0;
-        try {
-            long start = System.currentTimeMillis();
-            List<RawEvent> rawEvents = new ArrayList<>();
-            CSVEventSourceReader reader = getCSVReader(fileName, file, getConnectorId(), this, READ);
-            while (reader.hasNext()) {
-                RawEvent next = reader.next();
-                rawEvents.add(next);
-                successCounter.incrementAndGet();
-
-                if (rawEvents.size() >= batchSize) {
-                    int size = rawEvents.size();
-                    boolean success = processAndPublishEventsWithRules(rawEvents);
-                    rawEvents.clear();
-                    if (success) {
-                        //saveState(PROCESS_TIMESTAMP, timestamp);
-                        updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) successCounter.get()/ (double) totalRecords);
-                        LOGGER.info("[{}] : Success published records [{}] [{}] [{}]", getConnectorId(), index, records, successCounter.get());
-                    } else {
-                        failedCounter.addAndGet(size);
-                        LOGGER.info("[{}] : Failed published records [{}] [{}]", getConnectorId(), index, failedCounter.get());
-                    }
-                }
-                records++;
-            }
-
-            if (rawEvents.size() > 0) {
-                int size = rawEvents.size();
-                boolean success = processAndPublishEventsWithRules(rawEvents);
-                if (success) {
-                    //saveState(PROCESS_TIMESTAMP, timestamp);
-                    updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) successCounter.get()/ (double) totalRecords);
-                    LOGGER.info("[{}] : Success published records [{}] [{}] [{}]", getConnectorId(), index, records, successCounter.get());
-                } else {
-                    failedCounter.addAndGet(size);
-                    LOGGER.info("[{}] : Failed published records [{}] [{}]", getConnectorId(), index, failedCounter.get());
-                }
-            }
-
-            LOGGER.info("Total records processed for stream {} records processed index {} success {} failed {} " +
-                            "records {} total-records {}  time {}",
-                    getConnectorId(), index, successCounter.get(), failedCounter.get(),
-                    records, totalRecords,
-                    (System.currentTimeMillis() - start));
-            updateConnectorState(READ_STATUS, Status.IN_PROGRESS, (double) successCounter.get()/ (double) totalRecords);
-            return successCounter.get();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     protected long processCSVFile(int index, Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, File> files,
                                   long totalRecords, int batchSize, AtomicLong successCounter, AtomicLong failedCounter)
                                   throws IOException {
@@ -253,7 +199,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         return publishEvents;
     }
 
-    private List<UserServiceMappingRule> getUserServiceMappingRules() {
+    protected List<UserServiceMappingRule> getUserServiceMappingRules() {
         if (userserviceRules != null) {
             return userserviceRules;
         }
