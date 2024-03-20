@@ -137,6 +137,30 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
     }
 
+    protected long readFileRecords(String fileName, File csvFile, AtomicLong counter) {
+        CSVEventSourceReader reader = null;
+        try {
+            long start = System.currentTimeMillis();
+            reader = getCSVReader(fileName, csvFile, getConnectorId(), this, READ);
+            while (reader.hasNext()) {
+                RawEvent next = reader.next();
+                counter.incrementAndGet();
+            }
+            LOGGER.info("[{}] : Total records processed [{}] [{}] [{}]", getConnectorId(), counter.get(),
+                    (System.currentTimeMillis() - start));
+        } catch (Exception e) {
+            throw new IllegalStateException("Error while calculating timestamp to offset map ["+fileName+"]", e);
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (Exception e) {
+                }
+            }
+        }
+        return counter.get();
+    }
+
     protected long readTimestampToFileOffset(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap,
                                              String fileName, File csvFile, int batchSize, AtomicLong successCounter,
                                              AtomicLong failedCounter)

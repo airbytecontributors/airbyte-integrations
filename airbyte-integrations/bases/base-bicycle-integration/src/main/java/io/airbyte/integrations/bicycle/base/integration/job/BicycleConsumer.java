@@ -10,23 +10,26 @@ import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class BicycleConsumer<T, R> {
+public class BicycleConsumer<T> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BicycleConsumer.class);
 
-    private static AtomicLong counter = new AtomicLong(0);
-    private static AtomicLong threadcounter = new AtomicLong(0);
+    private volatile boolean stop = false;
+    private AtomicLong counter = new AtomicLong(0);
+    private AtomicLong threadcounter = new AtomicLong(0);
     private String name;
     private EventProcessMetrics metrics;
     private ExecutorService executorService;
+    private BlockingQueue<T> queue;
     private Map<Future, ConsumerJob> futures = new HashMap<>();
 
-    public BicycleConsumer(String name, int poolSize, BlockingQueue<T> queue, ConsumerJob<T> job,
+    public BicycleConsumer(String name, int poolSize, BlockingQueue<T> queue,
                            EventProcessMetrics metrics) {
         this.name = name;
         this.metrics = metrics;
+        this.queue = queue;
         executorService = new ThreadPoolExecutor(poolSize, poolSize, 600, TimeUnit.SECONDS,
-                new ArrayBlockingQueue<>(poolSize), new ThreadFactory() {
+                new ArrayBlockingQueue<>(1000), new ThreadFactory() {
             @Override
             public Thread newThread(Runnable r) {
                 Thread thread = new Thread(r, name+"-"+ threadcounter.incrementAndGet());
@@ -34,19 +37,16 @@ public class BicycleConsumer<T, R> {
                 return thread;
             }
         });
-        for (int i =0; i < poolSize; i++) {
-            Future<R> future = (Future<R>) executorService.submit(new IConsumer(job, queue));
-            futures.put(future, job);
-        }
     }
 
-
-    public void stop(boolean force) {
-        int retries = 0;
-        for (Future<R> future : futures.keySet()) {
+    public void stop() {
+        for (Future<?> future : futures.keySet()) {
             ConsumerJob job = futures.get(future);
             job.finish();
-            boolean done = false;
+        }
+        for (Future<?> future : futures.keySet()) {
+            int retries = 0;
+            boolean done;
             do {
                 done = future.isDone();
                 if (!done) {
@@ -57,12 +57,16 @@ public class BicycleConsumer<T, R> {
                     retries++;
                 }
             } while (retries < 1000 && !done);
-        }
-        for (Future<R> future : futures.keySet()) {
             if (!future.isDone()) {
                 future.cancel(true);
             }
         }
+    }
+
+    public Future submit(ConsumerJob<T> job) {
+        Future<?> future = executorService.submit(new IConsumer(job, queue));
+        futures.put(future, job);
+        return future;
     }
 
     class IConsumer implements Runnable {
@@ -79,15 +83,19 @@ public class BicycleConsumer<T, R> {
             try {
                 int misses = 0;
                 do {
-                    T t = queue.poll(10, TimeUnit.SECONDS);
+                    T t = queue.poll(6, TimeUnit.SECONDS);
                     if (t != null) {
                         counter.incrementAndGet();
-                        if (counter.get() % 2000 == 0) {
-                            LOGGER.info("[{}] Receiving from queue : [{}]", Thread.currentThread().getName(),
-                                                                            counter.get());
+                        if (counter.get() % 1000 == 0) {
+                            LOGGER.info("[{}] Receiving from queue : [{}] queue size[{}]", Thread.currentThread().getName(),
+                                    counter.get(), queue.size());
                         }
                         misses = 0;
-                        job.process(t);
+                        try {
+                            job.process(t);
+                        } catch (Exception e) {
+                            LOGGER.error("[{}] Failed to consume data [{}]", Thread.currentThread().getName(), counter.get(), e);
+                        }
                     } else {
                         LOGGER.info("[{}] Waiting to pull : [{}] size [{}]  misses [{}]",
                                 Thread.currentThread().getName(), counter.get(), queue.size(), misses);

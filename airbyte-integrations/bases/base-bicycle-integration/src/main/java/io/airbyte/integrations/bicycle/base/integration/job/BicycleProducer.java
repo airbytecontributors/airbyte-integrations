@@ -3,19 +3,18 @@ package io.airbyte.integrations.bicycle.base.integration.job;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class BicycleProducer<T, R> {
+public class BicycleProducer<T> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BicycleProducer.class);
 
-    private static AtomicLong counter = new AtomicLong(0);
-    private static AtomicLong threadcounter = new AtomicLong(0);
+    private AtomicLong counter = new AtomicLong(0);
+    private AtomicLong threadcounter = new AtomicLong(0);
+    private volatile boolean stop = false;
     private String name;
     private EventProcessMetrics metrics;
     private BlockingQueue<T> queue;
@@ -27,13 +26,13 @@ public class BicycleProducer<T, R> {
         this.queue = queue;
         this.metrics = metrics;
         executorService = new ThreadPoolExecutor(poolSize, poolSize, 600, TimeUnit.SECONDS,
-                new ArrayBlockingQueue<>(poolSize), new ThreadFactory() {
-
-            public Thread newThread(Runnable r) {
-                Thread thread = new Thread(r, name+"-"+ threadcounter.incrementAndGet());
-                thread.setDaemon(true);
-                return thread;
-            }
+                new ArrayBlockingQueue<>(1000),
+                new ThreadFactory() {
+                    public Thread newThread(Runnable r) {
+                        Thread thread = new Thread(r, name+"-"+ threadcounter.incrementAndGet());
+                        thread.setDaemon(true);
+                        return thread;
+                    }
         });
     }
 
@@ -43,11 +42,14 @@ public class BicycleProducer<T, R> {
         return future;
     }
 
-    public void stop(boolean force) {
-        int retries = 0;
-        for (Future<R> future : futures.keySet()) {
+    public void stop() {
+        for (Future<?> future : futures.keySet()) {
             ProducerJob job = futures.get(future);
             job.finish();
+        }
+        stop = true;
+        for (Future<?> future : futures.keySet()) {
+            int retries = 0;
             boolean done = false;
             do {
                 done = future.isDone();
@@ -59,12 +61,37 @@ public class BicycleProducer<T, R> {
                     retries++;
                 }
             } while (retries < 1000 && !done);
-        }
-        for (Future<R> future : futures.keySet()) {
             if (!future.isDone()) {
                 future.cancel(true);
             }
         }
+    }
+
+    public boolean addToQueue(T o) {
+        counter.incrementAndGet();
+        if (counter.get() % 1000 == 0) {
+            LOGGER.info("[{}] Adding to queue : [{}]", Thread.currentThread().getName(), counter.get());
+        }
+        int misses = 0;
+        boolean added = false;
+        do {
+            added = queue.offer(o);
+            try {
+                if (!added) {
+                    LOGGER.info("[{}] Waiting to push : [{}] size [{}] misses [{}]",
+                            Thread.currentThread().getName(), counter.get(), queue.size(), misses);
+                    Thread.sleep(60);
+                    misses++;
+                } else {
+                    return true;
+                }
+            } catch (InterruptedException e) {
+            }
+        } while (!added && misses < 5000);
+        if (!added) {
+            LOGGER.info("[{}] Skipped Records : [{}]", Thread.currentThread().getName(), counter.get());
+        }
+        return false;
     }
 
 
@@ -82,29 +109,7 @@ public class BicycleProducer<T, R> {
             try {
                 job.process(new Producer<T>() {
                     public void produce(T o) {
-                        counter.incrementAndGet();
-                        if (counter.get() % 2000 == 0) {
-                            LOGGER.info("[{}] Adding to queue : [{}]", Thread.currentThread().getName(), counter.get());
-                        }
-                        int misses = 0;
-                        boolean added = false;
-                        do {
-                            added = queue.offer(o);
-                            try {
-                                if (!added) {
-                                    LOGGER.info("[{}] Waiting to push : [{}] size [{}] misses [{}]",
-                                            Thread.currentThread().getName(), counter.get(), queue.size(), misses);
-                                    Thread.sleep(60);
-                                    misses++;
-                                } else {
-                                    misses = 0;
-                                }
-                            } catch (InterruptedException e) {
-                            }
-                        } while (!added && misses < 5000);
-                        if (!added) {
-                            LOGGER.info("[{}] Skipped Records : [{}]", Thread.currentThread().getName(), counter.get());
-                        }
+                        addToQueue(o);
                     }
                 });
             } catch (Exception e) {

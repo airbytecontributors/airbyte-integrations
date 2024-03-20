@@ -11,22 +11,31 @@ import java.util.concurrent.Future;
 public class BicycleEventsProcessor {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BicycleRulesProcessor.class.getName());
-    private BicycleConsumer<EventProcessorResult, Boolean> consumer;
-    private BicycleProducer<EventProcessorResult, Boolean> producer;
-    private BlockingQueue<EventProcessorResult> blockingQueue = new ArrayBlockingQueue<>(100);
+    private BicycleConsumer<EventProcessorResult> consumer;
+    private BicycleProducer<EventProcessorResult> producer;
+    private BlockingQueue<EventProcessorResult> blockingQueue;;
 
-    public BicycleEventsProcessor(int poolSize, EventProcessMetrics metrics, ConsumerJob<EventProcessorResult> job) {
+    public BicycleEventsProcessor(int poolSize, int queueSize, EventProcessMetrics metrics) {
+        blockingQueue = new ArrayBlockingQueue<>(queueSize);
         this.producer = new BicycleProducer<>("bicycle-events-processor-producer", 1, blockingQueue, metrics);
-        this.consumer = new BicycleConsumer<>("bicycle-events-processor-consumer", poolSize, blockingQueue, job, metrics);
+        this.consumer = new BicycleConsumer<>("bicycle-events-processor-consumer", poolSize, blockingQueue, metrics);
+    }
+
+    public BicycleProducer<EventProcessorResult> getProducer() {
+        return producer;
     }
 
     public Future submit(ProducerJob<EventProcessorResult> job) {
         return producer.submit(job);
     }
 
+    public Future<Boolean> submit(ConsumerJob<EventProcessorResult> job) {
+        return consumer.submit(job);
+    }
+
     public void stop() {
-        producer.stop(false);
-        consumer.stop(false);
+        producer.stop();
+        consumer.stop();
     }
 
 

@@ -87,6 +87,18 @@
         "description": "Specifies the size of batches for publishing records.",
         "default": 100
       },
+      "requestSize": {
+        "type": "long",
+        "title": "Request Size",
+        "description": "Specifies the size of request for publishing records.",
+        "default": 524288
+      },
+      "queueSize": {
+        "type": "integer",
+        "title": "Queue Size",
+        "description": "Specifies the size of batches for publishing records.",
+        "default": 100
+      },
       "dummyMessageInterval": {
         "type": "integer",
         "title": "Interval for Sending Dummy Messages",

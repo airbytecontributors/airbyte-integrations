@@ -33,7 +33,7 @@ public class CSVConnectorLiteTest {
         String metricStoreURL =  "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details";
         String uniqueIdentifier = UUID.randomUUID().toString();
         String token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJST0xFIjoiQVBJIiwic3ViIjoic3VtaXQtdGVzdCIsIk9SR19JRCI6IjY0IiwiaXNzIjoic3VtaXRAYmljeWNsZS5pbyIsImlhdCI6MTY0NDk0MTQxMywiVEVOQU5UIjoiZW10LWU5ZTRlZjZjLTYzYzQtNDkzMC1iMzMxLTJkZjNhZjFlNzg4ZSIsImp0aSI6IjBkZjU4ZmFkLTk0NzMtNDQ4OS1iNzMifQ.t8F2oEwEFej1xU2LknY2pLsbgUW3x5YED8trN9QYzDU";
-        String connectorId = "7f24e294-f4a8-4277-a77b-66c42a2f60a2";
+        String connectorId = "53054b80-8655-459c-85bb-f615199415b2";
         String userId = "";
         String eventSourceType= "EVENT";
         String tenantId = "emt-e9e4ef6c-63c4-4930-b331-2df3af1e788e";
