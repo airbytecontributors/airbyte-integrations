@@ -33,7 +33,7 @@ public class CSVConnectorLiteTest {
         String metricStoreURL =  "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details";
         String uniqueIdentifier = UUID.randomUUID().toString();
         String token = "";
-        String connectorId = "d804c589-d03e-4429-873c-2ee006db495b";
+        String connectorId = "";
         String userId = "";
         String eventSourceType= "EVENT";
         String tenantId = "emt-e9e4ef6c-63c4-4930-b331-2df3af1e788e";
@@ -87,7 +87,7 @@ public class CSVConnectorLiteTest {
         Assertions.assertTrue(true);
     }
 
-    //@Test
+    @Test
     public void testRead() throws Exception {
         csvConnector.doRead(config, catalog, new ObjectMapper().createObjectNode());
         Assertions.assertTrue(true);
