@@ -23,6 +23,7 @@ import io.bicycle.integration.connector.SyncDataResponse;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
+import java.nio.charset.Charset;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -410,7 +411,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                     /*LOGGER.info("[{}] Successfully Buffered records [{}] [{}] [{}] [{}]", getConnectorId(),
                             Thread.currentThread().getName(), counter.incrementAndGet(), rawEvents.size(), acquired);*/
                     JsonRawEvent jsonRawEvent = (JsonRawEvent) rawEvent;
-                    byte[] bytes = jsonRawEvent.getJsonEvent().getJsonStr().getBytes();
+                    byte[] bytes = jsonRawEvent.getJsonEvent().getJsonStr().getBytes(Charset.defaultCharset());
                     bufferSize.addAndGet(bytes.length);
                 } catch (InterruptedException e) {
                     LOGGER.error("Lock Interrupted", e);
@@ -426,6 +427,12 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 EventSourceInfo eventSourceInfo = new EventSourceInfo(getConnectorId(), getEventSourceType());
                 EventProcessorResult eventProcessorResult = convertRawEventsToBicycleEvents(getAuthInfo(),
                         eventSourceInfo, rawEvents, getUserServiceMappingRules());
+                //Since for CSV lite connector we have already published all the data as preview records,
+                //we need to publish any more preview records.
+                if (eventProcessorResult != null) {
+                    eventProcessorResult.getUnmatchedRawEvents().clear();
+                    eventProcessorResult.getMatchedRawEventsForPreview().clear();
+                }
                 producer.addToQueue(eventProcessorResult);
                 LOGGER.info("[{}] Successfully Pushed Records [{}] [{}] [{}]", getConnectorId(),
                         Thread.currentThread().getName(), records.incrementAndGet(),
