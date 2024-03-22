@@ -1,18 +1,22 @@
 package io.bicycle.airbyte.integrations.source.csv;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.util.AutoCloseableIterator;
-import io.airbyte.integrations.bicycle.base.integration.BaseCSVEventConnector;
-import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
-import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
+import io.airbyte.integrations.bicycle.base.integration.*;
 import io.airbyte.integrations.bicycle.base.integration.csv.CSVEventSourceReader;
 import io.airbyte.integrations.bicycle.base.integration.exception.UnsupportedFormatException;
-import io.airbyte.integrations.bicycle.base.integration.job.*;
+import io.airbyte.integrations.bicycle.base.integration.job.config.ConsumerConfig;
+import io.airbyte.integrations.bicycle.base.integration.job.config.ProducerConfig;
+import io.airbyte.integrations.bicycle.base.integration.job.consumer.ConsumerJob;
+import io.airbyte.integrations.bicycle.base.integration.job.metrics.EventProcessMetrics;
+import io.airbyte.integrations.bicycle.base.integration.job.processor.EventProcessor;
+import io.airbyte.integrations.bicycle.base.integration.job.producer.BicycleProducer;
+import io.airbyte.integrations.bicycle.base.integration.job.producer.Producer;
+import io.airbyte.integrations.bicycle.base.integration.job.producer.ProducerJob;
 import io.airbyte.protocol.models.*;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.integration.common.Status;
@@ -31,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -54,7 +59,6 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
     private static AtomicLong threadcounter = new AtomicLong(0);
     private ExecutorService executorService;
-    private ObjectMapper mapper = new ObjectMapper();
 
     public CSVConnectorLite(SystemAuthenticator systemAuthenticator,
                         EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
@@ -80,7 +84,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         LOGGER.info("Starting syncdata [{}] [{}]", sourceConfig, readState);
         LOGGER.info("SyncData ConnectorConfigManager [{}]", connectorConfigManager);
         initialize(sourceConfig, catalog);
-        initializeExecutors();
+        int threads = initializeExecutors();
         Status syncStatus = null;
         try {
             syncStatus = getConnectorStatus(SYNC_STATUS);
@@ -93,11 +97,13 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         Map<String, String> fileVsSignedUrls = readFilesConfig();
         LOGGER.info("[{}] : Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
         Map<String, File> files = new HashMap<>();
-        for (String fileName : fileVsSignedUrls.keySet()) {
-            File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
-            files.put(fileName, file);
-            //files.put("test.csv", new File("/home/ravi/Downloads/test.csv"));
-            //files.put("kit_requests_clean.csv", new File("/home/ravi/Downloads/kit_requests_clean.csv"));
+        if ("true".equalsIgnoreCase(System.getProperty("dev.mode", "false"))) {
+            files.put("DemoData_Feb04toMar11_2024_FixedDateFormat.csv", new File("/home/ravi/Downloads/system-error/export-8dc3fbdf3ee9aff.csv"));
+        } else {
+            for (String fileName : fileVsSignedUrls.keySet()) {
+                File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
+                files.put(fileName, file);
+            }
         }
         try {
             updateConnectorState(SYNC_STATUS, Status.STARTED, 0);
@@ -105,11 +111,6 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             LOGGER.error("Failed to update the sync state "+getConnectorId(), e);
         }
         LOGGER.info("[{}] : Local files Url [{}]", getConnectorId(), files);
-        /*SyncDataResponse syncDataResponse = validateFileFormats(files);
-        if (syncDataResponse != null) {
-            LOGGER.info("validation of files failed [{}]", getConnectorId());
-            return syncDataResponse;
-        }*/
         List<RawEvent> vcEvents = new ArrayList<>();
         for (String fileName : files.keySet()) {
             File file = files.get(fileName);
@@ -129,10 +130,8 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 throw new IllegalStateException("Failed to register preview events for discovery service ["+fileName+"]", t);
             }
         }
-        //createTenantVC(vcEvents);
         try {
-            Future<Object> future = processFiles(files);
-            //future.get();
+            Map<String, Future> futures = processFiles(threads, files);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -173,49 +172,160 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         return null;
     }
 
-    private Future<Object> processFiles(Map<String, File> files) {
+    private Map<String, Future> processFiles(int threads, Map<String, File> files) {
         BaseEventConnector connector = this;
-        Future<Object> future = executorService.submit(new Callable<Object>() {
-            @Override
-            public Object call() throws Exception {
-                try {
-                    updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, 0);
-                    int total_records = 0;
-                    for (String fileName : files.keySet()) {
-                        File file = files.get(fileName);
-                        int records = totalRecords(file);
-                        records = records - 1; //remove header
-                        total_records = total_records + records;
+        int batchSize = getBatchSize(config);
+        int queueSize = getQueueSize(config);
+        int requestSize = getRequestSize(config);
+        long totalRecords = calculateTotalrecords(files, batchSize);
+        updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, 0);
+
+        String connectorId = getConnectorId();
+        ConsumerConfig consumerConfig = ConsumerConfig.newBuilder().setName("preview-events")
+                .setIdentifier(connectorId)
+                .setPoolSize(threads)
+                .setMaxIdlePollsRetries(300)
+                .setSleepTimeInMillis(60);
+        ProducerConfig producerConfig = ProducerConfig.newBuilder().setName("preview-events")
+                .setIdentifier(connectorId)
+                .setPoolSize(threads)
+                .setMaxBlockingQueueSize(threads * queueSize)
+                .setMaxRetries(1000)
+                .setSleepTimeInMillis(60);
+
+
+        Map<String, Future> futures = new HashMap<>();
+        EventProcessor<WrapperEvent> eventsProcessor = new EventProcessor(producerConfig, consumerConfig,
+                new EventProcessMetrics(totalRecords));
+
+        AtomicLong validCount = new AtomicLong(0);
+        AtomicLong invalidCount = new AtomicLong(0);
+        AtomicBoolean finished = new AtomicBoolean(false);
+        long batch = totalRecords / 20;
+        long logbatch = batch > 1000 ? 1000 : batch;
+
+        for (int i = 0; i < threads; i++) {
+            eventsProcessor.submit(new ConsumerJob<WrapperEvent>() {
+
+                private List<RawEvent> validEvents = new ArrayList<>();
+                private List<RawEvent> inValidEvents = new ArrayList<>();
+                private AtomicLong bufferSize = new AtomicLong(0);
+                private ReentrantLock lock = new ReentrantLock();
+                private Status status = Status.COMPLETE;
+
+                public void process(WrapperEvent wrapperEvent) {
+                    try {
+                        boolean acquired = lock.tryLock(60, TimeUnit.SECONDS);
+                        RawEvent rawEvent = wrapperEvent.getRawEvent();
+                        if (wrapperEvent.isValidEvent()) {
+                            validEvents.add(rawEvent);
+                            validCount.incrementAndGet();
+                        } else {
+                            status = Status.ERROR;
+                            inValidEvents.add(rawEvent);
+                            invalidCount.incrementAndGet();
+                        }
+
+                        JsonRawEvent jsonRawEvent = (JsonRawEvent) rawEvent;
+                        byte[] bytes = jsonRawEvent.getJsonEvent().getJsonStr().getBytes();
+                        bufferSize.addAndGet(bytes.length);
+                        if (bufferSize.get() >= requestSize) {
+                            publishPreviewEvents(acquired);
+                        }
+                    } catch (Exception e) {
+                        LOGGER.error("[{}] Failed while publishing records [{}] [{}]", validCount.get(), invalidCount.get(), e);
+                    } finally {
+                        lock.unlock();
                     }
-                    Status status = Status.COMPLETE;
-                    int validCount = 0;
-                    for (String fileName : files.keySet()) {
-                        File file = files.get(fileName);
-                        CSVEventSourceReader csvReader = null;
+                }
+
+                private void publishPreviewEvents(boolean lockAcquired) {
+                    submitRecordsToPreviewStore(getConnectorId(), validEvents, true);
+                    if (validCount.get() % logbatch == 0 || finished.get()) {
+                        LOGGER.info("[{}] : Raw events total - published count Valid[{}] Invalid[{}] Lock [{}]",
+                                getConnectorId(), validCount.get(), invalidCount.get(), lockAcquired);
+                    }
+                    validEvents.clear();
+                    bufferSize.set(0);
+                    updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS,
+                            (double) validCount.get()/ (double) totalRecords);
+
+                    submitRecordsToPreviewStoreWithMetadata(getConnectorId(), inValidEvents);
+                    inValidEvents.clear();
+                }
+
+                public void finish() {
+                    try {
+                        boolean acquired = lock.tryLock(60, TimeUnit.SECONDS);
+                        finished.set(true);
+                        publishPreviewEvents(acquired);
+                        updateConnectorState(SYNC_STATUS, status);
+                        LOGGER.info("[{}] : Raw events total final - published count Valid[{}] Invalid[{}]",
+                                getConnectorId(), validCount.get(), invalidCount.get());
+                    } catch (InterruptedException e) {
+                        LOGGER.error("Lock Interrupted", e);
+                    } finally {
+                        lock.unlock();
+                    }
+                }
+            });
+        }
+
+        for (String fileName : files.keySet()) {
+            File file = files.get(fileName);
+            Future future = eventsProcessor.submit(new ProducerJob<WrapperEvent>() {
+
+                AtomicLong recordsCount = new AtomicLong(0);
+                public void process(Producer<WrapperEvent> producer) {
+                    try {
+                        CSVEventSourceReader reader = null;
                         try {
-                            csvReader = getCSVReader(fileName, file, getConnectorId(), connector, SYNC_DATA);
-                            validCount = publishPreviewEvents(file, csvReader, Collections.emptyList(),
-                                    Integer.MAX_VALUE, total_records, validCount,
-                                    true, false, false, true);
-                            if (csvReader.getStatus() != null && csvReader.getStatus().equals(ReaderStatus.FAILED)) {
-                                status = Status.ERROR;
+                            reader = getCSVReader(fileName, file, getConnectorId(), connector, READ);
+                            while (reader.hasNext()) {
+                                RawEvent next = reader.next();
+                                producer.produce(new WrapperEvent(next, reader.isValidEvent()));
+                                recordsCount.incrementAndGet();
                             }
+                            LOGGER.info("[{}] : Processing file done [{}] [{}]", getConnectorId(), fileName,
+                                                recordsCount.get());
                         } finally {
-                            if (csvReader != null) {
-                                csvReader.close();
+                            if (reader != null) {
+                                reader.close();
                             }
                         }
+                    } catch (Throwable t) {
+                        LOGGER.error("Failed parse file [{}] [{}]", getConnectorId(), fileName, t);
                     }
-                    LOGGER.info("[{}] : Raw events total - Total Count[{}]", getConnectorId(), total_records);
-                    updateConnectorState(SYNC_STATUS, status);
-                } catch (Throwable t) {
-                    LOGGER.error("Failed to submit records to preview store [{}]", getConnectorId(), t);
-                    updateConnectorState(SYNC_STATUS, Status.ERROR);
                 }
-                return null;
-            }
-        });
-        return future;
+
+                public void finish() {
+                    LOGGER.info("[{}] : Processing file complete [{}] [{}]", getConnectorId(), fileName,
+                            recordsCount.get());
+                }
+            });
+            futures.put(fileName, future);
+        }
+        //eventsProcessor.stop();
+        //eventsProcessor.shutdown();
+        return futures;
+    }
+
+    static class WrapperEvent {
+        private boolean validEvent;
+        private RawEvent rawEvent;
+
+        public WrapperEvent(RawEvent rawEvent, boolean validEvent) {
+            this.rawEvent = rawEvent;
+            this.validEvent = validEvent;
+        }
+
+        public boolean isValidEvent() {
+            return validEvent;
+        }
+
+        public RawEvent getRawEvent() {
+            return rawEvent;
+        }
     }
 
     public AirbyteConnectionStatus check(JsonNode config) throws Exception {
@@ -253,13 +363,16 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             }
             updateConnectorState(READ_STATUS, Status.STARTED, 0);
             Map<String, File> files = new HashMap<>();
-            Map<String, String> fileVsSignedUrls = readFilesConfig();
-            LOGGER.info("[{}] : doRead Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
-            for (String fileName : fileVsSignedUrls.keySet()) {
-                File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
-                files.put(fileName, file);
+            if ("true".equalsIgnoreCase(System.getProperty("dev.mode", "false"))) {
+                files.put("DemoData_Feb04toMar11_2024_FixedDateFormat.csv", new File("/home/ravi/Downloads/system-error/export-8dc3fbdf3ee9aff.csv"));
+            } else {
+                Map<String, String> fileVsSignedUrls = readFilesConfig();
+                LOGGER.info("[{}] : doRead Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
+                for (String fileName : fileVsSignedUrls.keySet()) {
+                    File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
+                    files.put(fileName, file);
+                }
             }
-
 
             updateConnectorState(READ_STATUS, Status.IN_PROGRESS, 0);
             int queueSize = getQueueSize(config);
@@ -332,13 +445,38 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
     private long publishEvents(Map<String, File> files, int queueSize, int requestSize, int threads, long totalRecords) {
         EventProcessMetrics metrics = new EventProcessMetrics(totalRecords);
-        BicycleEventsProcessor eventsProcessor = new BicycleEventsProcessor(threads, threads * queueSize, metrics);
+        String connectorId = getConnectorId();
+        ConsumerConfig consumerConfig = ConsumerConfig.newBuilder().setName("bicycle-events-processor")
+                .setIdentifier(connectorId)
+                .setPoolSize(threads)
+                .setMaxIdlePollsRetries(2000)
+                .setSleepTimeInMillis(60);
+        ProducerConfig producerConfig = ProducerConfig.newBuilder().setName("bicycle-events-processor")
+                .setIdentifier(connectorId)
+                .setPoolSize(1)
+                .setMaxBlockingQueueSize(threads * queueSize)
+                .setMaxRetries(1000)
+                .setSleepTimeInMillis(60);
+        EventProcessor<EventProcessorResult> eventsProcessor
+                = new EventProcessor<>(producerConfig, consumerConfig, metrics);
         for (int i = 0; i < threads; i++) {
             eventsProcessor.submit(getPublisherConsumerJob(metrics));
         }
-        BicycleRulesProcessor rulesProcessor = new BicycleRulesProcessor(threads, threads * queueSize, metrics);
+
+        ConsumerConfig consumerConfig1 = ConsumerConfig.newBuilder().setName("bicycle-rules-processor")
+                .setIdentifier(connectorId)
+                .setPoolSize(threads)
+                .setMaxIdlePollsRetries(2000)
+                .setSleepTimeInMillis(60);
+        ProducerConfig producerConfig1 = ProducerConfig.newBuilder().setName("bicycle-rules-processor")
+                .setIdentifier(connectorId)
+                .setPoolSize(1)
+                .setMaxBlockingQueueSize(threads * queueSize)
+                .setMaxRetries(1000)
+                .setSleepTimeInMillis(60);
+        EventProcessor<RawEvent> rulesProcessor = new EventProcessor<>(producerConfig1, consumerConfig1, metrics);
         for (int i = 0; i < threads; i++) {
-            rulesProcessor.submit(getRulesConsumerJob(requestSize, eventsProcessor.getProducer()));
+            rulesProcessor.submit(getRulesConsumerJob(requestSize, metrics, eventsProcessor.getProducer()));
         }
         Map<String, Future<Boolean>> futures = new HashMap<>();
         for (String fileName : files.keySet()) {
@@ -390,12 +528,12 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         };
     }
 
-    private ConsumerJob<RawEvent> getRulesConsumerJob(int requestSize, BicycleProducer<EventProcessorResult> producer) {
-        return new ConsumerJob<RawEvent>() {
+    private ConsumerJob<RawEvent> getRulesConsumerJob(int requestSize, EventProcessMetrics metrics,
+                                                      BicycleProducer<EventProcessorResult> producer) {
 
-            private static AtomicLong counter = new AtomicLong(0);
-            private static AtomicLong records = new AtomicLong(0);
-            private static AtomicLong records1 = new AtomicLong(0);
+        AtomicLong records = new AtomicLong(0);
+        AtomicLong records1 = new AtomicLong(0);
+        return new ConsumerJob<RawEvent>() {
             private AtomicLong bufferSize = new AtomicLong(0);
             private List<RawEvent> rawEvents = new ArrayList<>();
 
@@ -424,6 +562,10 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 if (rawEvents.size() == 0) {
                     return;
                 }
+                long totalRecords = metrics.getTotalRecords();
+                long batch = totalRecords / 20;
+                long logbatch = batch > 1000 ? 1000 : batch;
+
                 EventSourceInfo eventSourceInfo = new EventSourceInfo(getConnectorId(), getEventSourceType());
                 EventProcessorResult eventProcessorResult = convertRawEventsToBicycleEvents(getAuthInfo(),
                         eventSourceInfo, rawEvents, getUserServiceMappingRules());
@@ -434,9 +576,11 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                     eventProcessorResult.getMatchedRawEventsForPreview().clear();
                 }
                 producer.addToQueue(eventProcessorResult);
-                LOGGER.info("[{}] Successfully Pushed Records [{}] [{}] [{}]", getConnectorId(),
-                        Thread.currentThread().getName(), records.incrementAndGet(),
-                        records1.addAndGet(eventProcessorResult.getUserServiceDefs().size()));
+                if (records.get() % logbatch == 0) {
+                    LOGGER.info("[{}] Successfully Pushed Records [{}] [{}] [{}]", getConnectorId(),
+                            Thread.currentThread().getName(), records.incrementAndGet(),
+                            records1.addAndGet(eventProcessorResult.getUserServiceDefs().size()));
+                }
                 rawEvents.clear();
                 bufferSize.set(0);
             }
@@ -458,10 +602,16 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
     }
 
     private ConsumerJob<EventProcessorResult> getPublisherConsumerJob(EventProcessMetrics metrics) {
-        return new ConsumerJob<EventProcessorResult>() {
+        String connectorId = getConnectorId();
 
-            private static AtomicLong records = new AtomicLong(0);
-            private static AtomicLong counter = new AtomicLong(0);
+        long totalRecords = metrics.getTotalRecords();
+        long batch = totalRecords / 20;
+        long logbatch = batch > 1000 ? 1000 : batch;
+
+        AtomicLong records = new AtomicLong(0);
+        AtomicLong counter = new AtomicLong(0);
+        AtomicBoolean finished = new AtomicBoolean(false);
+        return new ConsumerJob<EventProcessorResult>() {
 
             public void process(EventProcessorResult eventProcessorResult) {
                 long startTimeInMillis = System.currentTimeMillis();
@@ -476,18 +626,20 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                     } else {
                         metrics.failed(size);
                     }
-                    LOGGER.info("[{}] Success published records [{}] [{}] batch [{}] counter [{}] time [{}]", connectorId, metrics.getSuccess(),
-                            metrics.getFailed(), records.get(), counter.get(), (System.currentTimeMillis() - startTimeInMillis));
-                    try {
-                        updateConnectorState(READ_STATUS, Status.IN_PROGRESS, ((double) metrics.getSuccess() / (double) metrics.getTotalRecords()));
-                    } catch (Exception e) {
-                        LOGGER.error("[{}] Failed to update state [{}] [{}]", connectorId, metrics.getSuccess(),
-                                metrics.getFailed(), e);
+                    if (metrics.getSuccess() % logbatch == 0 || finished.get()) {
+                        LOGGER.info("[{}] Success published records [{}] [{}] batch [{}] counter [{}] time [{}]",
+                                connectorId, metrics.getSuccess(), metrics.getFailed(), records.get(), counter.get(),
+                                (System.currentTimeMillis() - startTimeInMillis));
                     }
+                    updateConnectorState(READ_STATUS, Status.IN_PROGRESS,
+                                        ((double) metrics.getSuccess() / (double) metrics.getTotalRecords()));
                 }
             }
 
             public void finish() {
+                LOGGER.info("[{}] Success published records final success[{}] failed[{}] total[{}]", connectorId,
+                        metrics.getSuccess(), metrics.getFailed(), metrics.getTotalRecords());
+                finished.set(true);
             }
         };
     }

@@ -1,4 +1,4 @@
-package io.airbyte.integrations.bicycle.base.integration.job;
+package io.airbyte.integrations.bicycle.base.integration.job.producer;
 
 public interface ProducerJob<T> {
 

@@ -81,10 +81,15 @@ public class CSVConnectorLiteTest {
         csvConnector.setBicycleEventProcessorAndPublisher(bicycleConfig);
     }
 
-    //@Test
+    @Test
     public void testSyncData() throws Exception {
         csvConnector.syncData(config, catalog, new ObjectMapper().createObjectNode(), null);
         Assertions.assertTrue(true);
+        boolean done = true;
+        do {
+            Thread.sleep(100);
+        } while (done);
+        System.out.println("Done!!!");
     }
 
     @Test
