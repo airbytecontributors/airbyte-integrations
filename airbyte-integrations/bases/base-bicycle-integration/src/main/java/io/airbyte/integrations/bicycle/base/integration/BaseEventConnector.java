@@ -922,29 +922,35 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return null;
     }
 
-    protected void updateConnectorState(String state, Status status)
-            throws JsonProcessingException, InvalidProtocolBufferException {
-        JsonNode syncStatus = getState().get(state);
-        DataUploadStatus.Builder builder = DataUploadStatus.newBuilder();
-        if (syncStatus != null) {
-            String value = syncStatus.textValue();
-            JsonFormat.parser().ignoringUnknownFields().merge(value, builder);
-            builder.setStatus(status);
-            String jsonString = JsonFormat.printer().print(builder.build());
-            saveState(state, jsonString);
-        } else {
-            updateConnectorState(state, status, 0);
+    protected void updateConnectorState(String state, Status status) {
+        try {
+            JsonNode syncStatus = getState().get(state);
+            DataUploadStatus.Builder builder = DataUploadStatus.newBuilder();
+            if (syncStatus != null) {
+                String value = syncStatus.textValue();
+                JsonFormat.parser().ignoringUnknownFields().merge(value, builder);
+                builder.setStatus(status);
+                String jsonString = JsonFormat.printer().print(builder.build());
+                saveState(state, jsonString);
+            } else {
+                updateConnectorState(state, status, 0);
+            }
+        } catch (Exception e) {
+            logger.error("Failed to update the connector state [{}] [{}] [{}]", getConnectorId(), state, status, e);
         }
     }
 
-    protected void updateConnectorState(String state, Status status, double progress)
-            throws JsonProcessingException, InvalidProtocolBufferException {
-        DataUploadStatus dataUploadStatus = DataUploadStatus.newBuilder()
-                .setStatus(status)
-                .setProgress(progress)
-                .build();
-        String jsonString = JsonFormat.printer().print(dataUploadStatus);
-        saveState(state, jsonString);
+    protected void updateConnectorState(String state, Status status, double progress) {
+        try {
+            DataUploadStatus dataUploadStatus = DataUploadStatus.newBuilder()
+                    .setStatus(status)
+                    .setProgress(progress)
+                    .build();
+            String jsonString = JsonFormat.printer().print(dataUploadStatus);
+            saveState(state, jsonString);
+        } catch (Exception e) {
+            logger.error("Failed to update the connector state [{}] [{}] [{}]", getConnectorId(), state, status, e);
+        }
     }
 
     protected void saveState(String key, String value) throws JsonProcessingException {
@@ -1183,7 +1189,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     }
 
     protected int publishPreviewEvents(File file, EventSourceReader<RawEvent> reader, List<RawEvent> vcEvents,
-                                        int maxRecords, int totalRecords, int valid_count,
+                                        int maxRecords, long totalRecords, int valid_count,
                                         boolean saveState, boolean shouldFlush, boolean updateVC,
                                         boolean publishErrors)
                                         throws Exception {
@@ -1216,7 +1222,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                 count++;
                 if (validEvents.size() >= BATCH_SIZE) {
                     submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
-                    logger.info("[{}] : Raw events total - published count [{}] Valid[{}] Invalid[{}]",
+                    logger.info("[{}] : Sample Raw events total - published count [{}] Valid[{}] Invalid[{}]",
                             getConnectorId(), file.getName(), valid_count, invalid_count);
                     validEvents.clear();
                     if (saveState) {
@@ -1231,7 +1237,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                     break;
                 }
             }
-            logger.info("[{}] : Raw events total - Total Count [{}] Valid[{}] Invalid[{}]",
+            logger.info("[{}] : Sample Raw events total - Total Count [{}] Valid[{}] Invalid[{}]",
                     getConnectorId(), file.getName(), valid_count, invalid_count);
             submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
             if (publishErrors) {

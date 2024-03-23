@@ -1,11 +1,11 @@
-package io.airbyte.integrations.bicycle.base.integration.job;
+package io.airbyte.integrations.bicycle.base.integration.job.consumer;
 
+import io.airbyte.integrations.bicycle.base.integration.job.config.ConsumerConfig;
+import io.airbyte.integrations.bicycle.base.integration.job.metrics.EventProcessMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -14,25 +14,27 @@ public class BicycleConsumer<T> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BicycleConsumer.class);
 
-    private volatile boolean stop = false;
     private AtomicLong counter = new AtomicLong(0);
     private AtomicLong threadcounter = new AtomicLong(0);
     private String name;
+    private String identifier;
+    private ConsumerConfig config;
     private EventProcessMetrics metrics;
     private ExecutorService executorService;
     private BlockingQueue<T> queue;
     private Map<Future, ConsumerJob> futures = new HashMap<>();
 
-    public BicycleConsumer(String name, int poolSize, BlockingQueue<T> queue,
-                           EventProcessMetrics metrics) {
-        this.name = name;
+    public BicycleConsumer(ConsumerConfig config, BlockingQueue<T> queue, EventProcessMetrics metrics) {
+        this.name = config.getName();
+        this.identifier = config.getIdentifier();
+        this.config = config;
         this.metrics = metrics;
         this.queue = queue;
-        executorService = new ThreadPoolExecutor(poolSize, poolSize, 600, TimeUnit.SECONDS,
-                new ArrayBlockingQueue<>(1000), new ThreadFactory() {
+        executorService = new ThreadPoolExecutor(config.getPoolSize(), config.getPoolSize(), 600, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<>(config.getMaxExecutorPoolQueue()), new ThreadFactory() {
             @Override
             public Thread newThread(Runnable r) {
-                Thread thread = new Thread(r, name+"-"+ threadcounter.incrementAndGet());
+                Thread thread = new Thread(r, name+"-"+identifier+"-"+ threadcounter.incrementAndGet());
                 thread.setDaemon(true);
                 return thread;
             }
@@ -51,15 +53,23 @@ public class BicycleConsumer<T> {
                 done = future.isDone();
                 if (!done) {
                     try {
-                        Thread.sleep(120);
+                        Thread.sleep(config.getSleepTimeInMillis());
                     } catch (InterruptedException e) {
                     }
                     retries++;
                 }
-            } while (retries < 1000 && !done);
+            } while (retries < config.getMaxIdlePollsRetries() && !done);
             if (!future.isDone()) {
                 future.cancel(true);
             }
+        }
+        LOGGER.info("[{}] Total events received on queue : [{}] queue size[{}]", Thread.currentThread().getName(),
+                counter.get(), queue.size());
+    }
+
+    public void shutdown() {
+        if (executorService != null) {
+            executorService.shutdown();
         }
     }
 
@@ -83,7 +93,7 @@ public class BicycleConsumer<T> {
             try {
                 int misses = 0;
                 do {
-                    T t = queue.poll(6, TimeUnit.SECONDS);
+                    T t = queue.poll(config.getSleepTimeInMillis(), TimeUnit.MILLISECONDS);
                     if (t != null) {
                         counter.incrementAndGet();
                         if (counter.get() % 1000 == 0) {
@@ -101,9 +111,18 @@ public class BicycleConsumer<T> {
                                 Thread.currentThread().getName(), counter.get(), queue.size(), misses);
                         misses++;
                     }
-                } while (misses < 10);
+                } while (misses < config.getMaxIdlePollsRetries());
             } catch (InterruptedException e) {
-                LOGGER.error("BicycleConsumer", e);
+                LOGGER.error("BicycleConsumer [{}] [{}]", name, identifier, e);
+            } finally {
+                if (job != null) {
+                    try {
+                        job.finish();
+                        LOGGER.info("Consumer Call Finished [{}] [{}]", name, identifier);
+                    } catch (Exception e) {
+                        LOGGER.error("Failed to finish consumer cleanly [{}] [{}]", name, identifier, e);
+                    }
+                }
             }
         }
     }

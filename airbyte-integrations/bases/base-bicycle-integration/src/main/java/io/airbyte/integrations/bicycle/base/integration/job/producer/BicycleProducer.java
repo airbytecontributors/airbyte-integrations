@@ -1,5 +1,7 @@
-package io.airbyte.integrations.bicycle.base.integration.job;
+package io.airbyte.integrations.bicycle.base.integration.job.producer;
 
+import io.airbyte.integrations.bicycle.base.integration.job.config.ProducerConfig;
+import io.airbyte.integrations.bicycle.base.integration.job.metrics.EventProcessMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,20 +18,24 @@ public class BicycleProducer<T> {
     private AtomicLong threadcounter = new AtomicLong(0);
     private volatile boolean stop = false;
     private String name;
+    private String identifier;
+    private ProducerConfig config;
     private EventProcessMetrics metrics;
     private BlockingQueue<T> queue;
     private ExecutorService executorService;
     private Map<Future, ProducerJob> futures = new HashMap<>();
 
-    public BicycleProducer(String name, int poolSize, BlockingQueue<T> queue, EventProcessMetrics metrics) {
-        this.name = name;
+    public BicycleProducer(ProducerConfig config, BlockingQueue<T> queue, EventProcessMetrics metrics) {
+        this.name = config.getName();
+        this.identifier = config.getIdentifier();
+        this.config = config;
         this.queue = queue;
         this.metrics = metrics;
-        executorService = new ThreadPoolExecutor(poolSize, poolSize, 600, TimeUnit.SECONDS,
-                new ArrayBlockingQueue<>(1000),
+        executorService = new ThreadPoolExecutor(config.getPoolSize(), config.getPoolSize(), 600, TimeUnit.SECONDS,
+                new ArrayBlockingQueue<>(config.getMaxExecutorPoolQueue()),
                 new ThreadFactory() {
                     public Thread newThread(Runnable r) {
-                        Thread thread = new Thread(r, name+"-"+ threadcounter.incrementAndGet());
+                        Thread thread = new Thread(r, name+"-"+identifier+"-"+ threadcounter.incrementAndGet());
                         thread.setDaemon(true);
                         return thread;
                     }
@@ -55,15 +61,23 @@ public class BicycleProducer<T> {
                 done = future.isDone();
                 if (!done) {
                     try {
-                        Thread.sleep(120);
+                        Thread.sleep(config.getSleepTimeInMillis());
                     } catch (InterruptedException e) {
                     }
                     retries++;
                 }
-            } while (retries < 1000 && !done);
+            } while (retries < config.getMaxRetries() && !done);
             if (!future.isDone()) {
                 future.cancel(true);
             }
+        }
+        LOGGER.info("[{}] Total events pushed on queue : [{}] queue size[{}]", Thread.currentThread().getName(),
+                counter.get(), queue.size());
+    }
+
+    public void shutdown() {
+        if (executorService != null) {
+            executorService.shutdown();
         }
     }
 
@@ -80,15 +94,16 @@ public class BicycleProducer<T> {
                 if (!added) {
                     LOGGER.info("[{}] Waiting to push : [{}] size [{}] misses [{}]",
                             Thread.currentThread().getName(), counter.get(), queue.size(), misses);
-                    Thread.sleep(60);
+                    Thread.sleep(config.getSleepTimeInMillis());
                     misses++;
                 } else {
                     return true;
                 }
             } catch (InterruptedException e) {
             }
-        } while (!added && misses < 5000);
+        } while (!added && misses < config.getMaxRetries());
         if (!added) {
+            metrics.dropped(1);
             LOGGER.info("[{}] Skipped Records : [{}]", Thread.currentThread().getName(), counter.get());
         }
         return false;
@@ -113,7 +128,16 @@ public class BicycleProducer<T> {
                     }
                 });
             } catch (Exception e) {
-                LOGGER.error("BicycleProducer", e);
+                LOGGER.error("BicycleProducer [{}] [{}]", name, identifier, e);
+            } finally {
+                if (job != null) {
+                    try {
+                        job.finish();
+                        LOGGER.info("Producer Call Finished [{}] [{}]", name, identifier);
+                    } catch (Exception e) {
+                        LOGGER.error("Failed to finish producer cleanly [{}] [{}]", name, identifier, e);
+                    }
+                }
             }
         }
     }
