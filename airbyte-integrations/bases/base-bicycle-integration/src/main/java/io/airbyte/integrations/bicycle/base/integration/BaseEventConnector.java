@@ -129,6 +129,9 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private static final String PREVIEW_STORE_INVALID_RECORDS = "PREVIEW_STORE_INVALID_RECORDS";
     protected static final String SYNC_STATUS = "syncStatus";
     protected static final String READ_STATUS = "readStatus";
+    protected static final String TOTAL_RECORDS = "totalRecords";
+    protected static final String READ_TOTAL_RECORDS = "readTotalRecords";
+    protected static final String SYNC_TOTAL_RECORDS = "syncTotalRecords";
 
 
     protected List<String> listOfConnectorsWithSleepEnabled = new ArrayList<>();
@@ -953,6 +956,41 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         }
     }
 
+    protected void updateConnectorFileState(String fileName, String key, String value) {
+        try {
+            JsonNode fileStatus = getState().get(fileName);
+            if (fileStatus == null || fileStatus.isNull() ) {
+                fileStatus = objectMapper.createObjectNode();
+            } else {
+                fileStatus = objectMapper.readTree(fileStatus.textValue());
+            }
+            ((ObjectNode) fileStatus).put(key, value);
+            saveState(fileName, objectMapper.writeValueAsString(fileStatus));
+        } catch (Exception e) {
+            logger.error("Failed to update the connector state [{}] [{}] [{}] [{}]", getConnectorId(), fileName, key,
+                         value, e);
+        }
+    }
+
+    protected String getConnectorFileState(String fileName, String key) {
+        try {
+            JsonNode fileStatus = getState().get(fileName);
+            if (fileStatus == null || fileStatus.isNull()) {
+                return null;
+            }
+            fileStatus = objectMapper.readTree(fileStatus.textValue());
+            JsonNode valueNode = fileStatus.get(key);
+            if (valueNode == null || valueNode.isNull()) {
+                return null;
+            }
+            return valueNode.textValue();
+        } catch (Exception e) {
+            logger.error("Failed to update the connector state [{}] [{}] [{}] [{}]", getConnectorId(), fileName, key,
+                    e);
+        }
+        return null;
+    }
+
     protected void saveState(String key, String value) throws JsonProcessingException {
         JsonNode state = getState();
         JsonNode oldValue = state.get(key);
@@ -1188,7 +1226,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return bicycleConfig;
     }
 
-    protected int publishPreviewEvents(File file, EventSourceReader<RawEvent> reader, List<RawEvent> vcEvents,
+    protected int publishPreviewEvents(Map<String, List<Long>> fileVsRecordNumbers, String fileName, File file,
+                                       EventSourceReader<RawEvent> reader, List<RawEvent> vcEvents,
                                         int maxRecords, long totalRecords, int valid_count,
                                         boolean saveState, boolean shouldFlush, boolean updateVC,
                                         boolean publishErrors)
@@ -1207,6 +1246,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                         if (updateVC) {
                             vcEvents.add(next);
                         }
+                        fileVsRecordNumbers.computeIfAbsent(fileName, (key) -> new ArrayList<>()).add(reader.getOffset());
                         valid_count++;
                     } else {
                         inValidEvents.add(next);
@@ -1218,40 +1258,56 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                     }
                     invalid_count++;
                 }
-
                 count++;
                 if (validEvents.size() >= BATCH_SIZE) {
-                    submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
-                    logger.info("[{}] : Sample Raw events total - published count [{}] Valid[{}] Invalid[{}]",
-                            getConnectorId(), file.getName(), valid_count, invalid_count);
-                    validEvents.clear();
-                    if (saveState) {
-                        updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) valid_count/ (double) totalRecords);
-                    }
-                }
-                if (inValidEvents.size() >= BATCH_SIZE) {
-                    submitRecordsToPreviewStoreWithMetadata(getConnectorId(), inValidEvents);
-                    inValidEvents.clear();
+                    publishPreviewEvents(file, totalRecords, valid_count, invalid_count, saveState,
+                                        shouldFlush, publishErrors, validEvents, inValidEvents);
                 }
                 if (valid_count >= maxRecords) {
                     break;
                 }
             }
+            publishPreviewEvents(file, totalRecords, valid_count, invalid_count, saveState,
+                    shouldFlush, publishErrors, validEvents, inValidEvents);
             logger.info("[{}] : Sample Raw events total - Total Count [{}] Valid[{}] Invalid[{}]",
                     getConnectorId(), file.getName(), valid_count, invalid_count);
-            submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
-            if (publishErrors) {
-                submitRecordsToPreviewStoreWithMetadata(getConnectorId(), inValidEvents);
-            }
-            if (saveState) {
-                updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) valid_count/ (double) totalRecords);
-            }
         } finally {
             if (reader != null) {
                 reader.close();
             }
         }
         return valid_count;
+    }
+
+    private void publishPreviewEvents(File file, long totalRecords, int valid_count, int invalid_count,
+                                      boolean saveState, boolean shouldFlush, boolean publishErrors,
+                                      List<RawEvent> validEvents, List<RawEvent> inValidEvents) {
+        int retries = 0;
+        do {
+            try {
+                submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
+                logger.info("[{}] : Sample Raw events total - published count [{}] Valid[{}] Invalid[{}]",
+                        getConnectorId(), file.getName(), valid_count, invalid_count);
+                validEvents.clear();
+                if (saveState) {
+                    updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) valid_count / (double) totalRecords);
+                }
+                if (publishErrors) {
+                    submitRecordsToPreviewStoreWithMetadata(getConnectorId(), inValidEvents);
+                    inValidEvents.clear();
+                }
+                return;
+            } catch (Exception e) {
+                logger.error(" [{}] Failed to publish preview records [{}] [{}]", getConnectorId(), retries, e);
+                retries++;
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException ex) {
+                }
+            }
+        } while (retries < 10);
+        logger.error("[{}] Failed to publish preview records final [{}] [{}]", getConnectorId(), validEvents.size(),
+                inValidEvents.size());
     }
 
     public static class NonEmptyAutoCloseableIterator implements AutoCloseableIterator {
@@ -1279,12 +1335,14 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         public abstract boolean isValidEvent();
 
         public abstract long getRecordUTCTimestampInMillis();
+
         public abstract T next();
 
         public abstract void close() throws Exception;
 
         public abstract ReaderStatus getStatus();
 
+        public abstract long getOffset();
     }
 
     public enum ReaderStatus {
