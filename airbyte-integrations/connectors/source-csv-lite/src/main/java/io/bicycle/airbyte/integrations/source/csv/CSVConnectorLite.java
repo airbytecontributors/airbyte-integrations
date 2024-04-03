@@ -60,6 +60,8 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
     private static AtomicLong threadcounter = new AtomicLong(0);
     private ExecutorService executorService;
 
+    private Map<String, List<Long>> fileVsDiscoverRecordNumbers = new ConcurrentHashMap<>();
+
     public CSVConnectorLite(SystemAuthenticator systemAuthenticator,
                         EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
                         ConnectorConfigManager connectorConfigManager) {
@@ -94,22 +96,39 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         if (syncStatus != null) {
             LOGGER.info("Already preview ingesting records [{}] [{}]", getConnectorId(), syncStatus);
         }
-        Map<String, String> fileVsSignedUrls = readFilesConfig();
-        LOGGER.info("[{}] : Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
         Map<String, File> files = new HashMap<>();
         if ("true".equalsIgnoreCase(System.getProperty("dev.mode", "false"))) {
             files.put("DemoData_Feb04toMar11_2024_FixedDateFormat.csv", new File("/home/ravi/Downloads/system-error/export-8dc3fbdf3ee9aff.csv"));
         } else {
+            List<String> fileNames = new ArrayList<>();
+            Map<String, String> fileVsSignedUrls = readFilesConfig();
+            LOGGER.info("[{}] : Read Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
+            for (String fileName : fileVsSignedUrls.keySet()) {
+                String status = getConnectorFileState(fileName, SYNC_STATUS);
+                String totalRecords = getConnectorFileState(fileName, SYNC_TOTAL_RECORDS);
+                if (status != null) {
+                    fileNames.add(fileName);
+                    LOGGER.info("[{}] : syncData removing file fileName [{}] status [{}] records [{}]",
+                                                getConnectorId(), fileName, status, totalRecords);
+                }
+            }
+            for (String fileName: fileNames) {
+                fileVsSignedUrls.remove(fileName);
+            }
+            LOGGER.info("[{}] : Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
             for (String fileName : fileVsSignedUrls.keySet()) {
                 File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
                 files.put(fileName, file);
             }
         }
-        try {
-            updateConnectorState(SYNC_STATUS, Status.STARTED, 0);
-        } catch (Exception e) {
-            LOGGER.error("Failed to update the sync state "+getConnectorId(), e);
+        if (files.isEmpty()) {
+            LOGGER.info("[{}] : files already synced [{}]", getConnectorId(), files);
+            return SyncDataResponse.newBuilder()
+                    .setStatus(Status.COMPLETE)
+                    .setResponse(StatusResponse.newBuilder().setMessage("SUCCESS").build())
+                    .build();
         }
+        updateConnectorState(SYNC_STATUS, Status.STARTED, 0);
         LOGGER.info("[{}] : Local files Url [{}]", getConnectorId(), files);
         List<RawEvent> vcEvents = new ArrayList<>();
         for (String fileName : files.keySet()) {
@@ -119,8 +138,8 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 csvReader = null;
                 try {
                     csvReader = getCSVReader(fileName, file, getConnectorId(), this, SYNC_DATA);
-                    publishPreviewEvents(file, csvReader, vcEvents, PREVIEW_RECORDS, 1, 0,
-                            false, true, true, false);
+                    publishPreviewEvents(fileVsDiscoverRecordNumbers, fileName, file, csvReader, vcEvents, PREVIEW_RECORDS,
+                            1, 0, false, true, true, false);
                 } finally {
                     if (csvReader != null) {
                         csvReader.close();
@@ -280,12 +299,20 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                     try {
                         CSVEventSourceReader reader = null;
                         try {
+                            updateConnectorFileState(fileName, SYNC_STATUS, Status.IN_PROGRESS.name());
+                            List<Long> recordOffsets = fileVsDiscoverRecordNumbers.get(fileName);
                             reader = getCSVReader(fileName, file, getConnectorId(), connector, READ);
                             while (reader.hasNext()) {
                                 RawEvent next = reader.next();
+                                if (recordOffsets != null && recordOffsets.contains(reader.getOffset())) {
+                                    LOGGER.info("[{}] : Ignoring the record [{}] [{}]", getConnectorId(), fileName,
+                                            reader.getOffset());
+                                    continue;
+                                }
                                 producer.produce(new WrapperEvent(next, reader.isValidEvent()));
                                 recordsCount.incrementAndGet();
                             }
+                            updateConnectorFileState(fileName, SYNC_TOTAL_RECORDS, String.valueOf(recordsCount.get()));
                             LOGGER.info("[{}] : Processing file done [{}] [{}]", getConnectorId(), fileName,
                                                 recordsCount.get());
                         } finally {
@@ -299,6 +326,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 }
 
                 public void finish() {
+                    updateConnectorFileState(fileName, SYNC_STATUS, Status.COMPLETE.name());
                     LOGGER.info("[{}] : Processing file complete [{}] [{}]", getConnectorId(), fileName,
                             recordsCount.get());
                 }
@@ -367,6 +395,21 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 files.put("DemoData_Feb04toMar11_2024_FixedDateFormat.csv", new File("/home/ravi/Downloads/system-error/export-8dc3fbdf3ee9aff.csv"));
             } else {
                 Map<String, String> fileVsSignedUrls = readFilesConfig();
+                LOGGER.info("[{}] : Read Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
+                List<String> fileNames = new ArrayList<>();
+                for (String fileName : fileVsSignedUrls.keySet()) {
+                    String readStatus = getConnectorFileState(fileName, READ_STATUS);
+                    String records = getConnectorFileState(fileName, READ_TOTAL_RECORDS);
+                    if (readStatus != null) {
+                        fileNames.add(fileName);
+                        LOGGER.info("[{}] : doRead removing file fileName [{}] status [{}] records [{}]",
+                                getConnectorId(), fileName, readStatus, records);
+                    }
+                }
+
+                for (String fileName: fileNames) {
+                    fileVsSignedUrls.remove(fileName);
+                }
                 LOGGER.info("[{}] : doRead Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
                 for (String fileName : fileVsSignedUrls.keySet()) {
                     File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
@@ -374,6 +417,11 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 }
             }
 
+            if (files.isEmpty()) {
+                success = true;
+                LOGGER.info("[{}] : doRead no files to read [{}]", getConnectorId());
+                return null;
+            }
             updateConnectorState(READ_STATUS, Status.IN_PROGRESS, 0);
             int queueSize = getQueueSize(config);
             int requestSize = getRequestSize(config);
@@ -381,7 +429,10 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             try {
                 long processed = publishEvents(files, queueSize, requestSize, threads, totalRecords);
                 updateConnectorState(READ_STATUS, Status.COMPLETE);
-                saveState("totalRecords", totalRecords);
+                for (String fileName : files.keySet()) {
+                    updateConnectorFileState(fileName, READ_STATUS, Status.COMPLETE.name());
+                }
+                saveState(TOTAL_RECORDS, totalRecords);
                 if (processed > 0) {
                     success = true;
                 }
@@ -392,12 +443,12 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         } catch (Throwable e) {
             throw new IllegalStateException("Failed to run read ["+getConnectorId()+"]", e);
         } finally {
-            stopEventConnector();
             if (success) {
                 LOGGER.info("doRead Success");
             } else {
                 LOGGER.info("doRead Failed");
             }
+            stopEventConnector();
         }
         return null;
     }
@@ -504,11 +555,13 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 long count = 0;
                 try {
                     reader = getCSVReader(fileName, file, getConnectorId(), connector, READ);
+                    updateConnectorFileState(fileName, READ_STATUS, Status.IN_PROGRESS.name());
                     while (reader.hasNext()) {
                         RawEvent rawEvent = reader.next();
                         producer.produce(rawEvent);
                         count++;
                     }
+                    updateConnectorFileState(fileName, READ_TOTAL_RECORDS, String.valueOf(count));
                     LOGGER.info("[{}] : Finished Processing file [{}] [{}]", getConnectorId(), fileName, count);
                 } catch (Exception e) {
                     LOGGER.info("[{}] : Failed to parse csv [{}]", getConnectorId(), fileName, e);
