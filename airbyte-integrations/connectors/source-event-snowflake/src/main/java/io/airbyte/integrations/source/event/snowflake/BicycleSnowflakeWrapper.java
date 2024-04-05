@@ -2,12 +2,11 @@
  * Copyright (c) 2022 Airbyte, Inc., all rights reserved.
  */
 
-package io.airbyte.integrations.source.snowflake;
+package io.airbyte.integrations.source.event.snowflake;
 
 import static io.airbyte.integrations.source.snowflake.SnowflakeDataSourceUtils.OAUTH_METHOD;
 import static io.airbyte.integrations.source.snowflake.SnowflakeDataSourceUtils.UNRECOGNIZED;
 import static io.airbyte.integrations.source.snowflake.SnowflakeDataSourceUtils.USERNAME_PASSWORD_METHOD;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.ImmutableMap;
 import io.airbyte.commons.json.Jsons;
@@ -15,9 +14,12 @@ import io.airbyte.db.factory.DatabaseDriver;
 import io.airbyte.db.jdbc.JdbcDatabase;
 import io.airbyte.db.jdbc.StreamingJdbcDatabase;
 import io.airbyte.db.jdbc.streaming.AdaptiveStreamingQueryConfig;
-import io.airbyte.integrations.base.IntegrationRunner;
 import io.airbyte.integrations.base.Source;
+import io.airbyte.integrations.source.event.bigquery.BigQueryEventSourceConfig;
+import io.airbyte.integrations.source.event.snowflake.base.BicycleAbstractJdbcSource;
 import io.airbyte.integrations.source.jdbc.AbstractJdbcSource;
+import io.airbyte.integrations.source.snowflake.SnowflakeDataSourceUtils;
+import io.airbyte.integrations.source.snowflake.SnowflakeSourceOperations;
 import java.io.IOException;
 import java.sql.JDBCType;
 import java.sql.SQLException;
@@ -28,22 +30,20 @@ import javax.sql.DataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class SnowflakeSource extends AbstractJdbcSource<JDBCType> implements Source {
+public class BicycleSnowflakeWrapper extends BicycleAbstractJdbcSource<JDBCType> implements Source {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(SnowflakeSource.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(BicycleSnowflakeWrapper.class);
   public static final String DRIVER_CLASS = DatabaseDriver.SNOWFLAKE.getDriverClassName();
   public static final ScheduledExecutorService SCHEDULED_EXECUTOR_SERVICE = Executors.newScheduledThreadPool(1);
 
-  public SnowflakeSource() {
+
+  public BicycleSnowflakeWrapper(){
     super(DRIVER_CLASS, AdaptiveStreamingQueryConfig::new, new SnowflakeSourceOperations());
   }
 
-  public static void main(final String[] args) throws Exception {
-    final Source source = new SnowflakeSource();
-    LOGGER.info("starting source: {}", SnowflakeSource.class);
-    new IntegrationRunner(source).run(args);
-    SCHEDULED_EXECUTOR_SERVICE.shutdownNow();
-    LOGGER.info("completed source: {}", SnowflakeSource.class);
+  public BicycleSnowflakeWrapper(BigQueryEventSourceConfig bigQueryEventSourceConfig) {
+    super(DRIVER_CLASS, AdaptiveStreamingQueryConfig::new, new SnowflakeSourceOperations());
+    this.bigQueryEventSourceConfig = bigQueryEventSourceConfig;
   }
 
   @Override
@@ -110,8 +110,6 @@ public class SnowflakeSource extends AbstractJdbcSource<JDBCType> implements Sou
         .put("jdbc_url", jdbcUrl);
     LOGGER.info(jdbcUrl);
     return Jsons.jsonNode(configBuilder.build());
-  }
-  public void close() {
   }
 
 }
