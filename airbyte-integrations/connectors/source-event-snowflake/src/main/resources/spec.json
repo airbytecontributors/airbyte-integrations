@@ -1,0 +1,258 @@
+{
+  "documentationUrl" : "https://docs.airbyte.io/integrations/sources/snowflake",
+  "connectionSpecification" : {
+    "$schema" : "http://json-schema.org/draft-07/schema#",
+    "title" : "Snowflake Source Spec",
+    "type" : "object",
+    "required" : [
+      "host",
+      "role",
+      "warehouse",
+      "database",
+      "schema",
+      "syncMode",
+      "credentials"
+    ],
+    "additionalProperties" : true,
+    "properties" : {
+      "credentials" : {
+        "title" : "Authorization Method",
+        "type" : "object",
+        "oneOf" : [
+          {
+            "type" : "object",
+            "title" : "OAuth2.0",
+            "required" : [
+              "client_id",
+              "client_secret",
+              "auth_type"
+            ],
+            "properties" : {
+              "auth_type" : {
+                "type" : "string",
+                "const" : "OAuth",
+                "default" : "OAuth"
+              },
+              "client_id" : {
+                "type" : "string",
+                "title" : "Client ID",
+                "description" : "The Client ID of your Snowflake developer application.",
+                "airbyte_secret" : true
+              },
+              "client_secret" : {
+                "type" : "string",
+                "title" : "Client Secret",
+                "description" : "The Client Secret of your Snowflake developer application.",
+                "airbyte_secret" : true
+              },
+              "access_token" : {
+                "type" : "string",
+                "title" : "Access Token",
+                "description" : "Access Token for making authenticated requests.",
+                "airbyte_secret" : true
+              },
+              "refresh_token" : {
+                "type" : "string",
+                "title" : "Refresh Token",
+                "description" : "Refresh Token for making authenticated requests.",
+                "airbyte_secret" : true
+              }
+            }
+          },
+          {
+            "title" : "Username and Password",
+            "type" : "object",
+            "required" : [
+              "username",
+              "password",
+              "auth_type"
+            ],
+            "properties" : {
+              "auth_type" : {
+                "type" : "string",
+                "const" : "username/password",
+                "default" : "username/password"
+              },
+              "username" : {
+                "description" : "The username you created to allow Airbyte to access the database.",
+                "examples" : [
+                  "AIRBYTE_USER"
+                ],
+                "type" : "string",
+                "title" : "Username"
+              },
+              "password" : {
+                "description" : "The password associated with the username.",
+                "type" : "string",
+                "airbyte_secret" : true,
+                "title" : "Password"
+              }
+            }
+          }
+        ]
+      },
+      "host" : {
+        "description" : "The host domain of the snowflake instance (must include the account, region, cloud environment, and end with snowflakecomputing.com).",
+        "examples" : [
+          "accountname.us-east-2.aws.snowflakecomputing.com"
+        ],
+        "type" : "string",
+        "title" : "Account Name"
+      },
+      "role" : {
+        "description" : "The role you created for Airbyte to access Snowflake.",
+        "examples" : [
+          "AIRBYTE_ROLE"
+        ],
+        "type" : "string",
+        "title" : "Role"
+      },
+      "warehouse" : {
+        "description" : "The warehouse you created for Airbyte to access data.",
+        "examples" : [
+          "AIRBYTE_WAREHOUSE"
+        ],
+        "type" : "string",
+        "title" : "Warehouse"
+      },
+      "database" : {
+        "description" : "The database you created for Airbyte to access data.",
+        "examples" : [
+          "AIRBYTE_DATABASE"
+        ],
+        "type" : "string",
+        "title" : "Database"
+      },
+      "schema" : {
+        "description" : "The source Snowflake schema tables.",
+        "examples" : [
+          "AIRBYTE_SCHEMA"
+        ],
+        "type" : "string",
+        "title" : "Schema"
+      },
+      "jdbc_url_params" : {
+        "description" : "Additional properties to pass to the JDBC URL string when connecting to the database formatted as 'key=value' pairs separated by the symbol '&'. (example: key1=value1&key2=value2&key3=value3).",
+        "title" : "JDBC URL Params",
+        "type" : "string"
+      },
+      "syncMode" : {
+        "title" : "Sync Mode",
+        "description" : "You can choose if this connector will copy only the new or updated data, or all rows in the tables and columns you set up for replication, every time a sync is running",
+        "type" : "object",
+        "default" : "Full Sync",
+        "oneOf" : [
+          {
+            "title" : "Full Sync",
+            "required" : [
+              "syncType"
+            ],
+            "properties" : {
+              "syncType" : {
+                "type" : "string",
+                "const" : "FullSync"
+              }
+            }
+          },
+          {
+            "title" : "Incremental Sync",
+            "required" : [
+              "syncType",
+              "cursorField"
+            ],
+            "properties" : {
+              "syncType" : {
+                "type" : "string",
+                "const" : "IncrementalSync"
+              },
+              "cursorField" : {
+                "type" : "string",
+                "title" : "Cursor Field",
+                "description" : "Field that can be used to track the read progress."
+              },
+              "cursorFieldFormat" : {
+                "type" : "string",
+                "title" : "Cursor Field Format",
+                "description" : "The format of cursor field if field value represents a timestamp."
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "advanced_auth" : {
+    "auth_flow_type" : "oauth2.0",
+    "predicate_key" : [
+      "credentials",
+      "auth_type"
+    ],
+    "predicate_value" : "OAuth",
+    "oauth_config_specification" : {
+      "oauth_user_input_from_connector_config_specification" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "host" : {
+            "type" : "string",
+            "path_in_connector_config" : [
+              "host"
+            ]
+          }
+        }
+      },
+      "complete_oauth_output_specification" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "access_token" : {
+            "type" : "string",
+            "path_in_connector_config" : [
+              "credentials",
+              "access_token"
+            ]
+          },
+          "refresh_token" : {
+            "type" : "string",
+            "path_in_connector_config" : [
+              "credentials",
+              "refresh_token"
+            ]
+          }
+        }
+      },
+      "complete_oauth_server_input_specification" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "client_id" : {
+            "type" : "string"
+          },
+          "client_secret" : {
+            "type" : "string"
+          }
+        }
+      },
+      "complete_oauth_server_output_specification" : {
+        "type" : "object",
+        "additionalProperties" : false,
+        "properties" : {
+          "client_id" : {
+            "type" : "string",
+            "path_in_connector_config" : [
+              "credentials",
+              "client_id"
+            ]
+          },
+          "client_secret" : {
+            "type" : "string",
+            "path_in_connector_config" : [
+              "credentials",
+              "client_secret"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

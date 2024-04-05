@@ -49,6 +49,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -92,7 +93,22 @@ public abstract class AbstractDbSource<DataType, Database extends AbstractDataba
                   Lists.newArrayList(SyncMode.FULL_REFRESH, SyncMode.INCREMENTAL))
               .withSourceDefinedPrimaryKey(Types.boxToListofList(tableInfo.getPrimaryKeys())))
           .collect(Collectors.toList());
-      return new AirbyteCatalog().withStreams(streams);
+
+      //Filter streams based on schema
+      String namespace = config.has("schema") ? config.get("schema").asText() : null;
+      List<AirbyteStream> filteredStreams = new ArrayList<>();
+      if (StringUtils.isNotEmpty(namespace)) {
+        for (AirbyteStream airbyteStream : streams) {
+          String incomingNamespace = airbyteStream.getNamespace();
+          if (namespace.equals(incomingNamespace)) {
+            filteredStreams.add(airbyteStream);
+          }
+        }
+      } else {
+        filteredStreams.addAll(streams);
+      }
+
+      return new AirbyteCatalog().withStreams(filteredStreams);
     } finally {
       close();
     }
