@@ -213,6 +213,23 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return false;
     }
 
+    public boolean isBackFillDone(BackFillConfiguration backFillConfiguration, long currentValue) {
+
+        if (!backFillConfiguration.getEnableBackFill()) {
+            return false;
+        }
+        long endTime = backFillConfiguration.getEndTimeInMillis();
+        if (endTime == 0) {
+            return false;
+        }
+
+        if (currentValue > endTime) {
+            return true;
+        }
+
+        return false;
+    }
+
     public EventConnectorJobStatusNotifier getEventConnectorJobStatusNotifier() {
         return eventConnectorJobStatusNotifier;
     }
@@ -1122,6 +1139,9 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     public boolean setStateAsString(AuthInfo authInfo, String streamId, JsonNode jsonNode) {
 
         try {
+            if (jsonNode == null) {
+                return false;
+            }
             logger.info("Setting state for stream {} {}", streamId, jsonNode);
             String airbyteMessageAsString = objectMapper.writeValueAsString(jsonNode);
             int counter = 0;

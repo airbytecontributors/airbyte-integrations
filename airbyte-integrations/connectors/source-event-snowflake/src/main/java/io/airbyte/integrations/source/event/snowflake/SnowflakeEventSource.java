@@ -7,6 +7,7 @@ import ai.apptuit.ml.utils.MetricUtils;
 import com.codahale.metrics.Timer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.node.NumericNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.AbstractIterator;
 import com.inception.server.auth.api.SystemAuthenticator;
@@ -199,10 +200,10 @@ public class SnowflakeEventSource extends BaseEventConnector {
         ScheduledExecutorService ses = Executors.newScheduledThreadPool(3);
 
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
-       /* if (authInfo == null) {
+        /*if (authInfo == null) {
             authInfo = new DevAuthInfo();
-        }
-*/
+        }*/
+
         try {
             try {
 
@@ -241,14 +242,12 @@ public class SnowflakeEventSource extends BaseEventConnector {
                     .getRuntimeConfig(authInfo, connectorId) : RuntimeConfig.getDefaultInstance();
 
             BackFillConfiguration backFillConfiguration = runtimeConfig.getBackFillConfig();
+            boolean stopConnector = false;
 
             while (!this.getStopConnectorBoolean().get()) {
 
                 authInfo = bicycleConfig.getAuthInfo();
 
-
-                /*   handleAtConsumerBegin(connectorId, dataFormatter, catalog, snowflakeStreamGetter,
-                        snowflakeEventSourceConfig);*/
 
                 Timer.Context consumerCycleTimer = MetricUtils.getMetricRegistry().timer(
                         SNOWFLAKE_CYCLE_TIME
@@ -257,10 +256,10 @@ public class SnowflakeEventSource extends BaseEventConnector {
                 ).time();
 
                 //TODO: need to remove
-               /* if (authInfo == null) {
+                /*if (authInfo == null) {
                     authInfo = new DevAuthInfo();
-                }
-*/
+                }*/
+
                 List<JsonNode> jsonEvents = new ArrayList<>();
                 List<UserServiceMappingRule> userServiceMappingRules =
                         this.getUserServiceMappingRules(authInfo, eventSourceInfo);
@@ -285,8 +284,6 @@ public class SnowflakeEventSource extends BaseEventConnector {
 
                 getRecordsTimer.stop();
 
-                boolean isStateFound = false;
-
                 while (iterator.hasNext()) {
                     AirbyteMessage message = iterator.next();
                     final boolean isState = message.getType() == AirbyteMessage.Type.STATE;
@@ -295,22 +292,33 @@ public class SnowflakeEventSource extends BaseEventConnector {
                         String currentStateAsString = objectMapper.writeValueAsString(currentState.getData());
                         LOGGER.info("{} Found state message {}", connectorId, currentStateAsString);
                         updatedState = Jsons.deserialize(currentStateAsString);
-                        isStateFound = true;
                         continue;
                     }
                     if (message.getRecord() != null) {
                         JsonNode jsonNode = message.getRecord().getData();
-                        Long cursorFieldValue = getCursorFieldValue(snowflakeEventSourceConfig, jsonNode);
-                        if (cursorFieldValue != null) {
-                            if (!shouldContinue(backFillConfiguration, cursorFieldValue)) {
-                                continue;
+                        if (!BackFillConfiguration.getDefaultInstance().equals(backFillConfiguration)) {
+                            Long cursorFieldValue = getCursorFieldValue(snowflakeEventSourceConfig, jsonNode);
+                            if (isBackFillDone(backFillConfiguration, cursorFieldValue)) {
+                                LOGGER.info("BackFill is done {}", connectorId);
+                                stopConnector = true;
+                                break;
                             }
+                            if (cursorFieldValue != null) {
+                                if (!shouldContinue(backFillConfiguration, cursorFieldValue)) {
+                                    continue;
+                                }
+                           }
                         }
-
                         jsonEvents.add(jsonNode);
                     } else {
                         LOGGER.warn("Message is not of type record but {}", message.getType());
                     }
+                }
+
+                if (stopConnector) {
+                    setStateAsString(authInfo, connectorId, updatedState);
+                    stopEventConnector();
+                    break;
                 }
 
                 LOGGER.info("Read {} messages for connector Id {}", jsonEvents.size(), connectorId);
@@ -318,19 +326,6 @@ public class SnowflakeEventSource extends BaseEventConnector {
                     state = updatedState;
                     continue;
                 }
-                /*if (jsonEvents.size() == 0) {
-                    handleAtConsumerBegin(connectorId, dataFormatter, catalog, snowflakeStreamGetter,
-                            snowflakeEventSourceConfig);
-                    continue;
-                }*/
-
-              /*  if (!isStateFound && dataFormatter != null) {
-                    AirbyteStateMessage currentState = createStateMessage(catalog, dataFormatter.getCursorFieldName(),
-                            dataFormatter.getCursorFieldValue(jsonEvents));
-                    String currentStateAsString = objectMapper.writeValueAsString(currentState.getData());
-                    LOGGER.info("Found state message from formatter {}", currentStateAsString);
-                    updatedState = Jsons.deserialize(currentStateAsString);
-                }*/
 
                 EventProcessorResult eventProcessorResult = null;
 
@@ -388,7 +383,13 @@ public class SnowflakeEventSource extends BaseEventConnector {
         String cursorFieldFormat = snowflakeEventSourceConfig.getCursorFieldFormat();
         try {
             if (StringUtils.isNotEmpty(cursorField)) {
+                Object cursorFieldObj = jsonNode.get(cursorField);
                 String cursorFieldValue = jsonNode.get(cursorField).asText();
+                if (cursorFieldObj instanceof NumericNode) {
+                    double doubleValue = Double.parseDouble(cursorFieldValue);
+                    long result = (long) doubleValue;
+                    cursorFieldValue = String.valueOf(result);
+                }
                 if (StringUtils.isNotEmpty(cursorFieldFormat)) {
                     return convertStringToTimestamp(cursorFieldValue, cursorFieldFormat);
                 } else {
@@ -396,7 +397,7 @@ public class SnowflakeEventSource extends BaseEventConnector {
                 }
             }
         } catch (Exception e) {
-            LOGGER.error("Unable to get cursor field value");
+            LOGGER.error("Unable to get cursor field value", e);
         }
 
         return null;
