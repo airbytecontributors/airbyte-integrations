@@ -60,6 +60,49 @@
         "description" : "Default value for number of rows that should be read in one query",
         "title" : "Fetch Rows Limit",
         "default" : 1000
+      },
+      "syncMode" : {
+        "title" : "Sync Mode",
+        "description" : "You can choose if this connector will copy only the new or updated data, or all rows in the tables and columns you set up for replication, every time a sync is running",
+        "type" : "object",
+        "default" : "Full Sync",
+        "oneOf" : [
+          {
+            "title" : "Full Sync",
+            "required" : [
+              "syncType"
+            ],
+            "properties" : {
+              "syncType" : {
+                "type" : "string",
+                "const" : "FullSync"
+              }
+            }
+          },
+          {
+            "title" : "Incremental Sync",
+            "required" : [
+              "syncType",
+              "cursorField"
+            ],
+            "properties" : {
+              "syncType" : {
+                "type" : "string",
+                "const" : "IncrementalSync"
+              },
+              "cursorField" : {
+                "type" : "string",
+                "title" : "Cursor Field",
+                "description" : "Field that can be used to track the read progress."
+              },
+              "cursorFieldFormat" : {
+                "type" : "string",
+                "title" : "Cursor Field Format",
+                "description" : "The format of cursor field if field value represents a timestamp."
+              }
+            }
+          }
+        ]
       }
     }
   }
