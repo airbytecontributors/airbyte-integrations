@@ -7,7 +7,6 @@ import ai.apptuit.ml.utils.MetricUtils;
 import com.codahale.metrics.Timer;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectReader;
-import com.fasterxml.jackson.databind.node.NumericNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.collect.AbstractIterator;
 import com.inception.server.auth.api.SystemAuthenticator;
@@ -19,33 +18,29 @@ import io.airbyte.commons.util.AutoCloseableIterators;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.CommonConstants;
 import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
-import io.airbyte.integrations.bicycle.base.integration.DevAuthInfo;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.integrations.source.event.bigquery.BigQueryEventSourceConfig;
-import io.airbyte.integrations.source.relationaldb.models.DbState;
-import io.airbyte.integrations.source.relationaldb.models.DbStreamState;
 import io.airbyte.protocol.models.AirbyteCatalog;
 import io.airbyte.protocol.models.AirbyteConnectionStatus;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.AirbyteStateMessage;
-import io.airbyte.protocol.models.AirbyteStream;
-import io.airbyte.protocol.models.AirbyteStreamState;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.ConfiguredAirbyteStream;
 import io.airbyte.protocol.models.SyncMode;
+import io.bicycle.entity.mapping.SourceFieldMapping;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.integration.connector.runtime.BackFillConfiguration;
 import io.bicycle.integration.connector.runtime.RuntimeConfig;
+import io.bicycle.server.event.mapping.UserServiceFieldDef;
+import io.bicycle.server.event.mapping.UserServiceFieldsList;
+import io.bicycle.server.event.mapping.UserServiceFieldsRule;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -177,20 +172,31 @@ public class SnowflakeEventSource extends BaseEventConnector {
         SnowflakeEventSourceConfig snowflakeEventSourceConfig = new SnowflakeEventSourceConfig(config);
         LOGGER.info("{} Config returned is {}", connectorId, snowflakeEventSourceConfig);
 
-
-        if (snowflakeEventSourceConfig.isIncremental()) {
-            updateSyncMode(catalog, snowflakeEventSourceConfig.getCursorField());
-        }
-
-        // handleDataFormatter(connectorId, dataFormatter, catalog, snowflakeStreamGetter, snowflakeEventSourceConfig);
-
-
-        Map<String, Object> additionalProperties = catalog.getAdditionalProperties();
-        stopConnectorBoolean.set(false);
+        AuthInfo authInfo = bicycleConfig.getAuthInfo();
         String eventSourceType = additionalProperties.containsKey("bicycleEventSourceType") ?
                 additionalProperties.get("bicycleEventSourceType").toString() : CommonUtils.UNKNOWN_EVENT_CONNECTOR;
 
         eventSourceInfo = new EventSourceInfo(bicycleConfig.getConnectorId(), eventSourceType);
+
+        List<UserServiceMappingRule> userServiceMappingRules =
+                this.getUserServiceMappingRules(authInfo, eventSourceInfo);
+
+        SourceFieldMapping sourceFieldMapping = getSourceFieldMapping(userServiceMappingRules);
+
+        String cursorField = getCursorField(snowflakeEventSourceConfig, sourceFieldMapping);
+        if (cursorField == null) {
+            throw new RuntimeException("Cursor field cannot be null, its neither defined in connector config," +
+                    "not startTimeMicros is defined in the mapping rule");
+        } else {
+            LOGGER.info("Cursor field identified is {} and sourceFieldMapping is {}", cursorField,
+                    sourceFieldMapping);
+        }
+
+        if (snowflakeEventSourceConfig.isIncremental()) {
+            updateSyncMode(catalog, cursorField);
+        }
+
+        stopConnectorBoolean.set(false);
 
         LOGGER.info("Inside doRead for connector {} with config {} and catalog {}", connectorId,
                 config, catalog);
@@ -199,10 +205,6 @@ public class SnowflakeEventSource extends BaseEventConnector {
         bicycleSnowflakeWrapper = new BicycleSnowflakeWrapper(bigQueryEventSourceConfig);
         ScheduledExecutorService ses = Executors.newScheduledThreadPool(3);
 
-        AuthInfo authInfo = bicycleConfig.getAuthInfo();
-        /*if (authInfo == null) {
-            authInfo = new DevAuthInfo();
-        }*/
 
         try {
             try {
@@ -245,9 +247,12 @@ public class SnowflakeEventSource extends BaseEventConnector {
             boolean stopConnector = false;
 
             while (!this.getStopConnectorBoolean().get()) {
-
                 authInfo = bicycleConfig.getAuthInfo();
 
+                if (stopConnector) {
+                    stopConnector(authInfo, connectorId, state);
+                    break;
+                }
 
                 Timer.Context consumerCycleTimer = MetricUtils.getMetricRegistry().timer(
                         SNOWFLAKE_CYCLE_TIME
@@ -255,13 +260,8 @@ public class SnowflakeEventSource extends BaseEventConnector {
                                 .toString()
                 ).time();
 
-                //TODO: need to remove
-                /*if (authInfo == null) {
-                    authInfo = new DevAuthInfo();
-                }*/
-
                 List<JsonNode> jsonEvents = new ArrayList<>();
-                List<UserServiceMappingRule> userServiceMappingRules =
+                userServiceMappingRules =
                         this.getUserServiceMappingRules(authInfo, eventSourceInfo);
 
                 //if mapping rules are returned null, means there was a problem in downloading rules.
@@ -285,6 +285,7 @@ public class SnowflakeEventSource extends BaseEventConnector {
                 getRecordsTimer.stop();
 
                 while (iterator.hasNext()) {
+
                     AirbyteMessage message = iterator.next();
                     final boolean isState = message.getType() == AirbyteMessage.Type.STATE;
                     if (isState) {
@@ -296,29 +297,18 @@ public class SnowflakeEventSource extends BaseEventConnector {
                     }
                     if (message.getRecord() != null) {
                         JsonNode jsonNode = message.getRecord().getData();
-                        if (!BackFillConfiguration.getDefaultInstance().equals(backFillConfiguration)) {
-                            Long cursorFieldValue = getCursorFieldValue(snowflakeEventSourceConfig, jsonNode);
-                            if (isBackFillDone(backFillConfiguration, cursorFieldValue)) {
-                                LOGGER.info("BackFill is done {}", connectorId);
-                                stopConnector = true;
-                                break;
-                            }
-                            if (cursorFieldValue != null) {
-                                if (!shouldContinue(backFillConfiguration, cursorFieldValue)) {
-                                    continue;
-                                }
-                           }
+                        Long backFillFieldValue = getBackFillFieldValue(authInfo, snowflakeEventSourceConfig, jsonNode,
+                                sourceFieldMapping);
+                        stopConnector = shouldStopConnector(stopConnector, backFillConfiguration, connectorId,
+                                backFillFieldValue);
+                        boolean shouldProcessRecord = shouldProcessRecord(stopConnector, backFillFieldValue,
+                                backFillConfiguration);
+                        if (shouldProcessRecord) {
+                            jsonEvents.add(jsonNode);
                         }
-                        jsonEvents.add(jsonNode);
                     } else {
                         LOGGER.warn("Message is not of type record but {}", message.getType());
                     }
-                }
-
-                if (stopConnector) {
-                    setStateAsString(authInfo, connectorId, updatedState);
-                    stopEventConnector();
-                    break;
                 }
 
                 LOGGER.info("Read {} messages for connector Id {}", jsonEvents.size(), connectorId);
@@ -355,10 +345,6 @@ public class SnowflakeEventSource extends BaseEventConnector {
                     publishRecordsTimer.stop();
                     if (success) {
                         setStateAsString(authInfo, connectorId, updatedState);
-                       /* if (dataFormatter != null) {
-                            String airbyteMessageAsString = objectMapper.writeValueAsString(updatedState);
-                            dataFormatter.publishLagMetrics(eventSourceInfo, airbyteMessageAsString);
-                        }*/
                         state = updatedState;
                         LOGGER.info("Successfully published messages for connector Id {}", connectorId);
                         totalRecordsProcessed.addAndGet(jsonEvents.size());
@@ -377,9 +363,80 @@ public class SnowflakeEventSource extends BaseEventConnector {
         return null;
     }
 
-    private Long getCursorFieldValue(SnowflakeEventSourceConfig snowflakeEventSourceConfig, JsonNode jsonNode) {
+    private void stopConnector(AuthInfo authInfo, String connectorId, JsonNode state) {
+        if (state != null) {
+            ObjectNode updatedState = (ObjectNode) state;
+            updatedState.put(TOTAL_RECORDS, totalRecordsProcessed.longValue());
+            setStateAsString(authInfo, connectorId, updatedState);
+        } else {
 
-        String cursorField = snowflakeEventSourceConfig.getCursorField();
+        }
+        stopEventConnector();
+    }
+
+    public boolean shouldStopConnector(boolean stopConnector, BackFillConfiguration backFillConfiguration,
+                                       String connectorId, Long backFillFieldValue) {
+        if (stopConnector) {
+            return true;
+        }
+        if (isBackFillDone(backFillConfiguration, backFillFieldValue)) {
+            LOGGER.info("BackFill is done {}", connectorId);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean shouldProcessRecord(boolean stopConnector, Long backFillFieldValue,
+                                       BackFillConfiguration backFillConfiguration) {
+
+        if (stopConnector) {
+            return false;
+        }
+
+        if (!BackFillConfiguration.getDefaultInstance().equals(backFillConfiguration)) {
+            if (backFillFieldValue != null) {
+                if (!shouldContinue(backFillConfiguration, backFillFieldValue)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private String getCursorField(SnowflakeEventSourceConfig snowflakeEventSourceConfig,
+                                  SourceFieldMapping sourceFieldMapping) {
+
+        if (StringUtils.isNotEmpty(snowflakeEventSourceConfig.getCursorField())) {
+            return snowflakeEventSourceConfig.getCursorField();
+        }
+
+        if (sourceFieldMapping == null) {
+            return null;
+        }
+        String jsonPath = sourceFieldMapping.getValueMapping().getJsonPath();
+        return extractFieldNameFromJsonPath(jsonPath);
+    }
+
+    private String extractFieldNameFromJsonPath(String jsonPath) {
+        return jsonPath.substring(2);
+    }
+
+    private Long getBackFillFieldValue(AuthInfo authInfo, SnowflakeEventSourceConfig snowflakeEventSourceConfig,
+                                       JsonNode jsonNode, SourceFieldMapping sourceFieldMapping) {
+
+        try {
+            JsonRawEvent jsonRawEvent = new JsonRawEvent(jsonNode);
+            Long valueInMicros =
+                    (Long) jsonRawEvent.getFieldValue(sourceFieldMapping, Collections.emptyMap(), authInfo);
+            Long valueInMillis = valueInMicros / 1000;
+            return valueInMillis;
+        } catch (Exception e) {
+            LOGGER.error("Unable to get backfill field value", e);
+        }
+
+        return null;
+
+  /*      String cursorField = snowflakeEventSourceConfig.getCursorField();
         String cursorFieldFormat = snowflakeEventSourceConfig.getCursorFieldFormat();
         try {
             if (StringUtils.isNotEmpty(cursorField)) {
@@ -395,49 +452,15 @@ public class SnowflakeEventSource extends BaseEventConnector {
                 } else {
                     return Long.parseLong(cursorFieldValue);
                 }
+            } else {
+                JsonRawEvent jsonRawEvent = new JsonRawEvent(jsonNode);
+                Long value = (Long) jsonRawEvent.getFieldValue(sourceFieldMapping, Collections.emptyMap(), authInfo);
+                return value;
             }
         } catch (Exception e) {
             LOGGER.error("Unable to get cursor field value", e);
-        }
-
-        return null;
+        }*/
     }
-
-    private Long convertStringToTimestamp(String dateString, String dateTimePattern) {
-        if (dateString == null) {
-            return null;
-        }
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern(dateTimePattern);
-        long milliseconds = -1;
-        try {
-            // Parse the string into a ZonedDateTime
-            ZonedDateTime zonedDateTime = ZonedDateTime.parse(dateString, formatter);
-            // Get the milliseconds since the epoch
-            milliseconds = zonedDateTime.toInstant().toEpochMilli();
-            return milliseconds;
-        } catch (Exception e) {
-            try {
-                LocalDateTime localDateTime = LocalDateTime.parse(dateString, formatter);
-                ZoneId z = ZoneId.of("UTC");
-                ZonedDateTime zdt = localDateTime.atZone(z);
-                milliseconds = zdt.toInstant().getEpochSecond() * 1000;
-            } catch (Exception e1) {
-
-                try {
-                    formatter = DateTimeFormatter.ofPattern(DATE_TIME_FORMAT_FALLBACK_PATTERN);
-                    ZonedDateTime zonedDateTime = ZonedDateTime.parse(dateString, formatter);
-                    // Get the milliseconds since the epoch
-                    milliseconds = zonedDateTime.toInstant().toEpochMilli();
-                } catch (Exception e2) {
-                    LOGGER.info("Timestamp unable to parse " + dateString);
-                    throw new RuntimeException("Unable to get datetime field value", e2);
-                }
-            }
-        }
-
-        return null;
-    }
-
 
     public ConfiguredAirbyteCatalog updateSyncMode(ConfiguredAirbyteCatalog catalog, String cursorFieldName) {
         for (ConfiguredAirbyteStream stream : catalog.getStreams()) {
@@ -448,43 +471,6 @@ public class SnowflakeEventSource extends BaseEventConnector {
         }
         return catalog;
     }
-
-   /* private void handleAtConsumerBegin(String connectorId, DataFormatter dataFormatter,
-                                       ConfiguredAirbyteCatalog catalog,
-                                       SnowflakeStreamGetter snowflakeStreamGetter,
-                                       SnowflakeEventSourceConfig snowflakeEventSourceConfig) {
-        //In case of GA streams would come dynamically each day, so need to keep refreshing and update
-        //catalog with it.
-        handleDataFormatter(connectorId, dataFormatter, catalog, snowflakeStreamGetter, snowflakeEventSourceConfig);
-    }
-
-    private void handleDataFormatter(String connectorId, DataFormatter dataFormatter, ConfiguredAirbyteCatalog catalog,
-                                     SnowflakeStreamGetter snowflakeStreamGetter,
-                                     SnowflakeEventSourceConfig snowflakeEventSourceConfig) {
-
-        if (dataFormatter == null || snowflakeStreamGetter == null) {
-            return;
-        }
-
-        List<AirbyteStream> streams = snowflakeStreamGetter.getStreamList();
-        dataFormatter.updateConfiguredAirbyteCatalogWithInterestedStreams(connectorId, catalog,
-                streams, snowflakeEventSourceConfig);
-
-    }
-
-    private String getCursorField(ConfiguredAirbyteCatalog catalog, DataFormatter dataFormatter) {
-
-        if (dataFormatter != null) {
-            return dataFormatter.getCursorFieldName();
-        }
-
-        List<String> cursorFields = catalog.getStreams().get(0).getCursorField();
-        if (cursorFields.size() > 0) {
-            return cursorFields.get(0);
-        }
-
-        return null;
-    }*/
 
     @Override
     public AirbyteConnectionStatus check(JsonNode config) throws Exception {
@@ -502,45 +488,49 @@ public class SnowflakeEventSource extends BaseEventConnector {
         return stopConnectorBoolean;
     }
 
-/*    private DataFormatter getDataFormatter(JsonNode config) {
 
-        String dataFormatterType = config.has("data_format") ? config.get("data_format").asText() : null;
-
-        try {
-            if (!StringUtils.isEmpty(dataFormatterType) && !dataFormatterType.equals("None")) {
-                DataFormatter dataFormatter =
-                        DataFormatterFactory.getDataFormatter(DataFormatterType.valueOf(dataFormatterType));
-                LOGGER.info("Data formatter returned is {}", dataFormatter);
-                return dataFormatter;
+    private SourceFieldMapping getSourceFieldMapping(List<UserServiceMappingRule> userServiceMappingRules) {
+        UserServiceFieldDef startTimeFieldDef = null;
+        boolean found = false;
+        for (UserServiceMappingRule userServiceMappingRule : userServiceMappingRules) {
+            UserServiceFieldsRule userServiceFields = userServiceMappingRule.getUserServiceFields();
+            List<UserServiceFieldDef> commonFieldsList = userServiceFields.getCommonFieldsList();
+            for (UserServiceFieldDef userServiceFieldDef : commonFieldsList) {
+                if (userServiceFieldDef.getPredefinedFieldType().equals("startTimeMicros")) {
+                    startTimeFieldDef = userServiceFieldDef;
+                    found = true;
+                    break;
+                }
             }
-        } catch (Exception e) {
-            LOGGER.error("Unable to initialize data formatter for dataformatter type {} {}", dataFormatterType, e);
+            if (found) {
+                break;
+            }
+
+            Map<String, UserServiceFieldsList> userServiceFieldsMap = userServiceFields.getUserServiceFieldsMap();
+            for (String key : userServiceFieldsMap.keySet()) {
+                UserServiceFieldsList userServiceFieldsList = userServiceFieldsMap.get(key);
+                for (UserServiceFieldDef userServiceFieldDef : userServiceFieldsList.getUserServiceFieldList()) {
+                    if (userServiceFieldDef.getPredefinedFieldType().equals("startTimeMicros")) {
+                        startTimeFieldDef = userServiceFieldDef;
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) {
+                    break;
+                }
+            }
+            if (found) {
+                break;
+            }
         }
-        return null;
-    }*/
+        if (startTimeFieldDef == null) {
+            return null;
+        }
 
-    private AirbyteStateMessage createStateMessage(ConfiguredAirbyteCatalog catalog, String cursorField,
-                                                   String cursorFieldValue) {
+        SourceFieldMapping sourceFieldMapping = startTimeFieldDef.getFieldMapping();
+        return sourceFieldMapping;
 
-        DbState dbState = new DbState();
-        dbState.setCdc(false);
-        DbStreamState dbStreamState = new DbStreamState();
-
-        List<String> cursorFields = new ArrayList<>();
-        cursorFields.add(cursorField);
-
-        AirbyteStreamState airbyteStreamState = new AirbyteStreamState();
-        ConfiguredAirbyteStream stream = catalog.getStreams().get(0);
-        airbyteStreamState.setName(stream.getStream().getName());
-
-        dbStreamState.setStreamName(stream.getStream().getName());
-        dbStreamState.setStreamNamespace(stream.getStream().getNamespace());
-        dbStreamState.setCursorField(cursorFields);
-        dbStreamState.setCursor(cursorFieldValue);
-
-        dbState.getStreams().add(dbStreamState);
-
-        return new AirbyteStateMessage().withData(Jsons.jsonNode(dbState));
     }
 
 

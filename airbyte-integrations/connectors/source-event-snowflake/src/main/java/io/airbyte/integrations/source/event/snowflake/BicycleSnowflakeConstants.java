@@ -26,8 +26,8 @@ public class BicycleSnowflakeConstants {
 
   public static final String SYNC_MODE = "syncMode";
   public static final String SYNC_TYPE = "syncType";
-  public static final String FULL_SYNC_TYPE = "FullSync";
-  public static final String INCREMENTAL_SYNC_TYPE = "IncrementalSync";
+  public static final String FULL_SYNC_TYPE = "Full Sync";
+  public static final String INCREMENTAL_SYNC_TYPE = "Incremental Sync";
   public static final String CURSOR_FIELD = "cursorField";
   public static final String CURSOR_FIELD_FORMAT = "cursorFieldFormat";
 

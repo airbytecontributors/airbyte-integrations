@@ -1,0 +1,15 @@
+{
+  "host": "gdbrfza-my49188.snowflakecomputing.com",
+  "role": "ACCOUNTADMIN",
+  "schema": "PAYFACTORY",
+  "database": "CSV_SAMPLE_DATA",
+  "warehouse": "COMPUTE_WH",
+  "credentials": {
+    "auth_type": "username/password",
+    "username": "bicycletest",
+    "password": "Bicycle123"
+  },
+  "syncMode": {
+    "syncType": "IncrementalSync"
+  }
+}

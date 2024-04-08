@@ -15,7 +15,7 @@ public class SnowflakeEventSourceConfig {
     private final String database;
     private final String schema;
     private SnowflakeAuthInfo snowflakeAuthInfo;
-    private boolean isIncremental;
+    private boolean isIncremental = true;
     private String cursorFieldFormat;
     private String cursorField;
 
@@ -48,18 +48,18 @@ public class SnowflakeEventSourceConfig {
 
         JsonNode syncMode = config.has(BicycleSnowflakeConstants.SYNC_MODE)
                 ? config.get(BicycleSnowflakeConstants.SYNC_MODE) : null;
-        if (syncMode == null) {
-            isIncremental = false;
-        } else {
+        if (syncMode != null) {
             String syncType = syncMode.get(BicycleSnowflakeConstants.SYNC_TYPE).asText();
             if (StringUtils.isNotEmpty(syncType) && syncType.equals(BicycleSnowflakeConstants.INCREMENTAL_SYNC_TYPE)) {
                 isIncremental = true;
-                this.cursorField = syncMode.get(BicycleSnowflakeConstants.CURSOR_FIELD).asText();
+                this.cursorField = syncMode.has(BicycleSnowflakeConstants.CURSOR_FIELD) ?
+                        syncMode.get(BicycleSnowflakeConstants.CURSOR_FIELD).asText() : null;
                 this.cursorFieldFormat = syncMode.has(BicycleSnowflakeConstants.CURSOR_FIELD_FORMAT) ?
                         syncMode.get(BicycleSnowflakeConstants.CURSOR_FIELD_FORMAT).asText() : null;
+            } else if (StringUtils.isNotEmpty(syncType) && syncType.equals(BicycleSnowflakeConstants.FULL_SYNC_TYPE)) {
+                isIncremental = false;
             }
         }
-
     }
 
     private SnowflakeAuthInfo buildOAuthSnowflakeAuthInfo(String authType, JsonNode config) {
