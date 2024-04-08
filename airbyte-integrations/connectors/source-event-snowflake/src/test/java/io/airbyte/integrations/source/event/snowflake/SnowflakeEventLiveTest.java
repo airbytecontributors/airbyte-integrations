@@ -11,6 +11,7 @@ import io.airbyte.protocol.models.AirbyteCatalog;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.event.processor.api.BicycleEventProcessor;
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.integration.connector.runtime.BackFillConfiguration;
 import io.bicycle.integration.connector.runtime.RuntimeConfig;
@@ -18,6 +19,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.UUID;
 import org.mockito.Mockito;
 
 /**
@@ -29,9 +31,54 @@ public class SnowflakeEventLiveTest {
     public static void main(String[] args) throws Exception {
 
         //testWithoutBackFill();
-        testWithBackFill();
+        //testWithBackFill();
+        testWithNewTable();
 
     }
+
+    public static void testWithNewTable() throws Exception {
+
+        RuntimeConfig runtimeConfig = RuntimeConfig.newBuilder()
+                .setBackFillConfig(BackFillConfiguration.newBuilder().setEnableBackFill(true)
+                        .setEndTimeInMillis(1711843210000L).build()).build();
+
+
+        ConnectorConfigManager connectorConfigManager = Mockito.mock(ConnectorConfigManager.class);
+        Mockito.when(connectorConfigManager.getRuntimeConfig(Mockito.any(AuthInfo.class),
+                Mockito.any(String.class))).thenReturn(runtimeConfig);
+
+        SystemAuthenticator systemAuthenticator = Mockito.mock(SystemAuthenticator.class);
+        SnowflakeEventSource snowFlakeEventSource = new SnowflakeEventSource(Mockito.mock(SystemAuthenticator.class),
+                Mockito.mock(EventConnectorJobStatusNotifier.class), connectorConfigManager);
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        String configString = readFileAsString("snowflake-sumit-payfactory-config.json");
+        JsonNode config = objectMapper.readValue(configString, JsonNode.class);
+
+
+        String catalogString = readFileAsString("snowflake-sumit-payfactory-catalog.json");
+        ConfiguredAirbyteCatalog configuredAirbyteCatalog = objectMapper.readValue(catalogString, ConfiguredAirbyteCatalog.class);
+        BicycleConfig bicycleConfig = snowFlakeEventSource.getBicycleConfig(configuredAirbyteCatalog.getAdditionalProperties(),
+                systemAuthenticator);
+
+        snowFlakeEventSource.setBicycleEventProcessorAndPublisher(bicycleConfig);
+
+
+
+
+        // System.out.println(snowFlakeEventSource.check(config));
+
+        AirbyteCatalog catalog = snowFlakeEventSource.discover(config);
+        //  System.out.println(catalog);
+
+        System.out.println(objectMapper.writeValueAsString(catalog.getStreams().get(0)));
+
+
+
+        snowFlakeEventSource.read(config, configuredAirbyteCatalog, null);
+
+    }
+
 
     public static void testWithBackFill() throws Exception {
 

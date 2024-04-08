@@ -1,0 +1,140 @@
+{
+  "streams" : [
+    {
+      "stream" : {
+        "name" : "PAYFACTORYMARCH",
+        "json_schema" : {
+          "type": "object",
+          "properties": {
+            "ZIP": {
+              "type": "number"
+            },
+            "ACCOUNT_ID": {
+              "type": "number"
+            },
+            "AUTHORIZATION_MSG": {
+              "type": "string"
+            },
+            "PHONE": {
+              "type": "string"
+            },
+            "RECURRING_ID": {
+              "type": "number"
+            },
+            "PRESCRIPTION_AMOUNT": {
+              "type": "number"
+            },
+            "EMAIL": {
+              "type": "string"
+            },
+            "BATCH_ID": {
+              "type": "number"
+            },
+            "USER_DATA": {
+              "type": "string"
+            },
+            "HEALTHCARE_TOTAL_AMOUNT": {
+              "type": "number"
+            },
+            "ACCOUNT_NAME": {
+              "type": "string"
+            },
+            "LAST4": {
+              "type": "number"
+            },
+            "GROUPNAME": {
+              "type": "string"
+            },
+            "CVV2_RESPONSE": {
+              "type": "string"
+            },
+            "AUTHORIZATION_DATE": {
+              "type": "string"
+            },
+            "TENDER_TYPE": {
+              "type": "string"
+            },
+            "BATCH_DATE": {
+              "type": "string"
+            },
+            "TRACE_NUM": {
+              "type": "number"
+            },
+            "KEYED": {
+              "type": "boolean"
+            },
+            "AUTHORIZATION_CODE": {
+              "type": "string"
+            },
+            "TRANSIT_AMOUNT": {
+              "type": "number"
+            },
+            "AVS_RESPONSE": {
+              "type": "string"
+            },
+            "SWIPED": {
+              "type": "boolean"
+            },
+            "DENTAL_AMOUNT": {
+              "type": "number"
+            },
+            "CLINICAL_AMOUNT": {
+              "type": "number"
+            },
+            "TRANSACTION_TYPE": {
+              "type": "string"
+            },
+            "NAME": {
+              "type": "string"
+            },
+            "TRANSACTION_AMOUNT": {
+              "type": "number"
+            },
+            "COPAY_AMOUNT": {
+              "type": "number"
+            },
+            "ENTRY_MODE": {
+              "type": "string"
+            },
+            "VISION_AMOUNT": {
+              "type": "number"
+            },
+            "CARD_EXPIRATION": {
+              "type": "number"
+            },
+            "CASHIER": {
+              "type": "string"
+            },
+            "TRANSACTION_ID": {
+              "type": "number"
+            },
+            "CARD_BRAND": {
+              "type": "string"
+            },
+            "PROGRAM": {
+              "type": "string"
+            }
+          }
+        },
+        "supported_sync_modes" : [
+          "full_refresh",
+          "incremental"
+        ],
+        "default_cursor_field" : [],
+        "source_defined_primary_key" : [],
+        "namespace" : "PAYFACTORY"
+      },
+      "sync_mode" : "full_refresh",
+      "cursor_field" : [],
+      "destination_sync_mode" : "append",
+      "primary_key" : []
+    }
+  ],
+  "bicycleServerURL" : "https://api.dev.bicycle.io",
+  "bicycleConnectorId" : "fa2091a7-774c-489c-b724-cf30853fd9e2",
+  "bicycleEventSourceType" : "source-event-snowflake",
+  "bicycleMetricStoreURL" : "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details",
+  "isOnPrem" : true,
+  "bicycleToken": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJST0xFIjoiQVBJIiwic3ViIjoiZXZlbnQtZGVtby1hcHAtMiIsIk9SR19JRCI6IjgwIiwiaXNzIjoiamF5YUBiaWN5Y2xlLmlvIiwiaWF0IjoxNjYzNTgyNjgwLCJURU5BTlQiOiJldnQtZmJiOTY3YWQtMjVmMi00ZWVlLWIyZTUtZjUyYjA0N2JlMmVmIiwianRpIjoiZTQxMDhhNDMtYjVmNC00ZmRkLTg5NiJ9.wC6lMnpMvlNMvvyI_TPP4vzHRgPQstu0IUSpkD5aIPg",
+  "bicycleTenantId" : "evt-fbb967ad-25f2-4eee-b2e5-f52b047be2ef"
+}
