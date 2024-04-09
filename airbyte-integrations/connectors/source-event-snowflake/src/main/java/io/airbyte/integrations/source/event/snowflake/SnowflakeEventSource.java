@@ -190,6 +190,7 @@ public class SnowflakeEventSource extends BaseEventConnector {
         } else {
             LOGGER.info("Cursor field identified is {} and sourceFieldMapping is {}", cursorField,
                     sourceFieldMapping);
+            snowflakeEventSourceConfig.setCursorField(cursorField);
         }
 
         if (snowflakeEventSourceConfig.isIncremental()) {
@@ -201,7 +202,7 @@ public class SnowflakeEventSource extends BaseEventConnector {
         LOGGER.info("Inside doRead for connector {} with config {} and catalog {}", connectorId,
                 config, catalog);
         BigQueryEventSourceConfig bigQueryEventSourceConfig = new BigQueryEventSourceConfig(config,
-                snowflakeEventSourceConfig.getCursorField());
+                cursorField);
         bicycleSnowflakeWrapper = new BicycleSnowflakeWrapper(bigQueryEventSourceConfig);
         ScheduledExecutorService ses = Executors.newScheduledThreadPool(3);
 
@@ -348,6 +349,7 @@ public class SnowflakeEventSource extends BaseEventConnector {
                         state = updatedState;
                         LOGGER.info("Successfully published messages for connector Id {}", connectorId);
                         totalRecordsProcessed.addAndGet(jsonEvents.size());
+                        LOGGER.info("Total Records processed so far {}", totalRecordsProcessed.longValue());
                     }
                 } catch (Exception exception) {
                     LOGGER.error("Unable to publish bicycle events for {} {} ", connectorId, exception);
@@ -469,6 +471,7 @@ public class SnowflakeEventSource extends BaseEventConnector {
                 stream.getCursorField().add(cursorFieldName);
             }
         }
+        LOGGER.info("Sync mode update for catalog  {}", catalog);
         return catalog;
     }
 

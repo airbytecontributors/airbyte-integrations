@@ -112,4 +112,22 @@ public class SnowflakeEventSourceConfig {
     public String getCursorFieldFormat() {
         return cursorFieldFormat;
     }
+
+    public void setCursorField(String cursorField) {
+        this.cursorField = cursorField;
+    }
+    @Override
+    public String toString() {
+        return "SnowflakeEventSourceConfig{" +
+                "accountName='" + accountName + '\'' +
+                ", role='" + role + '\'' +
+                ", warehouse='" + warehouse + '\'' +
+                ", database='" + database + '\'' +
+                ", schema='" + schema + '\'' +
+                ", snowflakeAuthInfo=" + snowflakeAuthInfo +
+                ", isIncremental=" + isIncremental +
+                ", cursorFieldFormat='" + cursorFieldFormat + '\'' +
+                ", cursorField='" + cursorField + '\'' +
+                '}';
+    }
 }
