@@ -170,7 +170,7 @@ public class SnowflakeEventSource extends BaseEventConnector {
                 ? additionalProperties.get("bicycleConnectorId").toString() : "";
 
         SnowflakeEventSourceConfig snowflakeEventSourceConfig = new SnowflakeEventSourceConfig(config);
-        LOGGER.info("{} Config returned is {}", connectorId, snowflakeEventSourceConfig);
+
 
         AuthInfo authInfo = bicycleConfig.getAuthInfo();
         String eventSourceType = additionalProperties.containsKey("bicycleEventSourceType") ?
@@ -192,6 +192,7 @@ public class SnowflakeEventSource extends BaseEventConnector {
                     sourceFieldMapping);
             snowflakeEventSourceConfig.setCursorField(cursorField);
         }
+        LOGGER.info("{} Config returned is {}", connectorId, snowflakeEventSourceConfig);
 
         if (snowflakeEventSourceConfig.isIncremental()) {
             updateSyncMode(catalog, cursorField);
@@ -286,7 +287,7 @@ public class SnowflakeEventSource extends BaseEventConnector {
                 getRecordsTimer.stop();
 
                 while (iterator.hasNext()) {
-
+                    boolean shouldProcessRecord = true;
                     AirbyteMessage message = iterator.next();
                     final boolean isState = message.getType() == AirbyteMessage.Type.STATE;
                     if (isState) {
@@ -298,12 +299,15 @@ public class SnowflakeEventSource extends BaseEventConnector {
                     }
                     if (message.getRecord() != null) {
                         JsonNode jsonNode = message.getRecord().getData();
-                        Long backFillFieldValue = getBackFillFieldValue(authInfo, snowflakeEventSourceConfig, jsonNode,
-                                sourceFieldMapping);
-                        stopConnector = shouldStopConnector(stopConnector, backFillConfiguration, connectorId,
-                                backFillFieldValue);
-                        boolean shouldProcessRecord = shouldProcessRecord(stopConnector, backFillFieldValue,
-                                backFillConfiguration);
+                        if (backFillConfiguration.getEnableBackFill()) {
+                            Long backFillFieldValue =
+                                    getBackFillFieldValue(authInfo, snowflakeEventSourceConfig, jsonNode,
+                                            sourceFieldMapping);
+                            stopConnector = shouldStopConnector(stopConnector, backFillConfiguration, connectorId,
+                                    backFillFieldValue);
+                            shouldProcessRecord = shouldProcessRecord(stopConnector, backFillFieldValue,
+                                    backFillConfiguration);
+                        }
                         if (shouldProcessRecord) {
                             jsonEvents.add(jsonNode);
                         }
