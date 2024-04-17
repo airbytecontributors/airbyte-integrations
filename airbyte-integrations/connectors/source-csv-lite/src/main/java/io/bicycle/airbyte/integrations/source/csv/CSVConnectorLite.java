@@ -259,7 +259,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 }
 
                 private void publishPreviewEvents(boolean lockAcquired) {
-                    submitRecordsToPreviewStore(getConnectorId(), validEvents, true);
+                    submitRecordsToPreviewStore(getConnectorId(), validEvents, false);
                     if (validCount.get() % logbatch == 0 || finished.get()) {
                         LOGGER.info("[{}] : Raw events total - published count Valid[{}] Invalid[{}] Lock [{}]",
                                 getConnectorId(), validCount.get(), invalidCount.get(), lockAcquired);
