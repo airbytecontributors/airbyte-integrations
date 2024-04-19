@@ -1,4 +1,4 @@
-package io.airbyte.integrations.bicycle.base.integration.csv;
+package io.airbyte.integrations.bicycle.base.integration.reader.csv;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.airbyte.integrations.bicycle.base.integration.BaseCSVEventConnector;
@@ -43,7 +43,7 @@ public class CSVEventSourceReaderV2 extends CSVEventSourceReader {
         }
     }
 
-    public void validateFileFormat() throws IOException, UnsupportedFormatException {
+    public void validateFileFormat() throws UnsupportedFormatException {
         int count = 0;
         try {
             while (hasNext() && count < 10) {

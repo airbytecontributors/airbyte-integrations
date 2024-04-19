@@ -24,7 +24,8 @@
       "format": {
         "type": "string",
         "enum": [
-          "csv"
+          "csv",
+          "jsonl"
         ],
         "default": "csv",
         "title": "File Format",

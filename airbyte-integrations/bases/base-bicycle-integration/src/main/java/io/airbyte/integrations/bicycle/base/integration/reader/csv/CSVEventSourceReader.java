@@ -1,17 +1,11 @@
-package io.airbyte.integrations.bicycle.base.integration.csv;
+package io.airbyte.integrations.bicycle.base.integration.reader.csv;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import io.airbyte.integrations.bicycle.base.integration.BaseCSVEventConnector;
 import io.airbyte.integrations.bicycle.base.integration.BaseEventConnector;
-import io.airbyte.integrations.bicycle.base.integration.exception.UnsupportedFormatException;
-import io.bicycle.entity.mapping.SourceFieldMapping;
+import io.airbyte.integrations.bicycle.base.integration.reader.EventSourceReader;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.server.event.mapping.UserServiceFieldDef;
-import io.bicycle.server.event.mapping.UserServiceFieldsList;
-import io.bicycle.server.event.mapping.UserServiceFieldsRule;
-import io.bicycle.server.event.mapping.UserServiceMappingRule;
-import io.bicycle.server.event.mapping.api.MetadataPreviewEventType;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -21,14 +15,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.io.StringReader;
 import java.util.*;
 
-import static io.airbyte.integrations.bicycle.base.integration.BaseCSVEventConnector.APITYPE.READ;
 
-public class CSVEventSourceReader extends BaseEventConnector.EventSourceReader<RawEvent> {
+public class CSVEventSourceReader extends EventSourceReader<RawEvent> {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CSVEventSourceReader.class);
 
@@ -36,31 +28,17 @@ public class CSVEventSourceReader extends BaseEventConnector.EventSourceReader<R
     protected File csvFile;
     RandomAccessFile accessFile = null;
     protected Map<String, Integer> headerNameToIndexMap;
-    protected boolean validEvent = false;
     protected RawEvent nextEvent;
     protected CSVRecord csvRecord;
-    protected long offset = -1;
-    protected long rowCounter = 0;
-    protected BaseEventConnector.ReaderStatus status = BaseEventConnector.ReaderStatus.SUCCESS;
-    protected BaseEventConnector connector;
-    protected BaseCSVEventConnector.APITYPE apiType;
-
-    protected SourceFieldMapping fieldMapping;
-
-    protected ObjectMapper mapper = new ObjectMapper();
-
     protected String name;
-    protected String row = null;
     protected long counter = 0;
     protected long nullRows = 0;
 
     public CSVEventSourceReader(String name, File csvFile, String connectorId,
                                 BaseEventConnector connector, BaseCSVEventConnector.APITYPE apiType) {
+        super(csvFile.getName(), connectorId, connector, apiType);
         this.name = name;
-        this.connectorId = connectorId;
         this.csvFile = csvFile;
-        this.connector = connector;
-        this.apiType = apiType;
         initialize();
     }
 
@@ -78,30 +56,6 @@ public class CSVEventSourceReader extends BaseEventConnector.EventSourceReader<R
         }
     }
 
-    public void validateFileFormat() throws IOException, UnsupportedFormatException {
-        /*RandomAccessFile accessFile = new RandomAccessFile(csvFile, "r");
-        int count = 0;
-        do {
-            String line = accessFile.readLine();
-            if (line != null && !line.contains(",")) {
-                throw new UnsupportedFormatException(csvFile.getName());
-            }
-            count++;
-        } while (count < 3);*/
-    }
-
-    public long getRowCounter() {
-        return rowCounter;
-    }
-
-    public String getRow() {
-        return row;
-    }
-
-    public long getOffset() {
-        return offset;
-    }
-
     private void reset() {
         validEvent = true;
         row = null;
@@ -110,7 +64,7 @@ public class CSVEventSourceReader extends BaseEventConnector.EventSourceReader<R
         csvRecord = null;
     }
 
-    public void seek(long offset, long rowCounter) throws IOException {
+    public void seek(long offset, long rowCounter) throws Exception {
         this.accessFile.seek(offset);
         this.row = accessFile.readLine();
         this.offset = offset;
@@ -142,10 +96,6 @@ public class CSVEventSourceReader extends BaseEventConnector.EventSourceReader<R
         return false;
     }
 
-    public boolean isValidEvent() {
-        return validEvent;
-    }
-
     public RawEvent next() {
         String errorMessage = null;
         try {
@@ -168,62 +118,6 @@ public class CSVEventSourceReader extends BaseEventConnector.EventSourceReader<R
         node.put("bicycle.raw.event.record", row);
         nextEvent = getJsonRawEvent(rowCounter, name, node, errorMessage);
         return nextEvent;
-    }
-
-    public long getRecordUTCTimestampInMillis() {
-        SourceFieldMapping fieldMapping = getSourceFieldMapping();
-        long valueInMicros = (long) nextEvent.getFieldValue(fieldMapping, Collections.emptyMap(), connector.getAuthInfo());
-        return valueInMicros / 1000;
-    }
-
-    private SourceFieldMapping getSourceFieldMapping() {
-        if (fieldMapping != null) {
-            return fieldMapping;
-        } else {
-            UserServiceFieldDef startTimeFieldDef = null;
-            List<UserServiceMappingRule> userServiceMappingRules =
-                    connector.getUserServiceMappingRules(connector.getAuthInfo(), connector.getEventSourceInfo());
-            LOGGER.info("[{}] : Userservice rules downloaded [{}]", connectorId, userServiceMappingRules);
-            boolean found = false;
-            for (UserServiceMappingRule userServiceMappingRule : userServiceMappingRules) {
-                UserServiceFieldsRule userServiceFields = userServiceMappingRule.getUserServiceFields();
-                List<UserServiceFieldDef> commonFieldsList = userServiceFields.getCommonFieldsList();
-                for (UserServiceFieldDef userServiceFieldDef : commonFieldsList) {
-                    if (userServiceFieldDef.getPredefinedFieldType().equals("startTimeMicros")) {
-                        startTimeFieldDef = userServiceFieldDef;
-                        found = true;
-                        break;
-                    }
-                }
-                if (found) {
-                    break;
-                }
-
-                Map<String, UserServiceFieldsList> userServiceFieldsMap = userServiceFields.getUserServiceFieldsMap();
-                for (String key : userServiceFieldsMap.keySet()) {
-                    UserServiceFieldsList userServiceFieldsList = userServiceFieldsMap.get(key);
-                    for (UserServiceFieldDef userServiceFieldDef : userServiceFieldsList.getUserServiceFieldList()) {
-                        if (userServiceFieldDef.getPredefinedFieldType().equals("startTimeMicros")) {
-                            startTimeFieldDef = userServiceFieldDef;
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (found) {
-                        break;
-                    }
-                }
-                if (found) {
-                    break;
-                }
-            }
-            if (startTimeFieldDef == null) {
-                throw new IllegalStateException("timestamp field is not discovered yet");
-            }
-
-            fieldMapping = startTimeFieldDef.getFieldMapping();
-            return fieldMapping;
-        }
     }
 
     private UserServiceFieldDef findStartTimeMicros(List<UserServiceFieldDef> fieldsList) {
@@ -254,10 +148,6 @@ public class CSVEventSourceReader extends BaseEventConnector.EventSourceReader<R
             LOGGER.error("Unable to convert a csv row {} to json because of {}", csvRecord, e);
             return null; // Return an empty JSON object in case of an error
         }
-    }
-
-    public BaseEventConnector.ReaderStatus getStatus() {
-        return status;
     }
 
     public void close() throws Exception {
@@ -324,24 +214,6 @@ public class CSVEventSourceReader extends BaseEventConnector.EventSourceReader<R
             errorMessage = "Headers and fields count does not match";
         }
         JsonRawEvent jsonRawEvent = getJsonRawEvent(rowCounter, fileName, node, errorMessage);
-        return jsonRawEvent;
-    }
-
-    protected JsonRawEvent getJsonRawEvent(long rowCounter, String fileName, ObjectNode node, String errorMessage) {
-        node.put("bicycle.raw.event.identifier", String.valueOf(rowCounter));
-        if (!validEvent) {
-            if (apiType.equals(BaseCSVEventConnector.APITYPE.SYNC_DATA)) {
-                node.put("bicycle.metadata.eventType", MetadataPreviewEventType.SYNC_ERROR.name());
-            } else if (apiType.equals(READ)) {
-                node.put("bicycle.metadata.eventType", MetadataPreviewEventType.READ_ERROR.name());
-            }
-        }
-        node.put("bicycle.eventSourceId", connectorId);
-        if (errorMessage != null) {
-            node.put("bicycle.raw.event.error", errorMessage);
-        }
-        node.put("bicycle.filename", fileName);
-        JsonRawEvent jsonRawEvent = connector.createJsonRawEvent(node);
         return jsonRawEvent;
     }
 

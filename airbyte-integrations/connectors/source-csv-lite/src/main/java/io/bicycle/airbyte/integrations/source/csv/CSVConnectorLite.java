@@ -1,5 +1,6 @@
 package io.bicycle.airbyte.integrations.source.csv;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.google.common.collect.Lists;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -7,7 +8,7 @@ import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.scheduler.api.JobExecutionStatus;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.bicycle.base.integration.*;
-import io.airbyte.integrations.bicycle.base.integration.csv.CSVEventSourceReader;
+import io.airbyte.integrations.bicycle.base.integration.reader.EventSourceReader;
 import io.airbyte.integrations.bicycle.base.integration.exception.UnsupportedFormatException;
 import io.airbyte.integrations.bicycle.base.integration.job.config.ConsumerConfig;
 import io.airbyte.integrations.bicycle.base.integration.job.config.ProducerConfig;
@@ -62,6 +63,14 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
     private Map<String, List<Long>> fileVsDiscoverRecordNumbers = new ConcurrentHashMap<>();
 
+    private ExecutorService mainExecutorService = Executors.newFixedThreadPool(1, new ThreadFactory() {
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(r);
+            t.setName("main-csvconnector-lite-1");
+            return t;
+        }
+    });
+
     public CSVConnectorLite(SystemAuthenticator systemAuthenticator,
                         EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier,
                         ConnectorConfigManager connectorConfigManager) {
@@ -83,92 +92,105 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
     public SyncDataResponse syncData(JsonNode sourceConfig, ConfiguredAirbyteCatalog catalog,
                                      JsonNode readState, SyncDataRequest syncDataRequest) {
-        LOGGER.info("Starting syncdata [{}] [{}]", sourceConfig, readState);
-        LOGGER.info("SyncData ConnectorConfigManager [{}]", connectorConfigManager);
-        initialize(sourceConfig, catalog);
-        int threads = initializeExecutors();
-        Status syncStatus = null;
+        boolean success = false;
         try {
-            syncStatus = getConnectorStatus(SYNC_STATUS);
-        } catch (InvalidProtocolBufferException e) {
-            throw new IllegalStateException("Failed to fetch the sync state");
-        }
-        if (syncStatus != null) {
-            LOGGER.info("Already preview ingesting records [{}] [{}]", getConnectorId(), syncStatus);
-        }
-        Map<String, File> files = new HashMap<>();
-        if ("true".equalsIgnoreCase(System.getProperty("dev.mode", "false"))) {
-            files.put("DemoData_Feb04toMar11_2024_FixedDateFormat.csv", new File("/home/ravi/Downloads/system-error/export-8dc3fbdf3ee9aff.csv"));
-        } else {
-            List<String> fileNames = new ArrayList<>();
-            Map<String, String> fileVsSignedUrls = readFilesConfig();
-            LOGGER.info("[{}] : Read Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
-            for (String fileName : fileVsSignedUrls.keySet()) {
-                String status = getConnectorFileState(fileName, SYNC_STATUS);
-                String totalRecords = getConnectorFileState(fileName, SYNC_TOTAL_RECORDS);
-                if (status != null) {
-                    fileNames.add(fileName);
-                    LOGGER.info("[{}] : syncData removing file fileName [{}] status [{}] records [{}]",
-                                                getConnectorId(), fileName, status, totalRecords);
+            LOGGER.info("SyncData ConnectorConfigManager [{}]", connectorConfigManager);
+            initialize(sourceConfig, catalog);
+            LOGGER.info("Starting syncdata  [{}] [{}] [{}]", getConnectorId(), sourceConfig, readState);
+            int threads = initializeExecutors();
+            Status syncStatus = null;
+            try {
+                syncStatus = getConnectorStatus(SYNC_STATUS);
+            } catch (InvalidProtocolBufferException e) {
+                throw new IllegalStateException("Failed to fetch the sync state");
+            }
+            if (syncStatus != null) {
+                LOGGER.info("Already preview ingesting records [{}] [{}]", getConnectorId(), syncStatus);
+            }
+            Map<String, File> files = new HashMap<>();
+            if ("true".equalsIgnoreCase(System.getProperty("dev.mode", "false"))) {
+                files.put("Payfactory_IQ_AUTHORIZATION_2023_09.json", new File("/home/ravi/Downloads/json/PayFactor-Authorization/Payfactory_IQ_AUTHORIZATION_2023_09.json"));
+                files.put("Payfactory_IQ_AUTHORIZATION_2023_10.json", new File("/home/ravi/Downloads/json/PayFactor-Authorization/Payfactory_IQ_AUTHORIZATION_2023_10.json"));
+                files.put("Payfactory_IQ_AUTHORIZATION_2023_11.json", new File("/home/ravi/Downloads/json/PayFactor-Authorization/Payfactory_IQ_AUTHORIZATION_2023_11.json"));
+            } else {
+                List<String> fileNames = new ArrayList<>();
+                Map<String, String> fileVsSignedUrls = readFilesConfig();
+                LOGGER.info("[{}] : Read Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
+                for (String fileName : fileVsSignedUrls.keySet()) {
+                    String status = getConnectorFileState(fileName, SYNC_STATUS);
+                    String totalRecords = getConnectorFileState(fileName, SYNC_TOTAL_RECORDS);
+                    if (status != null) {
+                        fileNames.add(fileName);
+                        LOGGER.info("[{}] : syncData removing file fileName [{}] status [{}] records [{}]",
+                                getConnectorId(), fileName, status, totalRecords);
+                    }
+                }
+                for (String fileName: fileNames) {
+                    fileVsSignedUrls.remove(fileName);
+                }
+                LOGGER.info("[{}] : Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
+                for (String fileName : fileVsSignedUrls.keySet()) {
+                    File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
+                    files.put(fileName, file);
                 }
             }
-            for (String fileName: fileNames) {
-                fileVsSignedUrls.remove(fileName);
+            if (files.isEmpty()) {
+                LOGGER.info("[{}] : files already synced [{}]", getConnectorId(), files);
+                return SyncDataResponse.newBuilder()
+                        .setStatus(Status.COMPLETE)
+                        .setResponse(StatusResponse.newBuilder().setMessage("SUCCESS").build())
+                        .build();
             }
-            LOGGER.info("[{}] : Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
-            for (String fileName : fileVsSignedUrls.keySet()) {
-                File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
-                files.put(fileName, file);
+            updateConnectorState(SYNC_STATUS, Status.STARTED, 0);
+            LOGGER.info("[{}] : Local files Url [{}]", getConnectorId(), files);
+            List<RawEvent> vcEvents = new ArrayList<>();
+            for (String fileName : files.keySet()) {
+                File file = files.get(fileName);
+                EventSourceReader csvReader = null;
+                try {
+                    csvReader = null;
+                    try {
+                        csvReader = getReader(fileName, file, getConnectorId(), this, SYNC_DATA);
+                        publishPreviewEvents(fileVsDiscoverRecordNumbers, fileName, file, csvReader, vcEvents, PREVIEW_RECORDS,
+                                1, 0, false, true, true, false);
+                    } finally {
+                        if (csvReader != null) {
+                            csvReader.close();
+                        }
+                    }
+                } catch (Throwable t) {
+                    throw new IllegalStateException("Failed to register preview events for discovery service ["+fileName+"]", t);
+                }
             }
-        }
-        if (files.isEmpty()) {
-            LOGGER.info("[{}] : files already synced [{}]", getConnectorId(), files);
+            try {
+                mainExecutorService.submit(new Runnable() {
+                    @Override
+                    public void run() {
+                        Map<String, Future> futures = processFiles(threads, files);
+                    }
+                });
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
+            }
+            success = true;
             return SyncDataResponse.newBuilder()
                     .setStatus(Status.COMPLETE)
                     .setResponse(StatusResponse.newBuilder().setMessage("SUCCESS").build())
                     .build();
+        } finally {
+            LOGGER.info("Finished syncdata [{}] [{}]", getConnectorId(), success);
         }
-        updateConnectorState(SYNC_STATUS, Status.STARTED, 0);
-        LOGGER.info("[{}] : Local files Url [{}]", getConnectorId(), files);
-        List<RawEvent> vcEvents = new ArrayList<>();
-        for (String fileName : files.keySet()) {
-            File file = files.get(fileName);
-            CSVEventSourceReader csvReader = null;
-            try {
-                csvReader = null;
-                try {
-                    csvReader = getCSVReader(fileName, file, getConnectorId(), this, SYNC_DATA);
-                    publishPreviewEvents(fileVsDiscoverRecordNumbers, fileName, file, csvReader, vcEvents, PREVIEW_RECORDS,
-                            1, 0, false, true, true, false);
-                } finally {
-                    if (csvReader != null) {
-                        csvReader.close();
-                    }
-                }
-            } catch (Throwable t) {
-                throw new IllegalStateException("Failed to register preview events for discovery service ["+fileName+"]", t);
-            }
-        }
-        try {
-            Map<String, Future> futures = processFiles(threads, files);
-        } catch (Throwable e) {
-            throw new RuntimeException(e);
-        }
-        return SyncDataResponse.newBuilder()
-                .setStatus(Status.COMPLETE)
-                .setResponse(StatusResponse.newBuilder().setMessage("SUCCESS").build())
-                .build();
     }
 
     private SyncDataResponse validateFileFormats(Map<String, File> files) {
         List<UnsupportedFormatException> unsupportedFormatExceptions = new ArrayList<>();
         for (String fileName : files.keySet()) {
             File file = files.get(fileName);
-            CSVEventSourceReader csvReader = null;
+            EventSourceReader csvReader = null;
             try {
                 csvReader = null;
                 try {
-                    csvReader = getCSVReader(fileName, file, getConnectorId(), this, SYNC_DATA);
+                    csvReader = getReader(fileName, file, getConnectorId(), this, SYNC_DATA);
                     csvReader.validateFileFormat();
                 } finally {
                     if (csvReader != null) {
@@ -224,6 +246,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         long logbatch = batch > 1000 ? 1000 : batch;
 
         for (int i = 0; i < threads; i++) {
+            LOGGER.info("[{}] : Creating Consumers [{}]", getConnectorId(), i);
             eventsProcessor.submit(new ConsumerJob<WrapperEvent>() {
 
                 private List<RawEvent> validEvents = new ArrayList<>();
@@ -288,20 +311,22 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                     }
                 }
             });
+            LOGGER.info("[{}] : Created Consumers", getConnectorId());
         }
 
         for (String fileName : files.keySet()) {
+            LOGGER.info("[{}] : Creating Producers [{}]", getConnectorId(), fileName);
             File file = files.get(fileName);
             Future future = eventsProcessor.submit(new ProducerJob<WrapperEvent>() {
 
                 AtomicLong recordsCount = new AtomicLong(0);
                 public void process(Producer<WrapperEvent> producer) {
                     try {
-                        CSVEventSourceReader reader = null;
+                        EventSourceReader<RawEvent> reader = null;
                         try {
                             updateConnectorFileState(fileName, SYNC_STATUS, Status.IN_PROGRESS.name());
                             List<Long> recordOffsets = fileVsDiscoverRecordNumbers.get(fileName);
-                            reader = getCSVReader(fileName, file, getConnectorId(), connector, READ);
+                            reader = getReader(fileName, file, getConnectorId(), connector, READ);
                             while (reader.hasNext()) {
                                 RawEvent next = reader.next();
                                 if (recordOffsets != null && recordOffsets.contains(reader.getOffset())) {
@@ -332,6 +357,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 }
             });
             futures.put(fileName, future);
+            LOGGER.info("[{}] : Created Producers [{}]", getConnectorId(), fileName);
         }
         //eventsProcessor.stop();
         //eventsProcessor.shutdown();
@@ -426,17 +452,18 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             int queueSize = getQueueSize(config);
             int requestSize = getRequestSize(config);
             long totalRecords = calculateTotalrecords(files, queueSize);
+            saveState(TOTAL_RECORDS, totalRecords);
             try {
                 long processed = publishEvents(files, queueSize, requestSize, threads, totalRecords);
                 updateConnectorState(READ_STATUS, Status.COMPLETE);
                 for (String fileName : files.keySet()) {
                     updateConnectorFileState(fileName, READ_STATUS, Status.COMPLETE.name());
                 }
-                saveState(TOTAL_RECORDS, totalRecords);
+                //saveState(TOTAL_RECORDS, totalRecords);
                 if (processed > 0) {
                     success = true;
                 }
-            } catch (IOException e) {
+            } catch (Exception e) {
                 LOGGER.error("Failed to process records ["+getConnectorId()+"]", e);
                 updateConnectorState(READ_STATUS, Status.ERROR);
             }
@@ -551,10 +578,10 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
     private ProducerJob<RawEvent> getRulesProducerJob(String fileName, File file, BaseEventConnector connector) {
         return new ProducerJob<RawEvent>() {
             public void process(Producer<RawEvent> producer) {
-                CSVEventSourceReader reader = null;
+                EventSourceReader<RawEvent> reader = null;
                 long count = 0;
                 try {
-                    reader = getCSVReader(fileName, file, getConnectorId(), connector, READ);
+                    reader = getReader(fileName, file, getConnectorId(), connector, READ);
                     updateConnectorFileState(fileName, READ_STATUS, Status.IN_PROGRESS.name());
                     while (reader.hasNext()) {
                         RawEvent rawEvent = reader.next();
@@ -698,32 +725,47 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
     }
 
     private long calculateTotalrecords(Map<String, File> files, int batchSize) {
-        long start = System.currentTimeMillis();
-        AtomicLong successCounter = new AtomicLong(0);
-        AtomicLong failedCounter = new AtomicLong(0);
-        Map<String, Future<Void>> futures = new HashMap<>();
-        for (String fileName : files.keySet()) {
-            File file = files.get(fileName);
-            Future<Void> future = executorService.submit(new Callable<Void>() {
-                @Override
-                public Void call() throws Exception {
-                    readFileRecords(fileName, file, successCounter);
-                    return null;
-                }
-            });
-            futures.put(fileName, future);
-        }
-        for (String fileName : futures.keySet()) {
-            try {
-                Future<Void> future = futures.get(fileName);
-                future.get();
-            } catch (Throwable t) {
-                throw new IllegalStateException("Failed to read events [" + fileName + "]", t);
+        long totalRecords = getStateAsLong(TOTAL_RECORDS);
+        if (totalRecords == -1) {
+            long start = System.currentTimeMillis();
+            AtomicLong successCounter = new AtomicLong(0);
+            AtomicLong failedCounter = new AtomicLong(0);
+            Map<String, Future<Void>> futures = new HashMap<>();
+            for (String fileName : files.keySet()) {
+                File file = files.get(fileName);
+                Future<Void> future = executorService.submit(new Callable<Void>() {
+                    @Override
+                    public Void call() throws Exception {
+                        readFileRecords(fileName, file, successCounter);
+                        return null;
+                    }
+                });
+                futures.put(fileName, future);
             }
+            for (String fileName : futures.keySet()) {
+                try {
+                    Future<Void> future = futures.get(fileName);
+                    future.get();
+                } catch (Throwable t) {
+                    throw new IllegalStateException("Failed to read events [" + fileName + "]", t);
+                }
+            }
+            LOGGER.info("[{}] : Processed files by timestamp [{}] [{}] [{}]", getConnectorId(),
+                    successCounter.get(), failedCounter.get(), (System.currentTimeMillis() - start));
+            totalRecords = successCounter.get();
+            int retries = 0;
+            do {
+                try {
+                    saveState(TOTAL_RECORDS, totalRecords);
+                    break;
+                } catch (JsonProcessingException e) {
+                    LOGGER.error("[{}] Error updating total records [{}]", getConnectorId(), retries, e);
+                    retries++;
+                }
+            } while (retries < 10);
+            throw new IllegalStateException("["+getConnectorId()+"] Failed to update total records ["+totalRecords+"]");
         }
-        LOGGER.info("[{}] : Processed files by timestamp [{}] [{}] [{}]", getConnectorId(),
-                successCounter.get(), failedCounter.get(), (System.currentTimeMillis() - start));
-        return successCounter.get();
+        return totalRecords;
     }
 
     public List<RawEvent> convertRecordsToRawEventsInternal(List<?> records) {
