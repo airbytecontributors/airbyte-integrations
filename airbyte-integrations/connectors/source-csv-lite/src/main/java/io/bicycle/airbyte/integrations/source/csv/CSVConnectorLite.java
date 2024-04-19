@@ -757,7 +757,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             do {
                 try {
                     saveState(TOTAL_RECORDS, totalRecords);
-                    break;
+                    return totalRecords;
                 } catch (JsonProcessingException e) {
                     LOGGER.error("[{}] Error updating total records [{}]", getConnectorId(), retries, e);
                     retries++;
