@@ -35,6 +35,7 @@ import com.inception.traces.web.TraceQueryClient;
 import io.airbyte.commons.util.AutoCloseableIterator;
 import io.airbyte.integrations.BaseConnector;
 import io.airbyte.integrations.base.Source;
+import io.airbyte.integrations.bicycle.base.integration.reader.EventSourceReader;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.AirbyteStateMessage;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
@@ -1248,10 +1249,9 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     protected int publishPreviewEvents(Map<String, List<Long>> fileVsRecordNumbers, String fileName, File file,
                                        EventSourceReader<RawEvent> reader, List<RawEvent> vcEvents,
-                                        int maxRecords, long totalRecords, int valid_count,
-                                        boolean saveState, boolean shouldFlush, boolean updateVC,
-                                        boolean publishErrors)
-                                        throws Exception {
+                                       int maxRecords, long totalRecords, int valid_count,
+                                       boolean saveState, boolean shouldFlush, boolean updateVC,
+                                       boolean publishErrors) throws Exception {
         int count = 0;
         int invalid_count = 0;
         try {
@@ -1346,23 +1346,6 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         public Object next() {
             return null;
         }
-    }
-
-    public static abstract class EventSourceReader<T> {
-
-        public abstract boolean hasNext();
-
-        public abstract boolean isValidEvent();
-
-        public abstract long getRecordUTCTimestampInMillis();
-
-        public abstract T next();
-
-        public abstract void close() throws Exception;
-
-        public abstract ReaderStatus getStatus();
-
-        public abstract long getOffset();
     }
 
     public enum ReaderStatus {

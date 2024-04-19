@@ -1,8 +1,10 @@
 package io.airbyte.integrations.bicycle.base.integration;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.inception.server.auth.api.SystemAuthenticator;
-import io.airbyte.integrations.bicycle.base.integration.csv.CSVEventSourceReader;
-import io.airbyte.integrations.bicycle.base.integration.csv.CSVEventSourceReaderV2;
+import io.airbyte.integrations.bicycle.base.integration.reader.EventSourceReader;
+import io.airbyte.integrations.bicycle.base.integration.reader.csv.CSVEventSourceReaderV2;
+import io.airbyte.integrations.bicycle.base.integration.reader.json.JsonLEventSourceReader;
 import io.bicycle.event.processor.impl.BicycleEventProcessorImpl;
 import io.bicycle.integration.common.Status;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
@@ -71,7 +73,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
             long start = System.currentTimeMillis();
             long maxTimestamp = getStateAsLong(PROCESS_TIMESTAMP);
             List<RawEvent> rawEvents = new ArrayList<>();
-            Map<String, CSVEventSourceReader> readers = new HashMap<>();
+            Map<String, EventSourceReader<RawEvent>> readers = new HashMap<>();
             long timestamp = 0;
             for (Map.Entry<Long, List<FileRecordOffset>> entry: timestampToFileOffsetsMap.entrySet()) {
                 timestamp = entry.getKey();
@@ -82,8 +84,8 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                 }
                 List<FileRecordOffset> fileRecordOffsets = entry.getValue();
                 for (FileRecordOffset fileRecordOffset: fileRecordOffsets) {
-                    CSVEventSourceReader reader = readers.computeIfAbsent(fileRecordOffset.fileName,
-                            (fileName) -> getCSVReader(fileName, files.get(fileName), getConnectorId(), this, READ));
+                    EventSourceReader<RawEvent> reader = readers.computeIfAbsent(fileRecordOffset.fileName,
+                            (fileName) -> getReader(fileName, files.get(fileName), getConnectorId(), this, READ));
                     long offset = fileRecordOffset.offset;
                     long rowCounter = fileRecordOffset.rowCounter;
                     reader.seek(offset, rowCounter);
@@ -138,15 +140,18 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
     }
 
     protected long readFileRecords(String fileName, File csvFile, AtomicLong counter) {
-        CSVEventSourceReader reader = null;
+        EventSourceReader<RawEvent> reader = null;
         try {
             long start = System.currentTimeMillis();
-            reader = getCSVReader(fileName, csvFile, getConnectorId(), this, READ);
+            reader = getReader(fileName, csvFile, getConnectorId(), this, READ);
             while (reader.hasNext()) {
-                RawEvent next = reader.next();
+                //RawEvent next = reader.next();
+                if (counter.get() % 1000 == 0) {
+                    LOGGER.info("[{}] : Calculating total records - [{}]", getConnectorId(), counter.get());
+                }
                 counter.incrementAndGet();
             }
-            LOGGER.info("[{}] : Total records processed [{}] [{}] [{}]", getConnectorId(), counter.get(),
+            LOGGER.info("[{}] : Final calculated total records [{}] [{}] [{}]", getConnectorId(), counter.get(),
                     (System.currentTimeMillis() - start));
         } catch (Exception e) {
             throw new IllegalStateException("Error while calculating timestamp to offset map ["+fileName+"]", e);
@@ -165,16 +170,16 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
                                              String fileName, File csvFile, int batchSize, AtomicLong successCounter,
                                              AtomicLong failedCounter)
                                              throws Exception {
-        CSVEventSourceReader reader = null;
+        EventSourceReader<RawEvent> reader = null;
         try {
             long start = System.currentTimeMillis();
-            reader = getCSVReader(fileName, csvFile, getConnectorId(), this, READ);
+            reader = getReader(fileName, csvFile, getConnectorId(), this, READ);
             List<RawEvent> invalidEvents = new ArrayList<>();
             while (reader.hasNext()) {
                 RawEvent next = reader.next();
                 if (reader.isValidEvent()) {
                     try {
-                        long timestampInMillis = reader.getRecordUTCTimestampInMillis();
+                        long timestampInMillis = reader.getRecordUTCTimestampInMillis(next);
                         timestampToFileOffsetsMap.computeIfAbsent(timestampInMillis,
                                 (recordOffset) -> new ArrayList<>()).add(new FileRecordOffset(fileName, reader.getOffset(), reader.getRowCounter()));
                         successCounter.incrementAndGet();
@@ -246,19 +251,46 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         return userserviceRules;
     }
 
-    protected CSVEventSourceReader getCSVReader(String fileName, File file, String connectorId,
-                                                BaseEventConnector connector,
-                                                APITYPE apitype) {
-        if (System.getenv("ENABLE_CSV_READER_V1") != null) {
-            return new CSVEventSourceReader(fileName, file, connectorId, connector, apitype);
+    protected EventSourceReader<RawEvent> getReader(String fileName, File file, String connectorId,
+                                                    BaseEventConnector connector,
+                                                    APITYPE apitype) {
+        FileType fileType = getFileType(config, fileName);
+        if (fileType.equals(FileType.JSONL)) {
+            LOGGER.info("[{}] using jsonl reader", getConnectorId());
+            return new JsonLEventSourceReader(fileName, file, connectorId, connector, apitype);
         } else {
+            LOGGER.info("[{}] using csv reader", getConnectorId());
             return new CSVEventSourceReaderV2(fileName, file, connectorId, connector, apitype);
         }
+    }
+
+    private FileType getFileType(JsonNode config, String fileName) {
+        String fileType = null;
+        if (fileName.endsWith("csv")) {
+            fileType = "csv";
+        } else if (fileName.endsWith("jsonl") || fileName.endsWith("json")) {
+            fileType = "jsonl";
+        } else {
+            fileType = config.get("format") != null ? config.get("format").asText() : "csv";
+        }
+        if (fileType != null) {
+            if (fileType.equalsIgnoreCase(FileType.CSV.name())) {
+                return FileType.CSV;
+            } else if (fileType.equalsIgnoreCase(FileType.JSONL.name())) {
+                return FileType.JSONL;
+            }
+        }
+        return FileType.CSV;
     }
 
     public enum APITYPE {
         SYNC_DATA,
         READ
+    }
+
+    public enum FileType {
+        CSV,
+        JSONL
     }
 
     public static class FileRecordOffset {
