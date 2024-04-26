@@ -387,15 +387,21 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     protected File storeFile(String fileName, String signedUrl) {
         try {
-            File file = File.createTempFile(UUID.randomUUID().toString(), ".csv");
+            int index = fileName.indexOf(".");
+            String extension = index != -1 ? fileName.substring(index) : ".csv";
+            extension = extension != null && !extension.isEmpty() ? extension : ".csv";
+            File file = File.createTempFile(UUID.randomUUID().toString(), extension);
             file.deleteOnExit();
             final JsonNode provider = config.get("provider");
-
+            long startTime = System.currentTimeMillis();
+            logger.info("[{}] : File Download Start [{}] to [{}]", getConnectorId(), fileName, file.getName());
             if (provider !=null && provider.get("storage").asText().equals("GCS")) {
                 //csvConnector.storeToFile(config, file);
             } else {
                 FileUtils.copyURLToFile(new URL(signedUrl), file, CONNECT_TIMEOUT_IN_MILLIS, READ_TIMEOUT_IN_MILLIS);
             }
+            logger.info("[{}] : File Download Complete [{}] to [{}] time [{}]", getConnectorId(), fileName,
+                    file.getName(), (System.currentTimeMillis() - startTime));
             return file;
         } catch (Exception e) {
             throw new RuntimeException("Unable to read file from GCS", e);

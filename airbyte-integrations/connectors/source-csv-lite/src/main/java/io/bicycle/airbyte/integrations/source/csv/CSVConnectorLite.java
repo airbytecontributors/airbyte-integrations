@@ -109,30 +109,10 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             }
             Map<String, File> files = new HashMap<>();
             if ("true".equalsIgnoreCase(System.getProperty("dev.mode", "false"))) {
-                files.put("Payfactory_IQ_AUTHORIZATION_2023_09.json", new File("/home/ravi/Downloads/json/PayFactor-Authorization/Payfactory_IQ_AUTHORIZATION_2023_09.json"));
-                files.put("Payfactory_IQ_AUTHORIZATION_2023_10.json", new File("/home/ravi/Downloads/json/PayFactor-Authorization/Payfactory_IQ_AUTHORIZATION_2023_10.json"));
-                files.put("Payfactory_IQ_AUTHORIZATION_2023_11.json", new File("/home/ravi/Downloads/json/PayFactor-Authorization/Payfactory_IQ_AUTHORIZATION_2023_11.json"));
+                Map<String, File> csvFiles = FilesHandler.getCSVFiles("Apr25_TD_PAYMENT_PROCESS_LOG_01-07_01.csv.gz", new File("/home/ravi/Downloads/api-conversion-0.23.0/Apr25_TD_PAYMENT_PROCESS_LOG_01-07_01.csv.gz"));
+                files.putAll(csvFiles);
             } else {
-                List<String> fileNames = new ArrayList<>();
-                Map<String, String> fileVsSignedUrls = readFilesConfig();
-                LOGGER.info("[{}] : Read Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
-                for (String fileName : fileVsSignedUrls.keySet()) {
-                    String status = getConnectorFileState(fileName, SYNC_STATUS);
-                    String totalRecords = getConnectorFileState(fileName, SYNC_TOTAL_RECORDS);
-                    if (status != null) {
-                        fileNames.add(fileName);
-                        LOGGER.info("[{}] : syncData removing file fileName [{}] status [{}] records [{}]",
-                                getConnectorId(), fileName, status, totalRecords);
-                    }
-                }
-                for (String fileName: fileNames) {
-                    fileVsSignedUrls.remove(fileName);
-                }
-                LOGGER.info("[{}] : Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
-                for (String fileName : fileVsSignedUrls.keySet()) {
-                    File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
-                    files.put(fileName, file);
-                }
+                downloadFiles(files, SYNC_STATUS, SYNC_TOTAL_RECORDS);
             }
             if (files.isEmpty()) {
                 LOGGER.info("[{}] : files already synced [{}]", getConnectorId(), files);
@@ -177,9 +157,15 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                     .setStatus(Status.COMPLETE)
                     .setResponse(StatusResponse.newBuilder().setMessage("SUCCESS").build())
                     .build();
+        } catch (Throwable t){
+            LOGGER.info("Failed to syncdata [{}]", getConnectorId(), t);
         } finally {
             LOGGER.info("Finished syncdata [{}] [{}]", getConnectorId(), success);
         }
+        return SyncDataResponse.newBuilder()
+                .setStatus(Status.ERROR)
+                .setResponse(StatusResponse.newBuilder().setMessage("ERROR").build())
+                .build();
     }
 
     private SyncDataResponse validateFileFormats(Map<String, File> files) {
@@ -418,29 +404,11 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             updateConnectorState(READ_STATUS, Status.STARTED, 0);
             Map<String, File> files = new HashMap<>();
             if ("true".equalsIgnoreCase(System.getProperty("dev.mode", "false"))) {
-                files.put("DemoData_Feb04toMar11_2024_FixedDateFormat.csv", new File("/home/ravi/Downloads/system-error/export-8dc3fbdf3ee9aff.csv"));
+                files.putAll(FilesHandler.getCSVFiles("Apr25_TD_PAYMENT_PROCESS_LOG_01-07_01.csv.gz", new File("/home/ravi/Downloads/api-conversion-0.23.0/Apr25_TD_PAYMENT_PROCESS_LOG_01-07_01.csv.gz")));
+                files.putAll(FilesHandler.getCSVFiles("Apr25_TD_PAYMENT_PROCESS_LOG_01-07_02.csv.gz", new File("/home/ravi/Downloads/api-conversion-0.23.0/Apr25_TD_PAYMENT_PROCESS_LOG_01-07_02.csv.gz")));
+                files.put("export-8dc3fbdf3ee9aff.csv", new File("/home/ravi/Downloads/system-error/export-8dc3fbdf3ee9aff.csv"));
             } else {
-                Map<String, String> fileVsSignedUrls = readFilesConfig();
-                LOGGER.info("[{}] : Read Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
-                List<String> fileNames = new ArrayList<>();
-                for (String fileName : fileVsSignedUrls.keySet()) {
-                    String readStatus = getConnectorFileState(fileName, READ_STATUS);
-                    String records = getConnectorFileState(fileName, READ_TOTAL_RECORDS);
-                    if (readStatus != null) {
-                        fileNames.add(fileName);
-                        LOGGER.info("[{}] : doRead removing file fileName [{}] status [{}] records [{}]",
-                                getConnectorId(), fileName, readStatus, records);
-                    }
-                }
-
-                for (String fileName: fileNames) {
-                    fileVsSignedUrls.remove(fileName);
-                }
-                LOGGER.info("[{}] : doRead Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
-                for (String fileName : fileVsSignedUrls.keySet()) {
-                    File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
-                    files.put(fileName, file);
-                }
+                downloadFiles(files, READ_STATUS, READ_TOTAL_RECORDS);
             }
 
             if (files.isEmpty()) {
@@ -471,13 +439,38 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             throw new IllegalStateException("Failed to run read ["+getConnectorId()+"]", e);
         } finally {
             if (success) {
-                LOGGER.info("doRead Success");
+                LOGGER.info("doRead Success [{}]", getConnectorId());
             } else {
-                LOGGER.info("doRead Failed");
+                LOGGER.info("doRead Failed [{}]", getConnectorId());
             }
             stopEventConnector();
         }
         return null;
+    }
+
+    private void downloadFiles(Map<String, File> files, String statusKey, String totalRecordsKey) throws IOException {
+        Map<String, String> fileVsSignedUrls = readFilesConfig();
+        //Map<String, String> fileVsSignedUrls = Collections.singletonMap("Apr25_TD_PAYMENT_PROCESS_LOG_01-07_01.csv.gz", "https://storage.googleapis.com/kdev-blob-store/emt-e9e4ef6c-63c4-4930-b331-2df3af1e788e/integration/8a3f3c11-6709-4cf5-aa92-b155e8dcb08e?GoogleAccessId=alert-store-bucket-access@pivotal-canto-171605.iam.gserviceaccount.com&Expires=1714138961&Signature=rOi%2BfML7L9%2BQqPJD9%2BnP2pyQ5f3TN3n7zpsH7HEdvrgqiLpP20XqEobPhDxjvGIHLtFhz7W910B3ejgkjgoeEDbO%2FCLxCM%2B3fPGL%2BrTN1MC5ihCc1gRrE8ny%2FXwTA7X2cI4GmULISnRXJHa5OSauNhc%2F4TFhhIbVs8zNr70hmnN8ek979epMDzWudYaEpsfXaCeCBrNBmV5sYokb1NY1JPC6fc5dVJl6E6dUBjbJu2ufSSowW1UtV%2FGoZa%2ByxpUTXTYYN36gQ22WDSqJf7ss3WYq%2Bkk%2F7AgeES%2FZeg1xQXYjq%2B9OAoR3s2304m1iuHfcM%2FucflsEt9IXtS6OrLFNLA%3D%3D");
+        LOGGER.info("[{}] : Read Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
+        for (String fileName : fileVsSignedUrls.keySet()) {
+            File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
+            files.putAll(FilesHandler.getCSVFiles(fileName, file));
+        }
+        LOGGER.info("[{}] : Downloading files [{}]", getConnectorId(), files);
+        List<String> fileNames = new ArrayList<>();
+        for (String fileName : files.keySet()) {
+            String readStatus = getConnectorFileState(fileName, statusKey);
+            String records = getConnectorFileState(fileName, totalRecordsKey);
+            if (readStatus != null) {
+                fileNames.add(fileName);
+                LOGGER.info("[{}] : doRead removing file fileName [{}] status [{}] records [{}]",
+                        getConnectorId(), fileName, readStatus, records);
+            }
+        }
+        for (String fileName: fileNames) {
+            files.remove(fileName);
+        }
+        LOGGER.info("[{}] : Downloaded files [{}]", getConnectorId(), files);
     }
 
     private int initializeExecutors() {
