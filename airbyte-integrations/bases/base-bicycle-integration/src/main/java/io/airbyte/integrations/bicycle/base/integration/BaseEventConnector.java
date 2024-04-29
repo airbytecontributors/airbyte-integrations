@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
+import com.inceptiion.server.cohort.service.FieldCohortServiceClient;
 import com.inception.common.client.ServiceLocator;
 import com.inception.common.client.impl.GenericApiClient;
 import com.inception.schemastore.client.SchemaStoreApiClient;
@@ -101,6 +102,8 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getName());
     private final ConfigHelper configHelper = new ConfigHelper();
     protected PreviewStoreClient previewStoreClient;
+
+    protected FieldCohortServiceClient fieldCohortServiceClient;
     protected ConfigStoreClient configStoreClient;
     protected SchemaStoreApiClient schemaStoreApiClient;
     protected EntityStoreApiClient entityStoreApiClient;
@@ -475,10 +478,11 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             schemaStoreApiClient = getSchemaStoreApiClient(bicycleConfig);
             entityStoreApiClient = getEntityStoreApiClient(bicycleConfig);
             previewStoreClient = getPreviewStoreClient(bicycleConfig);
+            fieldCohortServiceClient = getFieldCohortServiceClient(bicycleConfig);
             tenantSummaryDiscovererClient = getTenantSummaryDiscovererClient(bicycleConfig);
             dataTransformer
                     = new TransformationImpl(schemaStoreApiClient, entityStoreApiClient, configStoreClient,
-                    getTraceQueryClient(bicycleConfig), new MetricUtilWrapper());
+                    getTraceQueryClient(bicycleConfig), new MetricUtilWrapper(), fieldCohortServiceClient);
             EventMappingConfigurations eventMappingConfigurations =
                     new EventMappingConfigurations(
                             bicycleConfig.getServerURL(),
@@ -580,6 +584,10 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                 return bicycleConfig.getServerURL();
             }
         });
+    }
+
+    protected FieldCohortServiceClient getFieldCohortServiceClient(BicycleConfig bicycleConfig) {
+        return new FieldCohortServiceClient(bicycleConfig.getServerURL());
     }
 
     public abstract void stopEventConnector();
