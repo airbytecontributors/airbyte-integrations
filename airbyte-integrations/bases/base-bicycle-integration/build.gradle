@@ -63,6 +63,8 @@ dependencies {
     implementation group: 'org.springframework.boot', name: 'spring-boot-starter-logging', version: '2.7.1'
     implementation group: 'org.springframework.boot', name: 'spring-boot-starter-web', version: '2.7.1'
     implementation "com.inception:vertical-context-client:0.2.52448"
+    implementation "com.inception:cohort-service-client:0.2.59048"
+
     implementation 'org.apache.commons:commons-csv:1.5'
     implementation("com.inception:tenant-ai-client:${tenantAiVersion}")
 
