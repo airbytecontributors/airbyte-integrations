@@ -25,6 +25,7 @@ import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.integration.common.constants.ConfigConstants;
 import io.bicycle.integration.common.utils.CommonUtil;
 import io.bicycle.integration.connector.ConfiguredConnectorStream;
+import io.bicycle.integration.connector.ErrorResponse;
 import io.bicycle.integration.connector.FileKnowledgeBaseConnectorResponse;
 import io.bicycle.integration.connector.FileSummary;
 import io.bicycle.integration.connector.KnowledgeBaseCompanySummary;
@@ -87,8 +88,9 @@ public class FileKnowledgebaseConnector extends BaseKnowledgeBaseConnector imple
                 KnowledgeBaseConnectorResponse.newBuilder();
         String knowledgeBaseConnectorId = additionalProperties.containsKey("bicycleConnectorId")
                 ? additionalProperties.get("bicycleConnectorId").toString() : null;
+
         if (StringUtils.isEmpty(knowledgeBaseConnectorId)) {
-            throw new RuntimeException("Connector Id cannot be empty or null");
+            return getErrorResponse("Connector Id cannot be empty or null");
         }
 
         String traceInfo = additionalProperties.containsKey("traceId")
@@ -100,10 +102,6 @@ public class FileKnowledgebaseConnector extends BaseKnowledgeBaseConnector imple
 
         ConfiguredConnectorStream connectorStream =
                 getConfiguredConnectorStream(authInfo, knowledgeBaseConnectorId);
-
-        Config streamConfig = getConfigByReference(authInfo, ConfigReference.newBuilder()
-                .setUuid(knowledgeBaseConnectorId).setTypeId(ConfigConstants.CONNECTOR_STREAM_CONFIG_TYPE).build());
-
 
         LOGGER.info("{} Fetch the connector stream {}", traceInfo, connectorStream);
 
@@ -118,11 +116,16 @@ public class FileKnowledgebaseConnector extends BaseKnowledgeBaseConnector imple
                     FileKnowledgeBaseConnectorResponse.newBuilder();
             if (sourceType.equals("Upload")) {
                 Pair namespaceAndUploadIds = getNamespaceAndUploadIds(traceInfo, connectorStream);
+                if (namespaceAndUploadIds == null) {
+                    return getErrorResponse("Unable to get name space and Id of file, May be file is deleted");
+                }
                 LOGGER.info("{} Fetch the namespace and uploadIds {}", traceInfo, namespaceAndUploadIds);
                 if (namespaceAndUploadIds != null) {
                     String namespace = (String) namespaceAndUploadIds.getLeft();
                     Collection<String> uploadIds = (Collection<String>) namespaceAndUploadIds.getRight();
-
+                    if (uploadIds.isEmpty()) {
+                        return getErrorResponse("Unable to get upload ids for files, May be file(s) is deleted");
+                    }
                     for (String uploadId : uploadIds) {
                         BlobObject fileMetadata = getFileMetadata(authInfo, traceInfo, namespace, uploadId);
                         LOGGER.info("{} Got the file metadata {}", traceInfo, fileMetadata);
@@ -152,6 +155,18 @@ public class FileKnowledgebaseConnector extends BaseKnowledgeBaseConnector imple
                 fileKnowledgeBaseConnector.addFileSummary(fileSummary);
             }
 
+            List<FileSummary> fileSummaries = fileKnowledgeBaseConnector.getFileSummaryList();
+            boolean isContentPresent = false;
+            for (FileSummary fileSummary: fileSummaries) {
+                if (StringUtils.isNotEmpty(fileSummary.getContent())) {
+                    isContentPresent = true;
+                }
+            }
+
+            if (!isContentPresent) {
+                return getErrorResponse("File content is empty");
+            }
+
             KnowledgeBaseCompanySummary knowledgeBaseCompanySummary = getCompanySummary(traceInfo, connectorStream);
 
             KnowledgeBaseConnectorResponse response =
@@ -165,6 +180,11 @@ public class FileKnowledgebaseConnector extends BaseKnowledgeBaseConnector imple
         }
 
         return null;
+    }
+
+    private KnowledgeBaseConnectorResponse getErrorResponse(String message) {
+        return KnowledgeBaseConnectorResponse.newBuilder()
+                .setErrorResponse(ErrorResponse.newBuilder().setError(message).build()).build();
     }
 
     public String getSingedUrl(AuthInfo authInfo, String traceInfo, String namespace, String connectorUploadId) {
