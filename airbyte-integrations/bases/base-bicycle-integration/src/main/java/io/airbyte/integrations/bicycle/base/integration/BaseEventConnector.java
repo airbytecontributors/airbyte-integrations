@@ -253,7 +253,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                 null, systemAuthenticator, blobStoreBroker, null, null);
     }
 
-    protected void submitRecordsToPreviewStore(String eventSourceId, List<RawEvent> rawEvents, boolean shouldFlush) {
+    public void submitRecordsToPreviewStore(String eventSourceId, List<RawEvent> rawEvents, boolean shouldFlush) {
         String eventSourceType = getEventSourceType(additionalProperties);
         EventSourceInfo eventSourceInfo = new EventSourceInfo(eventSourceId, eventSourceType);
         boolean success = bicycleEventPublisher.publishPreviewEvents(getAuthInfo(), eventSourceInfo, rawEvents, shouldFlush);

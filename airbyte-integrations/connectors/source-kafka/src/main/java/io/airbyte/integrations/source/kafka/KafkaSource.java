@@ -35,11 +35,15 @@ import io.airbyte.protocol.models.Field;
 import io.airbyte.protocol.models.JsonSchemaType;
 import io.airbyte.protocol.models.SyncMode;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.common.StatusResponse;
 import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.integration.common.utils.CommonUtil;
+import io.bicycle.integration.common.writer.Writer;
+import io.bicycle.integration.common.writer.WriterFactory;
 import io.bicycle.integration.connector.SyncDataRequest;
 import io.bicycle.integration.connector.SyncDataResponse;
+import io.bicycle.integration.connector.TraceInfo;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import java.time.Duration;
@@ -59,6 +63,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -319,38 +324,54 @@ public class KafkaSource extends BaseEventConnector {
                                    JsonNode readState,
                                    SyncDataRequest syncDataRequest) {
 
-    PropertyValue propVal = syncDataRequest.getTraceInfo().getContextMap().get("enableExistingConnections");
-    if (propVal != null && propVal.getBooleanVal() == true) {
-      SyncDataResponse syncDataResponse = super.syncData(sourceConfig, configuredAirbyteCatalog, readState, syncDataRequest);
-      if (syncDataResponse != null && !syncDataResponse.equals(SyncDataResponse.getDefaultInstance())) {
-        return null;
-      }
-    } else {
-      LOGGER.info("Received sync data request for {}", syncDataRequest);
-    }
+    String traceId = StringUtils.isNotEmpty(syncDataRequest.getTraceInfo().getTraceId())
+            ? syncDataRequest.getTraceInfo().getTraceId() : UUID.randomUUID().toString();
+    syncDataRequest = syncDataRequest.toBuilder().setTraceInfo(TraceInfo.newBuilder()
+            .setTraceId(traceId).build()).build();
 
+    LOGGER.info("{} Received sync data request for {}", traceId, syncDataRequest);
     String traceInfo = CommonUtil.getTraceInfo(syncDataRequest.getTraceInfo());
-    int numberOfConsumers = getNumberOfConsumers(sourceConfig);
-    int threadPoolSize = numberOfConsumers; // since there are no metrics, no additional thread for metric
-    ScheduledExecutorService ses = Executors.newScheduledThreadPool(threadPoolSize);
+    try {
 
-    Map<String, Object> additionalProperties = configuredAirbyteCatalog.getAdditionalProperties();
-    String eventSourceType = getEventSourceType(additionalProperties);
-    String connectorId = getConnectorId(additionalProperties);
-    BicycleConfig bicycleConfig = getBicycleConfig(additionalProperties, systemAuthenticator);
-    setBicycleEventProcessorAndPublisher(bicycleConfig);
+    initialize(sourceConfig, configuredAirbyteCatalog);
 
     ConfiguredAirbyteStream configuredAirbyteStream = configuredAirbyteCatalog.getStreams().get(0);
-    sourceConfig = ((ObjectNode) sourceConfig).put(STREAM_NAME,configuredAirbyteStream.getStream().getName());
-    if (!sourceConfig.has("group_id"))
-    {
-      sourceConfig = ((ObjectNode) sourceConfig).put("group_id","bicycle_"+connectorId);
+    sourceConfig = ((ObjectNode) sourceConfig).put(STREAM_NAME, configuredAirbyteStream.getStream().getName());
+    if (!sourceConfig.has("group_id")) {
+      sourceConfig = ((ObjectNode) sourceConfig).put("group_id", "bicycle_" + eventSourceInfo.getEventSourceId());
     }
 
-    eventSourceInfo = new EventSourceInfo(connectorId, eventSourceType);
+    long limit = syncDataRequest.getSyncDataCountLimit();
+    if (limit == 0L) {
+      syncDataRequest = syncDataRequest.toBuilder().setSyncDataCountLimit(100).build();
+    }
+    updateConnectorState(SYNC_STATUS, io.bicycle.integration.common.Status.STARTED, 0);
 
-    try {
-      for (int i = 0; i < numberOfConsumers; i++) {
+      String consumerThreadId = UUID.randomUUID().toString();
+      Map<String, Long> totalRecordsRead = new HashMap<>();
+      BicycleConsumer bicycleConsumer =
+              new BicycleConsumer(
+                      consumerThreadId,
+                      totalRecordsRead,
+                      bicycleConfig,
+                      sourceConfig,
+                      configuredAirbyteCatalog,
+                      eventSourceInfo,
+                      eventConnectorJobStatusNotifier,
+                      this,
+                      true,
+                      syncDataRequest
+              );
+//      Writer writer = WriterFactory.getWriter(syncDataRequest.getSyncDestination());
+      bicycleConsumer.syncData(bicycleConfig, sourceConfig, configuredAirbyteCatalog, readState, syncDataRequest,
+              null);
+      updateConnectorState(SYNC_STATUS, io.bicycle.integration.common.Status.COMPLETE, 100);
+
+      return SyncDataResponse.newBuilder()
+              .setStatus(io.bicycle.integration.common.Status.COMPLETE)
+              .setResponse(StatusResponse.newBuilder().setMessage("SUCCESS").build())
+              .build();
+   /*   for (int i = 0; i < numberOfConsumers; i++) {
         Map<String, Long> totalRecordsRead = new HashMap<>();
         String consumerThreadId = UUID.randomUUID().toString();
         consumerToTopicPartitionRecordsRead.put(consumerThreadId, totalRecordsRead);
@@ -368,12 +389,16 @@ public class KafkaSource extends BaseEventConnector {
                         syncDataRequest
                 );
         ses.schedule(bicycleConsumer, 1, TimeUnit.SECONDS);
-      }
+      }*/
     } catch (Exception exception) {
       LOGGER.error(traceInfo + " Shutting down the Kafka Event Connector for connector {}",
-              bicycleConfig.getConnectorId() , exception);
+              bicycleConfig.getConnectorId(), exception);
+      updateConnectorState(SYNC_STATUS, io.bicycle.integration.common.Status.ERROR, 100);
+      return SyncDataResponse.newBuilder()
+              .setStatus(io.bicycle.integration.common.Status.ERROR)
+              .setResponse(StatusResponse.newBuilder().setMessage(exception.getMessage()).build())
+              .build();
     }
-    return null;
   }
 
   public Map<String, Map<String, Long>> getTopicPartitionRecordsRead() {
