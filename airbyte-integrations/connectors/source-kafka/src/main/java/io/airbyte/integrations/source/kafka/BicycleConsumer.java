@@ -289,11 +289,11 @@ public class BicycleConsumer implements Runnable {
         if (syncDataRequest == null) {
             throw new RuntimeException("Sync data request cannot be null");
         } validateRequest(syncDataRequest);
-
+        String traceId = syncDataRequest.getTraceInfo().getTraceId();
         final boolean check = check(config);
         String traceInfo = CommonUtil.getTraceInfo(syncDataRequest.getTraceInfo());
 
-        logger.info(traceInfo + " Starting read operation for consumer " + name + " config: " + config + " " +
+        logger.info(traceId + " Starting read operation for consumer " + name + " config: " + config + " " +
                 "catalog: "+ configuredAirbyteCatalog + " Sync data request: " + syncDataRequest);
         if (!check) {
             throw new RuntimeException("Unable establish a connection");
@@ -309,27 +309,20 @@ public class BicycleConsumer implements Runnable {
             resetOffsetsToLatest(consumer, topic);
         }
 
-        int samplingRate = config.has("sampling_rate") ? config.get("sampling_rate").asInt(): 100;
-
-        int sampledRecords = 0;
         long totalEventsSynced = 0;
+        List<RawEvent> rawEvents = new ArrayList<>();
         try {
             while (!this.kafkaSource.getStopConnectorBoolean().get()) {
                 final List<ConsumerRecord<String, JsonNode>> recordsList = new ArrayList<>();
                 final ConsumerRecords<String, JsonNode> consumerRecords =
                         consumer.poll(Duration.of(5000, ChronoUnit.MILLIS));
                 int counter = 0;
-                logger.info(traceInfo + " No of records actually read by consumer {} are {}", name,
+                logger.info(traceId + " No of records actually read by consumer {} are {}", name,
                         consumerRecords.count());
-                sampledRecords = getNumberOfRecordsToBeReturnedBasedOnSamplingRate(consumerRecords.count(), samplingRate);
-
                 for (ConsumerRecord record : consumerRecords) {
                     logger.debug(traceInfo + " Consumer Record: key - {}, value - {}, partition - {}, offset - {}",
                             record.key(), record.value(), record.partition(), record.offset());
 
-                    if (counter > sampledRecords) {
-                        break;
-                    }
                     StringBuilder stringBuilder = new StringBuilder();
                     stringBuilder.append(record.topic());
                     stringBuilder.append("_");
@@ -346,16 +339,16 @@ public class BicycleConsumer implements Runnable {
                     counter++;
                 }
 
-                logger.info(traceInfo + " No of records sampled for consumer {} are {} ", name, counter);
+                logger.info(traceId + " No of records sampled for consumer {} are {} ", name, counter);
 
                 if (recordsList.size() == 0) {
                     continue;
                 }
                 boolean isLast = totalEventsSynced + recordsList.size() >= syncDataRequest.getSyncDataCountLimit();
 
-                List<RawEvent> rawEvents = this.kafkaSource.convertRecordsToRawEvents(recordsList);
-                AuthInfo authInfo = bicycleConfig.getAuthInfo();
-                this.kafkaSource.processAndSync(
+                rawEvents.addAll(this.kafkaSource.convertRecordsToRawEvents(recordsList));
+
+       /*         this.kafkaSource.processAndSync(
                         authInfo,
                         traceInfo,
                         syncDataRequest.getConfiguredConnectorStream().getConfiguredConnectorStreamId(),
@@ -365,7 +358,7 @@ public class BicycleConsumer implements Runnable {
                         rawEvents,
                         true
                 );
-
+*/
                 try {
                     consumer.commitAsync();
                 } catch (Exception e) {
@@ -373,18 +366,20 @@ public class BicycleConsumer implements Runnable {
                 }
 
                 totalEventsSynced += recordsList.size();
-                logger.info(traceInfo + " No of records processed and synced from consumer {} are {} ", name,
-                        totalEventsSynced);
+                logger.info(traceId + " No of records processed and synced from consumer {} are {} ", name, totalEventsSynced);
 
                 if (isLast) {
-                    logger.info(traceInfo + " Completed data sync. Total events synced: {}", totalEventsSynced);
                     break;
                 }
             }
+
+            this.kafkaSource.submitRecordsToPreviewStore(eventSourceInfo.getEventSourceId(), rawEvents,
+                    true);
+            logger.info(traceId + " Completed data sync. Total events synced: {}", totalEventsSynced);
         } catch (Exception e) {
-            logger.error("{}, Exception in bicycle consumer {}", traceInfo, name, e);
+            logger.error("{}, Exception in bicycle consumer {}", traceId, name, e);
         } finally {
-            logger.warn("{}, Closing the consumer {}", traceInfo, name);
+            logger.warn("{}, Closing the consumer {}", traceId, name);
             if (consumer != null) {
                 try {
                     consumer.close();
