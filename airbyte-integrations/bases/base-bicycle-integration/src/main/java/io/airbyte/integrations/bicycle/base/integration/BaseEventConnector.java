@@ -990,14 +990,19 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     protected void updateConnectorFileState(String fileName, String key, String value) {
         try {
-            JsonNode fileStatus = getState().get(fileName);
+            JsonNode filesNode = getState().get("files");
+            if (filesNode == null) {
+                filesNode = objectMapper.createObjectNode();
+            } else {
+                filesNode = objectMapper.readTree(filesNode.textValue());
+            }
+            JsonNode fileStatus = filesNode.get(fileName);
             if (fileStatus == null || fileStatus.isNull() ) {
                 fileStatus = objectMapper.createObjectNode();
-            } else {
-                fileStatus = objectMapper.readTree(fileStatus.textValue());
             }
             ((ObjectNode) fileStatus).put(key, value);
-            saveState(fileName, objectMapper.writeValueAsString(fileStatus));
+            ((ObjectNode) filesNode).put(fileName, fileStatus);
+            saveState("files", objectMapper.writeValueAsString(filesNode));
         } catch (Exception e) {
             logger.error("Failed to update the connector state [{}] [{}] [{}] [{}]", getConnectorId(), fileName, key,
                          value, e);
@@ -1006,11 +1011,15 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
 
     protected String getConnectorFileState(String fileName, String key) {
         try {
-            JsonNode fileStatus = getState().get(fileName);
+            JsonNode filesNode = getState().get("files");
+            if (filesNode == null) {
+                return null;
+            }
+            filesNode = objectMapper.readTree(filesNode.textValue());
+            JsonNode fileStatus = filesNode.get(fileName);
             if (fileStatus == null || fileStatus.isNull()) {
                 return null;
             }
-            fileStatus = objectMapper.readTree(fileStatus.textValue());
             JsonNode valueNode = fileStatus.get(key);
             if (valueNode == null || valueNode.isNull()) {
                 return null;
