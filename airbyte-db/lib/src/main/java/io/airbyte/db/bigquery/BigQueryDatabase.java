@@ -19,6 +19,7 @@ import com.google.cloud.bigquery.QueryJobConfiguration;
 import com.google.cloud.bigquery.QueryParameterValue;
 import com.google.cloud.bigquery.StandardSQLTypeName;
 import com.google.cloud.bigquery.Table;
+import com.google.cloud.bigquery.TableId;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Streams;
 import io.airbyte.db.SqlDatabase;
@@ -28,6 +29,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -157,9 +159,27 @@ public class BigQueryDatabase extends SqlDatabase {
    */
   public List<Table> getDatasetTables(final String datasetId) {
     final List<Table> tableList = new ArrayList<>();
+    final List<TableId> tableIds = new ArrayList<>();
     bigQuery.listTables(datasetId)
+            .iterateAll()
+            .forEach(table -> tableIds.add(table.getTableId()));
+
+    tableIds.sort(new Comparator<TableId>() {
+      @Override
+      public int compare(TableId o1, TableId o2) {
+        return o2.getTable().compareTo(o1.getTable());
+      }
+    });
+
+    for (int i = 0; i < tableIds.size(); i++) {
+      tableList.add(bigQuery.getTable(tableIds.get(i)));
+      if (i == 50) {
+        break;
+      }
+    }
+/*    bigQuery.listTables(datasetId)
         .iterateAll()
-        .forEach(table -> tableList.add(bigQuery.getTable(table.getTableId())));
+        .forEach(table -> tableList.add(bigQuery.getTable(table.getTableId())));*/
     return tableList;
   }
 
