@@ -50,6 +50,10 @@ public class BicycleBigQueryWrapper extends BicycleAbstractRelationalDbSource<St
   public static final String CONFIG_PROJECT_ID = "project_id";
   public static final String CONFIG_CREDS = "credentials_json";
   public static final String SQL_QUERY = "sql_query";
+  public static final String DATA_FORMATTER_TYPE = "data_format_type";
+  public static final String FORMAT_TYPE = "format_type";
+  public static final String UNMAP_COLUMNS_NAME = "unmap_columns_name";
+  public static final String MATCH_STREAMS_NAME = "match_streams_name";
 
   private JsonNode dbConfig;
   private final BigQuerySourceOperations sourceOperations = new BigQuerySourceOperations();

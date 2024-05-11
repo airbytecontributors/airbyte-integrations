@@ -20,8 +20,6 @@ import io.airbyte.integrations.bicycle.base.integration.CommonConstants;
 import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatter;
-import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatterFactory;
-import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatterType;
 import io.airbyte.integrations.source.relationaldb.models.DbState;
 import io.airbyte.integrations.source.relationaldb.models.DbStreamState;
 import io.airbyte.protocol.models.AirbyteCatalog;
@@ -124,17 +122,18 @@ public class BigQueryEventSource extends BaseEventConnector {
             throws InterruptedException, ExecutionException {
 
         try {
-            DataFormatter dataFormatter = getDataFormatter(config);
+            BigQueryEventSourceConfig bigQueryEventSourceConfig = new BigQueryEventSourceConfig(config, null);
+
+            DataFormatter dataFormatter = bigQueryEventSourceConfig.getDataFormatter();
             LOGGER.info("State information for preview {}", state);
 
-            if (dataFormatter != null && state != null) {
+           /* if (dataFormatter != null && state != null) {
                 dataFormatter.updateSyncMode(catalog);
                 LOGGER.info("Updated sync mode for preview");
-            }
+            }*/
 
             //List<String> streamNames = getStreamNames(catalog.getStreams());
 
-            BigQueryEventSourceConfig bigQueryEventSourceConfig = new BigQueryEventSourceConfig(config, null);
             bicycleBigQueryWrapper = new BicycleBigQueryWrapper(bigQueryEventSourceConfig);
 
             AutoCloseableIterator<AirbyteMessage> messagesIterator =
@@ -173,7 +172,11 @@ public class BigQueryEventSource extends BaseEventConnector {
         String connectorId = additionalProperties.containsKey("bicycleConnectorId")
                 ? additionalProperties.get("bicycleConnectorId").toString() : "";
 
-        DataFormatter dataFormatter = getDataFormatter(config);
+        String cursorField = getCursorFieldName(catalog);
+        BigQueryEventSourceConfig bigQueryEventSourceConfig = new BigQueryEventSourceConfig(config, cursorField);
+        DataFormatter dataFormatter = bigQueryEventSourceConfig.getDataFormatter();
+
+        //DataFormatter dataFormatter = getDataFormatter(config);
 
         //In general we use the streams that are passed in catalog. But in case of big query for GA
         //the stream name keeps changing everyday as new stream with date is created everyday.
@@ -185,9 +188,9 @@ public class BigQueryEventSource extends BaseEventConnector {
         AirbyteCatalog airbyteCatalog = discover(config);
         List<AirbyteStream> allStreams = airbyteCatalog.getStreams();
 
-        String cursorField = getCursorField(catalog, dataFormatter);
 
-        BigQueryEventSourceConfig bigQueryEventSourceConfig = new BigQueryEventSourceConfig(config, cursorField);
+
+        //BigQueryEventSourceConfig bigQueryEventSourceConfig = new BigQueryEventSourceConfig(config, cursorField);
 
         BigQueryStreamGetter bigQueryStreamGetter = new BigQueryStreamGetter(connectorId,
                 this, config, allStreams);
@@ -411,11 +414,7 @@ public class BigQueryEventSource extends BaseEventConnector {
 
     }
 
-    private String getCursorField(ConfiguredAirbyteCatalog catalog, DataFormatter dataFormatter) {
-
-        if (dataFormatter != null) {
-            return dataFormatter.getCursorFieldName();
-        }
+    private String getCursorFieldName(ConfiguredAirbyteCatalog catalog) {
 
         List<String> cursorFields = catalog.getStreams().get(0).getCursorField();
         if (cursorFields.size() > 0) {
@@ -439,7 +438,7 @@ public class BigQueryEventSource extends BaseEventConnector {
         return stopConnectorBoolean;
     }
 
-    private DataFormatter getDataFormatter(JsonNode config) {
+ /*   private DataFormatter getDataFormatter(JsonNode config) {
 
         String dataFormatterType = config.has("data_format") ? config.get("data_format").asText() : null;
 
@@ -454,7 +453,7 @@ public class BigQueryEventSource extends BaseEventConnector {
             LOGGER.error("Unable to initialize data formatter for dataformatter type {} {}", dataFormatterType, e);
         }
         return null;
-    }
+    }*/
 
     private AirbyteStateMessage createStateMessage(ConfiguredAirbyteCatalog catalog, String cursorField,
                                                    String cursorFieldValue) {
