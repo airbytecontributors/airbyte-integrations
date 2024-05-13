@@ -18,6 +18,7 @@ import com.google.cloud.bigquery.BigQueryOptions;
 import com.google.cloud.bigquery.FieldValueList;
 import com.google.cloud.bigquery.QueryJobConfiguration;
 import com.google.cloud.bigquery.TableResult;
+import io.airbyte.integrations.source.event.bigquery.BicycleBigQueryWrapper;
 import io.airbyte.integrations.source.event.bigquery.BigQueryEventSourceConfig;
 import io.airbyte.integrations.source.relationaldb.models.DbState;
 import io.airbyte.integrations.source.relationaldb.models.DbStreamState;
@@ -33,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,42 +48,61 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
     private static final ObjectMapper objectMapper = new ObjectMapper();
     private static final List<String> processedStreams = new ArrayList<>();
     private Map<TagEncodedMetricName, Long> metricsMap = new HashMap<>();
+    private DataFormatterConfig dataFormatterConfig;
+
+    public GoogleAnalyticsV4DataFormatter(DataFormatterConfig dataFormatterConfig) {
+        this.dataFormatterConfig = dataFormatterConfig;
+    }
 
     @Override
     public JsonNode formatEvent(JsonNode jsonNode) {
 
         try {
-            ArrayNode eventParams = (ArrayNode) jsonNode.get(EVENT_PARAMS_ATTRIBUTE);
-            JsonNode outputNode = objectMapper.createObjectNode();
-
-            for (int i = 0; i < eventParams.size(); i++) {
-                JsonNode node = eventParams.get(i);
-                String key = node.get("key").asText();
-                JsonNode valueNode = node.get("value");
-
-                // get non-null value
-                String stringValue = valueNode.has("string_value") ? valueNode.get("string_value").asText(null) : null;
-                Integer intValue =
-                        valueNode.has("int_value") ? valueNode.get("int_value").asInt(Integer.MIN_VALUE) : null;
-                Float floatValue = valueNode.has("float_value") ? valueNode.get("float_value").floatValue() : null;
-                Double doubleValue = valueNode.has("double_value") ? valueNode.get("double_value").doubleValue() : null;
-                Long longValue = valueNode.has("long_value") ? valueNode.get("long_value").longValue() : null;
-
-                if (stringValue != null) {
-                    ((ObjectNode) outputNode).put(key, stringValue);
-                } else if (intValue != null) {
-                    ((ObjectNode) outputNode).put(key, intValue);
-                } else if (floatValue != null) {
-                    ((ObjectNode) outputNode).put(key, floatValue);
-                } else if (doubleValue != null) {
-                    ((ObjectNode) outputNode).put(key, doubleValue);
-                } else if (longValue != null) {
-                    ((ObjectNode) outputNode).put(key, longValue);
-                }
-
+            String[] columnNames = null;
+            if (dataFormatterConfig.getConfigValue(BicycleBigQueryWrapper.UNMAP_COLUMNS_NAME) != null) {
+                String commaSeparatedColumnNames = (String) dataFormatterConfig
+                        .getConfigValue(BicycleBigQueryWrapper.UNMAP_COLUMNS_NAME);
+                columnNames = commaSeparatedColumnNames.split("\\s*,\\s*");
+            } else {
+                columnNames = new String[] {EVENT_PARAMS_ATTRIBUTE};
             }
 
-            ((ObjectNode) jsonNode).put(EVENT_PARAMS_ATTRIBUTE, outputNode);
+            for (String columnName : columnNames) {
+
+                ArrayNode eventParams = (ArrayNode) jsonNode.get(columnName);
+                JsonNode outputNode = objectMapper.createObjectNode();
+                if (eventParams == null) {
+                    continue;
+                }
+                for (int i = 0; i < eventParams.size(); i++) {
+                    JsonNode node = eventParams.get(i);
+                    String key = node.get("key").asText();
+                    JsonNode valueNode = node.get("value");
+
+                    // get non-null value
+                    String stringValue =
+                            valueNode.has("string_value") ? valueNode.get("string_value").asText(null) : null;
+                    Integer intValue =
+                            valueNode.has("int_value") ? valueNode.get("int_value").asInt(Integer.MIN_VALUE) : null;
+                    Float floatValue = valueNode.has("float_value") ? valueNode.get("float_value").floatValue() : null;
+                    Double doubleValue =
+                            valueNode.has("double_value") ? valueNode.get("double_value").doubleValue() : null;
+                    Long longValue = valueNode.has("long_value") ? valueNode.get("long_value").longValue() : null;
+
+                    if (stringValue != null) {
+                        ((ObjectNode) outputNode).put(key, stringValue);
+                    } else if (intValue != null) {
+                        ((ObjectNode) outputNode).put(key, intValue);
+                    } else if (floatValue != null) {
+                        ((ObjectNode) outputNode).put(key, floatValue);
+                    } else if (doubleValue != null) {
+                        ((ObjectNode) outputNode).put(key, doubleValue);
+                    } else if (longValue != null) {
+                        ((ObjectNode) outputNode).put(key, longValue);
+                    }
+                }
+                ((ObjectNode) jsonNode).put(columnName, outputNode);
+            }
 
             return jsonNode;
         } catch (Exception e) {
@@ -93,6 +114,9 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
 
     @Override
     public String getCursorFieldName() {
+        if (dataFormatterConfig.getConfigValue(BicycleBigQueryWrapper.CURSOR_FIELD) != null) {
+            return (String) dataFormatterConfig.getConfigValue(BicycleBigQueryWrapper.CURSOR_FIELD);
+        }
         return "event_timestamp";
     }
 
@@ -120,15 +144,18 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
         List<ConfiguredAirbyteStream> streams = catalog.getStreams();
 
         for (ConfiguredAirbyteStream stream : catalog.getStreams()) {
-            stream.setSyncMode(SyncMode.INCREMENTAL);
+            String streamName = stream.getStream().getName();
+ 	        stream.setSyncMode(SyncMode.INCREMENTAL);
             if (stream.getCursorField().size() == 0) {
                 stream.getCursorField().add(getCursorFieldName());
             }
+           /* if (stream.getCursorField().size() == 0 && streamName.contains("events")) {
+                stream.setSyncMode(SyncMode.INCREMENTAL);
+                stream.getCursorField().add(getCursorFieldName());
+            } else {
+              stream.setSyncMode(SyncMode.FULL_REFRESH);
+            }*/
         }
-      /*  stream.setSyncMode(SyncMode.INCREMENTAL);
-        if (stream.getCursorField().size() == 0) {
-            stream.getCursorField().add(getCursorFieldName());
-        }*/
         return catalog;
     }
 
@@ -176,6 +203,7 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
                                                        List<AirbyteStream> streams) {
 
         List<ConfiguredAirbyteStream> updateStreamsList = new ArrayList<>();
+        List<String> streamNamesToPrint = new ArrayList<>();
         try {
             String projectId = bigQueryEventSourceConfig.getProjectId();
             String datasetName = bigQueryEventSourceConfig.getDatasetId();
@@ -192,14 +220,26 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
             long thresholdTimestamp = System.currentTimeMillis() - LAST_7_DAYS_MILLISECONDS;
             thresholdTimestamp = thresholdTimestamp * 1000;
 
+            String[] matchStreamNames = null;
+            if (dataFormatterConfig.getConfigValue(BicycleBigQueryWrapper.MATCH_STREAMS_NAME) != null) {
+                String commaSeparatedColumnNames = (String) dataFormatterConfig
+                        .getConfigValue(BicycleBigQueryWrapper.MATCH_STREAMS_NAME);
+                if (StringUtils.isNotEmpty(commaSeparatedColumnNames)) {
+                    matchStreamNames = commaSeparatedColumnNames.split("\\s*,\\s*");
+                }
+            }
+
             for (AirbyteStream stream : streams) {
+                String tableName = stream.getName();
                 try {
 
-                    String tableName = stream.getName();
-
-                    if (!tableName.contains("intraday")) {
+                  /*  if (!tableName.contains("intraday")) {
+                        continue;
+                    }*/
+                    if (!doReadStream(matchStreamNames, tableName)) {
                         continue;
                     }
+
                     if (processedStreams.contains(tableName)) {
                         continue;
                     }
@@ -222,6 +262,7 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
 
                     if (maxTimeStamp != 0 && maxTimeStamp > thresholdTimestamp) {
                         updateStreamsList.add(createConfiguredAirbyteStream(stream));
+                        streamNamesToPrint.add(stream.getName());
                     } else {
                       processedStreams.add(stream.getName());
                     }
@@ -232,16 +273,32 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
                 }
             }
 
+            logger.info("Filtered Streams {}", streamNamesToPrint);
             return updateStreamsList;
 
         } catch (Exception e) {
             logger.error("Unable to filter streams", e);
             for (AirbyteStream airbyteStream : streams) {
                 updateStreamsList.add(createConfiguredAirbyteStream(airbyteStream));
+                streamNamesToPrint.add(airbyteStream.getName());
             }
         }
 
         return updateStreamsList;
+    }
+
+    private boolean doReadStream(String[] matchStreamNames, String currentStreamName) {
+        if (matchStreamNames == null) {
+            return true;
+        }
+
+        for (String matchStreamPattern: matchStreamNames) {
+            if (currentStreamName.matches(matchStreamPattern)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private ConfiguredAirbyteStream createConfiguredAirbyteStream(AirbyteStream stream) {
@@ -290,4 +347,10 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
         }
     }
 
+    @Override
+    public String toString() {
+        return "GoogleAnalyticsV4DataFormatter{" +
+                "dataFormatterConfig=" + dataFormatterConfig +
+                '}';
+    }
 }

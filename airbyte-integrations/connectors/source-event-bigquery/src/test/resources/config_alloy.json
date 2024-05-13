@@ -1,0 +1,6 @@
+{
+  "project_id" : "piyush-connector-test",
+  "dataset_id" : "bigquery_test_dataset",
+  "fetch_rows_limit": 1000,
+  "credentials_json" : ""
+}

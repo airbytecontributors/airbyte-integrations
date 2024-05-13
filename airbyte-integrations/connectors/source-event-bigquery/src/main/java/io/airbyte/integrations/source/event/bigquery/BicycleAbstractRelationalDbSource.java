@@ -44,7 +44,7 @@ public abstract class BicycleAbstractRelationalDbSource<DataType, Database exten
     LOGGER.info("Queueing query for table: {}", tableName);
 
     return queryTable(database, getQuery(enquoteIdentifierList(columnNames),
-            getFullTableName(schemaName, tableName)));
+            getFullTableName(schemaName, tableName), columnNames));
 
    /* if (!StringUtils.isEmpty(cursorField)) {
       return queryTable(database, String.format("SELECT %s FROM %s ORDER BY %s limit 1000",
@@ -57,11 +57,17 @@ public abstract class BicycleAbstractRelationalDbSource<DataType, Database exten
     }*/
   }
 
-  protected String getQuery(String identifierList, String fullTableName) {
+  protected String getQuery(String identifierList, String fullTableName, List<String> columnNames) {
 
     String cursorField = bigQueryEventSourceConfig.getCursorField();
     int limit = bigQueryEventSourceConfig.getDefaultLimit();
     String defaultCursorFieldValue = bigQueryEventSourceConfig.getDefaultCursorValue();
+    //if column names does not contain cursor field we should not use it.
+    if (!columnNames.contains(cursorField)) {
+      cursorField = null;
+      defaultCursorFieldValue = null;
+    }
+
     String query;
 
     if (!StringUtils.isEmpty(cursorField)) {
@@ -80,7 +86,7 @@ public abstract class BicycleAbstractRelationalDbSource<DataType, Database exten
                 cursorField,
                 limit);
       }
-    } else {
+    }  else {
       query = String.format("SELECT %s FROM %s",
               identifierList,
               fullTableName);

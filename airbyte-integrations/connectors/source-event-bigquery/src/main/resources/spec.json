@@ -35,6 +35,48 @@
         "title" : "Credentials JSON",
         "airbyte_secret" : true
       },
+      "data_format_type": {
+        "type": "object",
+        "title": "Data Format Type",
+        "description": "You can choose one of the data format so that we deserialize data accordingly",
+        "default" : "None",
+        "oneOf": [
+          {
+            "title": "GoogleAnalytics4",
+            "required" : [
+              "format_type"
+            ],
+            "properties": {
+              "format_type" : {
+                "type" : "string",
+                "const" : "GoogleAnalytics4"
+              },
+              "unmap_columns_name": {
+                "title": "Unmap Columns Name",
+                "type": "string",
+                "description": "Provide name of columns to be unmapped separated by \",\""
+              },
+              "match_streams_name": {
+                "title": "Stream Patterns",
+                "type": "string",
+                "description": "Provide pattern of streams that should be read separated by \",\""
+              }
+            }
+          },
+          {
+            "title" : "None",
+            "required" : [
+              "format_type"
+            ],
+            "properties" : {
+              "format_type" : {
+                "type" : "string",
+                "const" : "None"
+              }
+            }
+          }
+        ]
+      },
       "data_format" : {
         "title" : "Data Format",
         "type" : "string",
@@ -65,7 +107,7 @@
         "title" : "Sync Mode",
         "description" : "You can choose if this connector will copy only the new or updated data, or all rows in the tables and columns you set up for replication, every time a sync is running",
         "type" : "object",
-        "default" : "Full Sync",
+        "default" : "Incremental Sync",
         "oneOf" : [
           {
             "title" : "Full Sync",
@@ -75,30 +117,24 @@
             "properties" : {
               "syncType" : {
                 "type" : "string",
-                "const" : "FullSync"
+                "const" : "Full Sync"
               }
             }
           },
           {
             "title" : "Incremental Sync",
             "required" : [
-              "syncType",
-              "cursorField"
+              "syncType"
             ],
             "properties" : {
               "syncType" : {
                 "type" : "string",
-                "const" : "IncrementalSync"
+                "const" : "Incremental Sync"
               },
               "cursorField" : {
                 "type" : "string",
                 "title" : "Cursor Field",
                 "description" : "Field that can be used to track the read progress."
-              },
-              "cursorFieldFormat" : {
-                "type" : "string",
-                "title" : "Cursor Field Format",
-                "description" : "The format of cursor field if field value represents a timestamp."
               }
             }
           }
