@@ -31,6 +31,7 @@ import io.airbyte.protocol.models.AirbyteStreamState;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.airbyte.protocol.models.ConfiguredAirbyteStream;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
+import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
@@ -122,6 +123,15 @@ public class BigQueryEventSource extends BaseEventConnector {
             throws InterruptedException, ExecutionException {
 
         try {
+            Boolean isInitializedSuccessfully = false;
+            try {
+                initialize(config, catalog);
+                isInitializedSuccessfully = true;
+            } catch (Exception e) {
+                LOGGER.error("Unable to initialize during preview with catalog {} and config {}", catalog, config);
+            }
+
+
             BigQueryEventSourceConfig bigQueryEventSourceConfig = new BigQueryEventSourceConfig(config, null);
 
             DataFormatter dataFormatter = bigQueryEventSourceConfig.getDataFormatter();
@@ -140,6 +150,7 @@ public class BigQueryEventSource extends BaseEventConnector {
                     bicycleBigQueryWrapper.read(config, catalog, state);
 
             if (dataFormatter != null) {
+                Boolean finalIsInitializedSuccessfully = isInitializedSuccessfully;
                 return AutoCloseableIterators.fromIterator(new AbstractIterator<>() {
                     @Override
                     protected AirbyteMessage computeNext() {
@@ -148,7 +159,14 @@ public class BigQueryEventSource extends BaseEventConnector {
                             if (message.getType().equals(AirbyteMessage.Type.RECORD) && message.getRecord() != null) {
                                 JsonNode jsonNode = message.getRecord().getData();
                                 jsonNode = dataFormatter.formatEvent(jsonNode);
-                                message.getRecord().setData(jsonNode);
+                                List<JsonNode> jsonNodes = new ArrayList<>();
+                                if (finalIsInitializedSuccessfully) {
+                                   jsonNodes = splitEvents(jsonNode, bicycleConfig.getAuthInfo(),
+                                            getConnectorId());
+                                } else {
+                                    jsonNodes.add(jsonNode);
+                                }
+                                message.getRecord().setData(jsonNodes.get(0));
                             }
                             return message;
                         }

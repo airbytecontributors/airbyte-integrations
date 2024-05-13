@@ -55,10 +55,12 @@ import io.bicycle.integration.common.Status;
 import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.config.BlackListedFields;
 import io.bicycle.integration.common.config.ConnectorConfigService;
+import io.bicycle.integration.common.config.SplitEventConfigManager;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
 import io.bicycle.integration.common.services.config.ConnectorConfigServiceImpl;
 import io.bicycle.integration.common.utils.BlobStoreBroker;
 import io.bicycle.integration.connector.*;
+import io.bicycle.integration.connector.scrub.SplitEventConfig;
 import io.bicycle.modelling.service.v2.DataUploadStatus;
 import io.bicycle.preview.store.PreviewStoreClient;
 import io.bicycle.server.verticalcontext.tenant.api.VerticalIdentifier;
@@ -122,6 +124,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected SystemAuthenticator systemAuthenticator;
     protected EventConnectorJobStatusNotifier eventConnectorJobStatusNotifier;
     protected ConnectorConfigManager connectorConfigManager;
+    protected SplitEventConfigManager splitEventConfigManager;
     protected BlackListedFields blackListedFields;
     protected static final String TENANT_ID = "tenantId";
     protected String ENV_TENANT_ID_KEY = "TENANT_ID";
@@ -498,6 +501,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             if (connectorConfigManager == null && "true".equalsIgnoreCase(System.getProperty("dev.mode", "false"))) {
                 connectorConfigManager = new ConnectorConfigManager(Collections.emptySet(), getConfigClient(bicycleConfig), systemAuthenticator, false);
             }
+            splitEventConfigManager = new SplitEventConfigManager(connectorConfigManager);
             setBicycleEventProcessor();
             this.bicycleEventPublisher = new BicycleEventPublisherImpl(eventMappingConfigurations, systemAuthenticator,
                     true, dataTransformer, connectorConfigManager);
@@ -1251,7 +1255,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                 additionalProperties.get("bicycleConnectorId").toString() : "";
     }
 
-    protected BicycleConfig getBicycleConfig(Map<String, Object> additionalProperties,
+    public BicycleConfig getBicycleConfig(Map<String, Object> additionalProperties,
                                            SystemAuthenticator systemAuthenticator) {
         String serverURL = additionalProperties.containsKey("bicycleServerURL") ? additionalProperties.get("bicycleServerURL").toString() : "";
         String metricStoreURL = additionalProperties.containsKey("bicycleMetricStoreURL") ? additionalProperties.get("bicycleMetricStoreURL").toString() : "";
@@ -1320,6 +1324,33 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             }
         }
         return valid_count;
+    }
+
+    protected List<JsonNode> splitEvents(JsonNode record, AuthInfo authInfo, String connectorId) {
+
+        List<JsonNode> outputRecordsList = new ArrayList<>();
+        try {
+            if (connectorConfigManager == null) {
+                logger.error("Connector config manager is null while splitting events");
+                outputRecordsList.add(record);
+                return outputRecordsList;
+            }
+            SplitEventConfig splitEventConfig = connectorConfigManager.getSplitEventConfig(authInfo, connectorId);
+            if (splitEventConfig == null || splitEventConfig.getDefaultInstanceForType().equals(splitEventConfig)) {
+                outputRecordsList.add(record);
+                return outputRecordsList;
+            }
+
+            List<JsonNode> jsonNodes = new ArrayList<>();
+            jsonNodes.add(record);
+
+            outputRecordsList = splitEventConfigManager.splitEvents(authInfo, connectorId, jsonNodes);
+
+        } catch (Exception e) {
+            outputRecordsList.add(record);
+        }
+
+        return outputRecordsList;
     }
 
     private void publishPreviewEvents(File file, long totalRecords, int valid_count, int invalid_count,

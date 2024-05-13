@@ -54,7 +54,11 @@ public class BicycleBigQueryWrapper extends BicycleAbstractRelationalDbSource<St
   public static final String FORMAT_TYPE = "format_type";
   public static final String UNMAP_COLUMNS_NAME = "unmap_columns_name";
   public static final String MATCH_STREAMS_NAME = "match_streams_name";
-
+  public static final String SYNC_MODE = "syncMode";
+  public static final String SYNC_TYPE = "syncType";
+  public static final String FULL_SYNC_TYPE = "Full Sync";
+  public static final String INCREMENTAL_SYNC_TYPE = "Incremental Sync";
+  public static final String CURSOR_FIELD = "cursorField";
   private JsonNode dbConfig;
   private final BigQuerySourceOperations sourceOperations = new BigQuerySourceOperations();
 

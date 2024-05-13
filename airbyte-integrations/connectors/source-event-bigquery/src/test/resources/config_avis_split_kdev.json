@@ -1,0 +1,14 @@
+{
+  "project_id" : "lively-encoder-854",
+  "dataset_id" : "86772807",
+  "fetch_rows_limit": 1000,
+  "data_format_type": {
+    "format_type": "GoogleAnalytics4",
+    "match_streams_name": "ga_sessions.*"
+  },
+  "syncMode": {
+    "syncType": "Incremental Sync",
+    "cursorField": "visitStartTime"
+  },
+  "credentials_json" : ""
+}

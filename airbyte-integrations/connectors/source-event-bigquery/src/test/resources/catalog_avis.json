@@ -1,0 +1,25 @@
+{
+  "streams" : [
+    {
+      "stream" : {
+        "name" : "ga_sessions_20240510",
+        "json_schema" : null,
+        "supported_sync_modes" : [],
+        "source_defined_cursor" : false,
+        "default_cursor_field" : [],
+        "source_defined_primary_key" : [],
+        "namespace" : "86772807"
+      },
+      "sync_mode" : "full_refresh",
+      "cursor_field" : [],
+      "destination_sync_mode" : "append",
+      "primary_key" : []
+    }
+  ],
+  "bicycleServerURL" : "https://api.ione.bicycle.io",
+  "bicycleConnectorId" : "90d15fd2-3778-4cf7-8cec-a9bd8511bb0f",
+  "bicycleEventSourceType" : "source-event-bigquery",
+  "bicycleMetricStoreURL" : "http://anom-metric-store.bha.svc.cluster.local:4242/api/anoms/api/put?details",
+  "isOnPrem" : false,
+  "bicycleTenantId" : "evt-fbb967ad-25f2-4eee-b2e5-f52b047be2ef"
+}

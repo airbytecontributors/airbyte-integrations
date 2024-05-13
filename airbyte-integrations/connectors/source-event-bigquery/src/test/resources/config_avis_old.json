@@ -1,0 +1,7 @@
+{
+  "project_id" : "lively-encoder-854",
+  "dataset_id" : "86772807",
+  "fetch_rows_limit": 1000,
+  "data_format": "GoogleAnalytics4",
+  "credentials_json" : ""
+}

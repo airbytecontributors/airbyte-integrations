@@ -11,6 +11,7 @@ import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import static io.airbyte.integrations.source.event.bigquery.BicycleBigQueryWrapper.CURSOR_FIELD;
 
 /**
  * @author sumitmaheshwari
@@ -24,8 +25,9 @@ public class BigQueryEventSourceConfig {
     private final String credentialsJson;
     private final String defaultCursorValue;
     private final int defaultLimit;
-    private final String cursorField;
+    private String cursorField;
     private DataFormatter dataFormatter;
+
     public BigQueryEventSourceConfig(JsonNode config, String cursorField) {
         this.projectId = config.has(BicycleBigQueryWrapper.CONFIG_PROJECT_ID) ?
                 config.get(BicycleBigQueryWrapper.CONFIG_PROJECT_ID).asText() : null;
@@ -37,15 +39,30 @@ public class BigQueryEventSourceConfig {
                 config.get("cursor_default_value").asText() : null;
         this.defaultLimit = config.has("fetch_rows_limit") ?
                 config.get("fetch_rows_limit").asInt() : 1000;
-        initializeDataFormatter(config);
-        if (dataFormatter != null) {
-            this.cursorField = dataFormatter.getCursorFieldName();
-        } else {
-            this.cursorField = cursorField;
+
+        JsonNode syncMode = config.has(BicycleBigQueryWrapper.SYNC_MODE)
+                ? config.get(BicycleBigQueryWrapper.SYNC_MODE) : null;
+
+        if (syncMode != null) {
+            String syncType = syncMode.get(BicycleBigQueryWrapper.SYNC_TYPE).asText();
+            if (StringUtils.isNotEmpty(syncType) && syncType.equals(BicycleBigQueryWrapper.INCREMENTAL_SYNC_TYPE)) {
+                this.cursorField = syncMode.has(CURSOR_FIELD) ?
+                        syncMode.get(CURSOR_FIELD).asText() : null;
+            }
+        }
+
+        initializeDataFormatter(config, this.cursorField);
+
+        if (this.cursorField == null) {
+            if (this.dataFormatter != null) {
+                this.cursorField = dataFormatter.getCursorFieldName();
+            } else {
+                this.cursorField = cursorField;
+            }
         }
     }
 
-    private void initializeDataFormatter(JsonNode config) {
+    private void initializeDataFormatter(JsonNode config, String cursorField) {
 
         try {
             JsonNode dataFormatterObject = config.has(BicycleBigQueryWrapper.DATA_FORMATTER_TYPE)
@@ -65,6 +82,9 @@ public class BigQueryEventSourceConfig {
                         if (StringUtils.isNotEmpty(matchStreamNames)) {
                             dataFormatterConfigMap.put(BicycleBigQueryWrapper.MATCH_STREAMS_NAME, matchStreamNames);
                         }
+                    }
+                    if (cursorField != null) {
+                        dataFormatterConfigMap.put(CURSOR_FIELD, cursorField);
                     }
 
                     DataFormatterConfig dataFormatterConfig = new DataFormatterConfig(dataFormatterConfigMap);

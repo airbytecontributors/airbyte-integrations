@@ -114,6 +114,9 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
 
     @Override
     public String getCursorFieldName() {
+        if (dataFormatterConfig.getConfigValue(BicycleBigQueryWrapper.CURSOR_FIELD) != null) {
+            return (String) dataFormatterConfig.getConfigValue(BicycleBigQueryWrapper.CURSOR_FIELD);
+        }
         return "event_timestamp";
     }
 
@@ -141,15 +144,18 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
         List<ConfiguredAirbyteStream> streams = catalog.getStreams();
 
         for (ConfiguredAirbyteStream stream : catalog.getStreams()) {
-            stream.setSyncMode(SyncMode.INCREMENTAL);
+            String streamName = stream.getStream().getName();
+ 	        stream.setSyncMode(SyncMode.INCREMENTAL);
             if (stream.getCursorField().size() == 0) {
                 stream.getCursorField().add(getCursorFieldName());
             }
+           /* if (stream.getCursorField().size() == 0 && streamName.contains("events")) {
+                stream.setSyncMode(SyncMode.INCREMENTAL);
+                stream.getCursorField().add(getCursorFieldName());
+            } else {
+              stream.setSyncMode(SyncMode.FULL_REFRESH);
+            }*/
         }
-      /*  stream.setSyncMode(SyncMode.INCREMENTAL);
-        if (stream.getCursorField().size() == 0) {
-            stream.getCursorField().add(getCursorFieldName());
-        }*/
         return catalog;
     }
 
@@ -197,6 +203,7 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
                                                        List<AirbyteStream> streams) {
 
         List<ConfiguredAirbyteStream> updateStreamsList = new ArrayList<>();
+        List<String> streamNamesToPrint = new ArrayList<>();
         try {
             String projectId = bigQueryEventSourceConfig.getProjectId();
             String datasetName = bigQueryEventSourceConfig.getDatasetId();
@@ -217,18 +224,22 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
             if (dataFormatterConfig.getConfigValue(BicycleBigQueryWrapper.MATCH_STREAMS_NAME) != null) {
                 String commaSeparatedColumnNames = (String) dataFormatterConfig
                         .getConfigValue(BicycleBigQueryWrapper.MATCH_STREAMS_NAME);
-                matchStreamNames = commaSeparatedColumnNames.split("\\s*,\\s*");
+                if (StringUtils.isNotEmpty(commaSeparatedColumnNames)) {
+                    matchStreamNames = commaSeparatedColumnNames.split("\\s*,\\s*");
+                }
             }
 
             for (AirbyteStream stream : streams) {
                 String tableName = stream.getName();
                 try {
 
-
-
                   /*  if (!tableName.contains("intraday")) {
                         continue;
                     }*/
+                    if (!doReadStream(matchStreamNames, tableName)) {
+                        continue;
+                    }
+
                     if (processedStreams.contains(tableName)) {
                         continue;
                     }
@@ -249,30 +260,27 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
                         maxTimeStamp = row.get("maxTimestamp").getLongValue();
                     }
 
-
-
                     if (maxTimeStamp != 0 && maxTimeStamp > thresholdTimestamp) {
-                        if (doReadStream(matchStreamNames, tableName)) {
-                            updateStreamsList.add(createConfiguredAirbyteStream(stream));
-                        }
+                        updateStreamsList.add(createConfiguredAirbyteStream(stream));
+                        streamNamesToPrint.add(stream.getName());
                     } else {
                       processedStreams.add(stream.getName());
                     }
 
                 } catch (Exception e) {
                     logger.error("Unable to filter one of the stream {} because of {}", stream, e);
-                    if (doReadStream(matchStreamNames, tableName)) {
-                        updateStreamsList.add(createConfiguredAirbyteStream(stream));
-                    }
+                    updateStreamsList.add(createConfiguredAirbyteStream(stream));
                 }
             }
 
+            logger.info("Filtered Streams {}", streamNamesToPrint);
             return updateStreamsList;
 
         } catch (Exception e) {
             logger.error("Unable to filter streams", e);
             for (AirbyteStream airbyteStream : streams) {
                 updateStreamsList.add(createConfiguredAirbyteStream(airbyteStream));
+                streamNamesToPrint.add(airbyteStream.getName());
             }
         }
 

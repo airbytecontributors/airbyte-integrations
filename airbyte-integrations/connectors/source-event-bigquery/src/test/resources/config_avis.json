@@ -1,0 +1,11 @@
+{
+  "project_id" : "lively-encoder-854",
+  "dataset_id" : "86772807",
+  "fetch_rows_limit": 1000,
+  "credentials_json" : "",
+  "data_format_type": {
+    "format_type": "GoogleAnalytics4",
+    "unmap_columns_name": "user_properties, event_params",
+    "match_streams_name": "events_.*"
+  }
+}
