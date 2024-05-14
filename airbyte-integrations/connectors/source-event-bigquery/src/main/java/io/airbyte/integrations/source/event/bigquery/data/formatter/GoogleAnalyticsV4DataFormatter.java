@@ -3,7 +3,7 @@ package io.airbyte.integrations.source.event.bigquery.data.formatter;
 import static io.airbyte.integrations.bicycle.base.integration.CommonConstants.CONNECTOR_LAG;
 import static io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator.SOURCE_TYPE;
 import static io.airbyte.integrations.source.event.bigquery.BigQueryEventSource.STREAM_NAME_TAG;
-import static io.airbyte.integrations.source.event.bigquery.BigQueryStreamGetter.LAST_7_DAYS_MILLISECONDS;
+import static io.airbyte.integrations.source.event.bigquery.BigQueryStreamGetter.LAST_1_DAY_MILLISECONDS;
 import static io.bicycle.integration.common.constants.EventConstants.SOURCE_ID;
 import ai.apptuit.metrics.client.TagEncodedMetricName;
 import ai.apptuit.ml.utils.MetricUtils;
@@ -115,7 +115,10 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
     @Override
     public String getCursorFieldName() {
         if (dataFormatterConfig.getConfigValue(BicycleBigQueryWrapper.CURSOR_FIELD) != null) {
-            return (String) dataFormatterConfig.getConfigValue(BicycleBigQueryWrapper.CURSOR_FIELD);
+            String val = (String) dataFormatterConfig.getConfigValue(BicycleBigQueryWrapper.CURSOR_FIELD);
+            if (!StringUtils.isEmpty(val)) {
+                return val;
+            }
         }
         return "event_timestamp";
     }
@@ -217,7 +220,7 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
                     .setCredentials(credentials)
                     .build().getService();
 
-            long thresholdTimestamp = System.currentTimeMillis() - LAST_7_DAYS_MILLISECONDS;
+            long thresholdTimestamp = System.currentTimeMillis() - LAST_1_DAY_MILLISECONDS;
             thresholdTimestamp = thresholdTimestamp * 1000;
 
             String[] matchStreamNames = null;

@@ -338,7 +338,9 @@ public class BigQueryEventSource extends BaseEventConnector {
                         if (dataFormatter != null) {
                             jsonNode = dataFormatter.formatEvent(jsonNode);
                         }
-                        jsonEvents.add(jsonNode);
+                        List<JsonNode> outputEvents = new ArrayList<>();
+                        outputEvents = splitEvents(jsonNode, authInfo, connectorId);
+                        jsonEvents.addAll(outputEvents);
                     } else {
                         LOGGER.warn("Message is not of type record but {}", message.getType());
                     }
