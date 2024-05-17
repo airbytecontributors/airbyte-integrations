@@ -427,7 +427,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 for (String fileName : files.keySet()) {
                     updateConnectorFileState(fileName, READ_STATUS, Status.COMPLETE.name());
                 }
-                //saveState(TOTAL_RECORDS, totalRecords);
+                saveState(TOTAL_RECORDS, processed);
                 if (processed > 0) {
                     success = true;
                 }
