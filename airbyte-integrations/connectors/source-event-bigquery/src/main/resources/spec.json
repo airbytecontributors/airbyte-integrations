@@ -54,12 +54,24 @@
               "unmap_columns_name": {
                 "title": "Unmap Columns Name",
                 "type": "string",
+                "default": "event_params",
                 "description": "Provide name of columns to be unmapped separated by \",\""
               },
               "match_streams_name": {
                 "title": "Stream Patterns",
                 "type": "string",
                 "description": "Provide pattern of streams that should be read separated by \",\""
+              },
+              "custom_dimension_column_name": {
+                "title": "Custom Dimension Column Name",
+                "type": "string",
+                "description": "Column name that's part of custom dimension",
+                "default": "customDimensions"
+              },
+              "custom_dimension_mapping": {
+                "title": "Custom Dimension Mapping",
+                "type": "string",
+                "subtype": "multiline"
               }
             }
           },

@@ -5,10 +5,18 @@ import static io.bicycle.integration.common.constants.EventConstants.SOURCE_ID;
 import ai.apptuit.metrics.client.TagEncodedMetricName;
 import ai.apptuit.ml.utils.MetricUtils;
 import com.codahale.metrics.Timer;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.auth.oauth2.ServiceAccountCredentials;
+import com.google.cloud.bigquery.BigQuery;
+import com.google.cloud.bigquery.BigQueryOptions;
+import com.google.cloud.bigquery.FieldValueList;
+import com.google.cloud.bigquery.QueryJobConfiguration;
+import com.google.cloud.bigquery.TableResult;
 import com.google.common.collect.AbstractIterator;
+import com.google.protobuf.util.JsonFormat;
 import com.inception.server.auth.api.SystemAuthenticator;
 import com.inception.server.auth.model.AuthInfo;
 import com.inception.server.scheduler.api.JobExecutionStatus;
@@ -20,6 +28,7 @@ import io.airbyte.integrations.bicycle.base.integration.CommonConstants;
 import io.airbyte.integrations.bicycle.base.integration.CommonUtils;
 import io.airbyte.integrations.bicycle.base.integration.EventConnectorJobStatusNotifier;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatter;
+import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatterConfig;
 import io.airbyte.integrations.source.relationaldb.models.DbState;
 import io.airbyte.integrations.source.relationaldb.models.DbStreamState;
 import io.airbyte.protocol.models.AirbyteCatalog;
@@ -33,10 +42,15 @@ import io.airbyte.protocol.models.ConfiguredAirbyteStream;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.integration.common.bicycleconfig.BicycleConfig;
 import io.bicycle.integration.common.config.manager.ConnectorConfigManager;
+import io.bicycle.integration.connector.runtime.BackFillConfiguration;
+import io.bicycle.integration.connector.runtime.RuntimeConfig;
 import io.bicycle.server.event.mapping.UserServiceMappingRule;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -135,6 +149,7 @@ public class BigQueryEventSource extends BaseEventConnector {
             BigQueryEventSourceConfig bigQueryEventSourceConfig = new BigQueryEventSourceConfig(config, null);
 
             DataFormatter dataFormatter = bigQueryEventSourceConfig.getDataFormatter();
+
             LOGGER.info("State information for preview {}", state);
 
            /* if (dataFormatter != null && state != null) {
@@ -158,7 +173,6 @@ public class BigQueryEventSource extends BaseEventConnector {
                             AirbyteMessage message = messagesIterator.next();
                             if (message.getType().equals(AirbyteMessage.Type.RECORD) && message.getRecord() != null) {
                                 JsonNode jsonNode = message.getRecord().getData();
-                                jsonNode = dataFormatter.formatEvent(jsonNode);
                                 List<JsonNode> jsonNodes = new ArrayList<>();
                                 if (finalIsInitializedSuccessfully) {
                                    jsonNodes = splitEvents(jsonNode, bicycleConfig.getAuthInfo(),
@@ -166,7 +180,9 @@ public class BigQueryEventSource extends BaseEventConnector {
                                 } else {
                                     jsonNodes.add(jsonNode);
                                 }
-                                message.getRecord().setData(jsonNodes.get(0));
+                                JsonNode node = jsonNodes.get(0);
+                                node = dataFormatter.formatEvent(node);
+                                message.getRecord().setData(node);
                             }
                             return message;
                         }
@@ -190,8 +206,18 @@ public class BigQueryEventSource extends BaseEventConnector {
         String connectorId = additionalProperties.containsKey("bicycleConnectorId")
                 ? additionalProperties.get("bicycleConnectorId").toString() : "";
 
+        AuthInfo authInfo = bicycleConfig.getAuthInfo();
         String cursorField = getCursorFieldName(catalog);
-        BigQueryEventSourceConfig bigQueryEventSourceConfig = new BigQueryEventSourceConfig(config, cursorField);
+        runtimeConfig = connectorConfigManager != null ? connectorConfigManager
+                .getRuntimeConfig(authInfo, connectorId) : RuntimeConfig.getDefaultInstance();
+
+        BackFillConfiguration backFillConfiguration = runtimeConfig.getBackFillConfig();
+
+        BigQueryEventSourceConfig bigQueryEventSourceConfig = new BigQueryEventSourceConfig(config, cursorField,
+                backFillConfiguration.getEnableBackFill());
+
+        LOGGER.info("BackfillConfig {}", JsonFormat.printer().print(backFillConfiguration));
+
         DataFormatter dataFormatter = bigQueryEventSourceConfig.getDataFormatter();
 
         //DataFormatter dataFormatter = getDataFormatter(config);
@@ -205,8 +231,13 @@ public class BigQueryEventSource extends BaseEventConnector {
 
         AirbyteCatalog airbyteCatalog = discover(config);
         List<AirbyteStream> allStreams = airbyteCatalog.getStreams();
-
-
+        long totalRecords = 0;
+        int noEventsReceivedCounter = 0;
+        if (backFillConfiguration.getEnableBackFill()) {
+            totalRecords = getTotalRecords(allStreams, bigQueryEventSourceConfig);
+            LOGGER.info("Total records for streams are {}", totalRecords);
+            //updateTotalRecordsInReadState(totalRecords);
+        }
 
         //BigQueryEventSourceConfig bigQueryEventSourceConfig = new BigQueryEventSourceConfig(config, cursorField);
 
@@ -235,7 +266,7 @@ public class BigQueryEventSource extends BaseEventConnector {
         bicycleBigQueryWrapper = new BicycleBigQueryWrapper(bigQueryEventSourceConfig);
         ScheduledExecutorService ses = Executors.newScheduledThreadPool(3);
 
-        AuthInfo authInfo = bicycleConfig.getAuthInfo();
+
       /*  if (authInfo == null) {
             authInfo = new DevAuthInfo();
         }*/
@@ -278,7 +309,9 @@ public class BigQueryEventSource extends BaseEventConnector {
             }
             LOGGER.info("Current state from big query {}", state);
             JsonNode updatedState = null;
-
+            totalRecords = 0;
+            long totalRecordsWithoutSplitOverall = 0;
+            long totalRecordsWithoutSplit = 0;
             while (!this.getStopConnectorBoolean().get()) {
 
                 authInfo = bicycleConfig.getAuthInfo();
@@ -297,6 +330,7 @@ public class BigQueryEventSource extends BaseEventConnector {
                 }*/
 
                 List<JsonNode> jsonEvents = new ArrayList<>();
+                totalRecordsWithoutSplit = 0;
                 List<UserServiceMappingRule> userServiceMappingRules =
                         this.getUserServiceMappingRules(authInfo, eventSourceInfo);
 
@@ -315,13 +349,20 @@ public class BigQueryEventSource extends BaseEventConnector {
                                 .toString()
                 ).time();
 
-
+                long startTime = System.currentTimeMillis();
                 AutoCloseableIterator<AirbyteMessage> iterator = bicycleBigQueryWrapper.read(config, catalog, state);
-
+                LOGGER.info("Debug:: Done with iterator in {}", System.currentTimeMillis() - startTime);
                 getRecordsTimer.stop();
 
                 boolean isStateFound = false;
 
+                getRecordsTimer = MetricUtils.getMetricRegistry().timer(
+                        CommonConstants.CONNECTOR_RECORDS_ITERATE_METRIC
+                                .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
+                                .withTags(SOURCE_TYPE, eventSourceInfo.getEventSourceType())
+                                .toString()
+                ).time();
+                startTime = System.currentTimeMillis();
                 while (iterator.hasNext()) {
                     AirbyteMessage message = iterator.next();
                     final boolean isState = message.getType() == AirbyteMessage.Type.STATE;
@@ -334,24 +375,45 @@ public class BigQueryEventSource extends BaseEventConnector {
                         continue;
                     }
                     if (message.getRecord() != null) {
+                        totalRecordsWithoutSplit++;
+                        totalRecordsWithoutSplitOverall++;
                         JsonNode jsonNode = message.getRecord().getData();
-                        if (dataFormatter != null) {
-                            jsonNode = dataFormatter.formatEvent(jsonNode);
+                        List<JsonNode> outputEvents = new ArrayList<>();
+                        outputEvents = splitEvents(jsonNode, authInfo, connectorId);
+                        for (JsonNode node: outputEvents) {
+                            if (dataFormatter != null) {
+                                dataFormatter.formatEvent(node);
+                            }
                         }
-                        jsonEvents.add(jsonNode);
+                        jsonEvents.addAll(outputEvents);
                     } else {
                         LOGGER.warn("Message is not of type record but {}", message.getType());
                     }
                 }
 
-                LOGGER.info("Read {} messages for connector Id {}", jsonEvents.size(), connectorId);
+                getRecordsTimer.stop();
+
+                LOGGER.info("Debug:: Read {} messages for connector Id {} and time taken {}", jsonEvents.size(),
+                        connectorId, System.currentTimeMillis() - startTime);
+                LOGGER.info("Debug:: Read {} messages without split in this iteration and time taken {} " +
+                                "and total overall so far without split are {}", totalRecordsWithoutSplit,
+                        System.currentTimeMillis() - startTime, totalRecordsWithoutSplitOverall);
                 if (jsonEvents.size() == 0) {
+                    noEventsReceivedCounter++;
+                    //In case of backfill if we stop receiving events means we are done reading everything
+                    if (noEventsReceivedCounter == 3 && backFillConfiguration.getEnableBackFill()) {
+                        updateTotalRecordsInReadState(connectorId, totalRecords);
+                        stopEventConnector();
+                        break;
+                    }
                     handleAtConsumerBegin(connectorId, dataFormatter, catalog, bigQueryStreamGetter,
                             bigQueryEventSourceConfig);
                     continue;
                 }
 
-                if (!isStateFound && dataFormatter != null) {
+                noEventsReceivedCounter = 0;
+
+                if (!isStateFound && dataFormatter != null && StringUtils.isNotEmpty(dataFormatter.getCursorFieldName())) {
                     AirbyteStateMessage currentState = createStateMessage(catalog, dataFormatter.getCursorFieldName(),
                             dataFormatter.getCursorFieldValue(jsonEvents));
                     String currentStateAsString = objectMapper.writeValueAsString(currentState.getData());
@@ -375,7 +437,7 @@ public class BigQueryEventSource extends BaseEventConnector {
                     LOGGER.error("Unable to convert raw records to bicycle events for {} ", connectorId, exception);
                     throw exception;
                 }
-                LOGGER.info("Successfully converted messages to raw events for connector Id {}", connectorId);
+                LOGGER.info("Debug:: Successfully converted messages to raw events for connector Id {}", connectorId);
 
                 try {
                     Timer.Context publishRecordsTimer = MetricUtils.getMetricRegistry().timer(
@@ -383,17 +445,20 @@ public class BigQueryEventSource extends BaseEventConnector {
                                     .withTags(SOURCE_ID, bicycleConfig.getConnectorId())
                                     .toString()
                     ).time();
+
                     boolean success = this.publishEvents(authInfo, eventSourceInfo, eventProcessorResult);
                     publishRecordsTimer.stop();
                     if (success) {
+                        totalRecords += eventProcessorResult.getUserServiceDefs().size();
                         setStateAsString(authInfo, connectorId, updatedState);
                         if (dataFormatter != null) {
                             String airbyteMessageAsString = objectMapper.writeValueAsString(updatedState);
                             dataFormatter.publishLagMetrics(eventSourceInfo, airbyteMessageAsString);
                         }
                         state = updatedState;
-                        LOGGER.info("Successfully published messages for connector Id {}", connectorId);
                         totalRecordsProcessed.addAndGet(jsonEvents.size());
+                        LOGGER.info("Debug:: Successfully read messages for connector Id {} are {} and published " +
+                                        "so far {}", connectorId, totalRecordsProcessed.get(), totalRecords);
                     }
                 } catch (Exception exception) {
                     LOGGER.error("Unable to publish bicycle events for {} {} ", connectorId, exception);
@@ -407,6 +472,42 @@ public class BigQueryEventSource extends BaseEventConnector {
         }
 
         return null;
+    }
+
+
+    protected long getTotalRecords(List<AirbyteStream> streams, BigQueryEventSourceConfig bigQueryEventSourceConfig)
+            throws IOException, InterruptedException {
+        try {
+            String projectId = bigQueryEventSourceConfig.getProjectId();
+            String datasetName = bigQueryEventSourceConfig.getDatasetId();
+            ServiceAccountCredentials credentials = ServiceAccountCredentials
+                    .fromStream(new ByteArrayInputStream
+                            (bigQueryEventSourceConfig.getCredentialsJson().getBytes(StandardCharsets.UTF_8)));
+
+            BigQuery bigquery = BigQueryOptions.newBuilder().setProjectId(projectId)
+                    .setCredentials(credentials)
+                    .build().getService();
+            long count = 0;
+            for (AirbyteStream stream : streams) {
+                String tableName = stream.getName();
+                String query = "SELECT count(*) AS count FROM `"
+                        + projectId + "." + datasetName + "." + tableName + "`";
+                QueryJobConfiguration.Builder queryConfigBuilder = QueryJobConfiguration.newBuilder(query)
+                        .setPriority(QueryJobConfiguration.Priority.BATCH)
+                        .setDefaultDataset(datasetName);
+
+                // Run the query
+                TableResult result = bigquery.query(queryConfigBuilder.build());
+
+                for (FieldValueList row : result.iterateAll()) {
+                    count += row.get("count").getLongValue();
+                }
+
+            }
+            return count;
+        } catch (Exception e) {
+            throw e;
+        }
     }
 
     private void handleAtConsumerBegin(String connectorId, DataFormatter dataFormatter,
@@ -439,7 +540,7 @@ public class BigQueryEventSource extends BaseEventConnector {
             return cursorFields.get(0);
         }
 
-        return null;
+        return "event_timestamp";
     }
 
     @Override
@@ -449,7 +550,44 @@ public class BigQueryEventSource extends BaseEventConnector {
 
     @Override
     public AirbyteCatalog discover(JsonNode config) throws Exception {
-        return bicycleBigQueryWrapper.discover(config);
+        AirbyteCatalog airbyteCatalog = bicycleBigQueryWrapper.discover(config);
+
+        BigQueryEventSourceConfig bigQueryEventSourceConfig = new BigQueryEventSourceConfig(config, null);
+        DataFormatterConfig dataFormatterConfig = bigQueryEventSourceConfig.getDataFormatter().getDataFormatterConfig();
+        List<AirbyteStream> filteredAirbyteStreams = new ArrayList<>();
+
+        if (dataFormatterConfig != null) {
+            if (dataFormatterConfig.getConfigValue(BicycleBigQueryWrapper.MATCH_STREAMS_NAME) != null) {
+                String commaSeparatedColumnNames = (String) dataFormatterConfig
+                        .getConfigValue(BicycleBigQueryWrapper.MATCH_STREAMS_NAME);
+                if (StringUtils.isNotEmpty(commaSeparatedColumnNames)) {
+                    String[] matchStreamNames = commaSeparatedColumnNames.split("\\s*,\\s*");
+                    for (AirbyteStream airbyteStream : airbyteCatalog.getStreams()) {
+                        if (filterStream(matchStreamNames, airbyteStream.getName())) {
+                            filteredAirbyteStreams.add(airbyteStream);
+                        }
+                    }
+                    airbyteCatalog.getStreams().clear();
+                    airbyteCatalog.getStreams().addAll(filteredAirbyteStreams);
+                }
+            }
+        }
+
+        return airbyteCatalog;
+    }
+
+    private boolean filterStream(String[] matchStreamNames, String currentStreamName) {
+        if (matchStreamNames == null) {
+            return true;
+        }
+
+        for (String matchStreamPattern : matchStreamNames) {
+            if (currentStreamName.matches(matchStreamPattern)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected AtomicBoolean getStopConnectorBoolean() {

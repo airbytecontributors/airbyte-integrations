@@ -55,4 +55,6 @@ public interface DataFormatter {
 
   void publishLagMetrics(EventSourceInfo eventSourceInfo, String stateAsString);
 
+  DataFormatterConfig getDataFormatterConfig();
+
 }
