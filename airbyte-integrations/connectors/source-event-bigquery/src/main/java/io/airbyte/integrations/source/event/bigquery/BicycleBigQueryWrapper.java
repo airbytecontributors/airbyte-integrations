@@ -59,6 +59,10 @@ public class BicycleBigQueryWrapper extends BicycleAbstractRelationalDbSource<St
   public static final String FULL_SYNC_TYPE = "Full Sync";
   public static final String INCREMENTAL_SYNC_TYPE = "Incremental Sync";
   public static final String CURSOR_FIELD = "cursorField";
+  public static final String CUSTOM_DIMENSION_MAPPING = "custom_dimension_mapping";
+  public static final String CUSTOM_DIMENSION_MAPPING_COLUMN_NAME = "custom_dimension_column_name";
+  public static final String CUSTOM_DIMENSION_MAPPING_COLUMN_NAME_DEFAULT = "customDimensions";
+
   private JsonNode dbConfig;
   private final BigQuerySourceOperations sourceOperations = new BigQuerySourceOperations();
 

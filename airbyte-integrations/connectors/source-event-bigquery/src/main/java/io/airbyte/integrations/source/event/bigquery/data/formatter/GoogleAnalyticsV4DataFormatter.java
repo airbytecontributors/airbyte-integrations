@@ -18,8 +18,13 @@ import com.google.cloud.bigquery.BigQueryOptions;
 import com.google.cloud.bigquery.FieldValueList;
 import com.google.cloud.bigquery.QueryJobConfiguration;
 import com.google.cloud.bigquery.TableResult;
+import com.jayway.jsonpath.Configuration;
+import com.jayway.jsonpath.DocumentContext;
+import com.jayway.jsonpath.JsonPath;
+import com.jayway.jsonpath.spi.json.JacksonJsonNodeJsonProvider;
 import io.airbyte.integrations.source.event.bigquery.BicycleBigQueryWrapper;
 import io.airbyte.integrations.source.event.bigquery.BigQueryEventSourceConfig;
+import io.airbyte.integrations.source.event.bigquery.BigQueryStreamGetter;
 import io.airbyte.integrations.source.relationaldb.models.DbState;
 import io.airbyte.integrations.source.relationaldb.models.DbStreamState;
 import io.airbyte.protocol.models.AirbyteStream;
@@ -28,6 +33,7 @@ import io.airbyte.protocol.models.ConfiguredAirbyteStream;
 import io.airbyte.protocol.models.SyncMode;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,6 +53,10 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
     private static final String EVENT_PARAMS_ATTRIBUTE = "event_params";
     private static final ObjectMapper objectMapper = new ObjectMapper();
     private static final List<String> processedStreams = new ArrayList<>();
+
+    private final JacksonJsonNodeJsonProvider jacksonJsonNodeJsonProvider = new JacksonJsonNodeJsonProvider();
+    private final Configuration configuration = Configuration.builder()
+            .jsonProvider(jacksonJsonNodeJsonProvider).build();
     private Map<TagEncodedMetricName, Long> metricsMap = new HashMap<>();
     private DataFormatterConfig dataFormatterConfig;
 
@@ -62,47 +72,16 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
             if (dataFormatterConfig.getConfigValue(BicycleBigQueryWrapper.UNMAP_COLUMNS_NAME) != null) {
                 String commaSeparatedColumnNames = (String) dataFormatterConfig
                         .getConfigValue(BicycleBigQueryWrapper.UNMAP_COLUMNS_NAME);
-                columnNames = commaSeparatedColumnNames.split("\\s*,\\s*");
-            } else {
-                columnNames = new String[] {EVENT_PARAMS_ATTRIBUTE};
+                if (!commaSeparatedColumnNames.equals("None")) {
+                    columnNames = commaSeparatedColumnNames.split("\\s*,\\s*");
+                }
             }
 
-            for (String columnName : columnNames) {
+            DocumentContext cachedDocumentContext = JsonPath.parse(jsonNode, configuration);
 
-                ArrayNode eventParams = (ArrayNode) jsonNode.get(columnName);
-                JsonNode outputNode = objectMapper.createObjectNode();
-                if (eventParams == null) {
-                    continue;
-                }
-                for (int i = 0; i < eventParams.size(); i++) {
-                    JsonNode node = eventParams.get(i);
-                    String key = node.get("key").asText();
-                    JsonNode valueNode = node.get("value");
+            jsonNode = unwrapColumns(columnNames, cachedDocumentContext, jsonNode);
 
-                    // get non-null value
-                    String stringValue =
-                            valueNode.has("string_value") ? valueNode.get("string_value").asText(null) : null;
-                    Integer intValue =
-                            valueNode.has("int_value") ? valueNode.get("int_value").asInt(Integer.MIN_VALUE) : null;
-                    Float floatValue = valueNode.has("float_value") ? valueNode.get("float_value").floatValue() : null;
-                    Double doubleValue =
-                            valueNode.has("double_value") ? valueNode.get("double_value").doubleValue() : null;
-                    Long longValue = valueNode.has("long_value") ? valueNode.get("long_value").longValue() : null;
-
-                    if (stringValue != null) {
-                        ((ObjectNode) outputNode).put(key, stringValue);
-                    } else if (intValue != null) {
-                        ((ObjectNode) outputNode).put(key, intValue);
-                    } else if (floatValue != null) {
-                        ((ObjectNode) outputNode).put(key, floatValue);
-                    } else if (doubleValue != null) {
-                        ((ObjectNode) outputNode).put(key, doubleValue);
-                    } else if (longValue != null) {
-                        ((ObjectNode) outputNode).put(key, longValue);
-                    }
-                }
-                ((ObjectNode) jsonNode).put(columnName, outputNode);
-            }
+            jsonNode = applyCustomObjectMapping(jsonNode, cachedDocumentContext);
 
             return jsonNode;
         } catch (Exception e) {
@@ -110,6 +89,126 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
         }
 
         return jsonNode;
+    }
+
+    private JsonNode unwrapColumns(String[] columnNames, DocumentContext cachedDocumentContext, JsonNode jsonNode) {
+
+        try {
+            if (columnNames == null) {
+                return jsonNode;
+            }
+            for (String columnName : columnNames) {
+
+                try {
+                    Object obj = cachedDocumentContext.read(columnName);
+                    if (!(obj instanceof ArrayNode)) {
+                        continue;
+                    }
+                    ArrayNode eventParams = (ArrayNode) jsonNode.get(columnName);
+                    JsonNode outputNode = objectMapper.createObjectNode();
+                    if (eventParams == null) {
+                        continue;
+                    }
+                    for (int i = 0; i < eventParams.size(); i++) {
+                        JsonNode node = eventParams.get(i);
+                        String key = node.get("key").asText();
+                        JsonNode valueNode = node.get("value");
+
+                        // get non-null value
+                        String stringValue =
+                                valueNode.has("string_value") ? valueNode.get("string_value").asText(null) : null;
+                        Integer intValue =
+                                valueNode.has("int_value") ? valueNode.get("int_value").asInt(Integer.MIN_VALUE) : null;
+                        Float floatValue =
+                                valueNode.has("float_value") ? valueNode.get("float_value").floatValue() : null;
+                        Double doubleValue =
+                                valueNode.has("double_value") ? valueNode.get("double_value").doubleValue() : null;
+                        Long longValue = valueNode.has("long_value") ? valueNode.get("long_value").longValue() : null;
+
+                        if (stringValue != null) {
+                            ((ObjectNode) outputNode).put(key, stringValue);
+                        } else if (intValue != null) {
+                            ((ObjectNode) outputNode).put(key, intValue);
+                        } else if (floatValue != null) {
+                            ((ObjectNode) outputNode).put(key, floatValue);
+                        } else if (doubleValue != null) {
+                            ((ObjectNode) outputNode).put(key, doubleValue);
+                        } else if (longValue != null) {
+                            ((ObjectNode) outputNode).put(key, longValue);
+                        }
+                    }
+                    cachedDocumentContext = cachedDocumentContext.set(getJsonPath(columnName), outputNode);
+                    //((ObjectNode) jsonNode).put(columnName, outputNode);
+                } catch (Exception e) {
+                    logger.error("Unable to wrap column name {}", columnName, e);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Unable to unwrap columns", e);
+        }
+
+        return jsonNode;
+
+    }
+
+    private JsonNode applyCustomObjectMapping(JsonNode inputObject, DocumentContext cachedDocumentContext) {
+
+        Map<String, String> customObjectMap =
+                (Map<String, String>) dataFormatterConfig.getConfigValue(
+                        BicycleBigQueryWrapper.CUSTOM_DIMENSION_MAPPING);
+
+        if (customObjectMap == null || customObjectMap.isEmpty()) {
+            return inputObject;
+        }
+
+        String columnName = (String) dataFormatterConfig
+                .getConfigValue(BicycleBigQueryWrapper.CUSTOM_DIMENSION_MAPPING_COLUMN_NAME);
+
+        try {
+            Object object = cachedDocumentContext.read(columnName);
+            if (!(object instanceof ArrayNode)) {
+                return inputObject;
+            }
+
+            ArrayNode customDimensionsParams = (ArrayNode) object;
+
+            JsonNode outputNode = objectMapper.createObjectNode();
+
+            for (int i = 0; i < customDimensionsParams.size(); i++) {
+                JsonNode node = customDimensionsParams.get(i);
+                int key = node.get("index").asInt();
+                String value = node.get("value").asText();
+
+                String keyMapping = customObjectMap.get(String.valueOf(key));
+                if (StringUtils.isNotEmpty(keyMapping)) {
+                    ((ObjectNode) outputNode).put(keyMapping, value);
+                }
+            }
+            cachedDocumentContext = cachedDocumentContext.set(getJsonPath(columnName), outputNode);
+           // ((ObjectNode) inputObject).put(columnName, outputNode);
+        } catch (Exception e) {
+            logger.error("Unable to apply custom object mapping for column name {}", columnName, e);
+        }
+
+        return cachedDocumentContext.json();
+    }
+
+    private String getJsonPath(String columnName) {
+        if (columnName.contains("$")) {
+            return columnName;
+        }
+
+        StringBuilder jsonPath = new StringBuilder();
+        jsonPath.append("$.");
+        if (columnName.contains(" ")) {
+            jsonPath.append("['");
+            jsonPath.append(columnName);
+            jsonPath.append("']");
+        } else {
+            jsonPath.append(columnName);
+        }
+
+        return jsonPath.toString();
     }
 
     @Override
@@ -120,13 +219,15 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
                 return val;
             }
         }
-        return "event_timestamp";
+        return null;
     }
 
     @Override
     public String getCursorFieldValue(List<JsonNode> rawData) {
         long maxTimestamp = 0;
-
+        if (getCursorFieldName() == null) {
+            return String.valueOf(maxTimestamp);
+        }
         try {
             for (JsonNode jsonNode : rawData) {
                 long timestamp = jsonNode.get(getCursorFieldName()).asLong();
@@ -143,15 +244,17 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
 
     @Override
     public ConfiguredAirbyteCatalog updateSyncMode(ConfiguredAirbyteCatalog catalog) {
-        // ConfiguredAirbyteStream stream = catalog.getStreams().get(0);
-        List<ConfiguredAirbyteStream> streams = catalog.getStreams();
-
+        String cursorFieldName = getCursorFieldName();
         for (ConfiguredAirbyteStream stream : catalog.getStreams()) {
-            String streamName = stream.getStream().getName();
- 	        stream.setSyncMode(SyncMode.INCREMENTAL);
-            if (stream.getCursorField().size() == 0) {
-                stream.getCursorField().add(getCursorFieldName());
+            if (StringUtils.isNotEmpty(cursorFieldName)) {
+                stream.setSyncMode(SyncMode.INCREMENTAL);
+                if (stream.getCursorField().size() == 0) {
+                    stream.getCursorField().add(getCursorFieldName());
+                }
+            } else {
+                stream.setSyncMode(SyncMode.FULL_REFRESH);
             }
+
            /* if (stream.getCursorField().size() == 0 && streamName.contains("events")) {
                 stream.setSyncMode(SyncMode.INCREMENTAL);
                 stream.getCursorField().add(getCursorFieldName());
@@ -231,6 +334,7 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
                     matchStreamNames = commaSeparatedColumnNames.split("\\s*,\\s*");
                 }
             }
+            String cursorFieldName = getCursorFieldName();
 
             for (AirbyteStream stream : streams) {
                 String tableName = stream.getName();
@@ -246,28 +350,35 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
                     if (processedStreams.contains(tableName)) {
                         continue;
                     }
-                    String query = "SELECT MAX(event_timestamp) AS maxTimestamp FROM `"
-                            + projectId + "." + datasetName + "." + tableName + "`";
-
-                    // Create a query configuration
-                    QueryJobConfiguration.Builder queryConfigBuilder = QueryJobConfiguration.newBuilder(query)
-                            .setPriority(QueryJobConfiguration.Priority.BATCH)
-                            .setDefaultDataset(datasetName);
-
-                    // Run the query
-                    TableResult result = bigquery.query(queryConfigBuilder.build());
-
                     // Extract the record count
                     long maxTimeStamp = 0;
-                    for (FieldValueList row : result.iterateAll()) {
-                        maxTimeStamp = row.get("maxTimestamp").getLongValue();
+                    //if backfill is enabled we should not ignore any streams based on timestamp
+                    if (!bigQueryEventSourceConfig.isBackFillEnabled() && StringUtils.isNotEmpty(cursorFieldName)) {
+                        String query = "SELECT MAX(" + cursorFieldName + ") AS maxTimestamp FROM `"
+                                + projectId + "." + datasetName + "." + tableName + "`";
+
+                        // Create a query configuration
+                        QueryJobConfiguration.Builder queryConfigBuilder = QueryJobConfiguration.newBuilder(query)
+                                .setPriority(QueryJobConfiguration.Priority.BATCH)
+                                .setDefaultDataset(datasetName);
+
+                        // Run the query
+                        TableResult result = bigquery.query(queryConfigBuilder.build());
+
+                        for (FieldValueList row : result.iterateAll()) {
+                            maxTimeStamp = row.get("maxTimestamp").getLongValue();
+                        }
+                    } else {
+                        maxTimeStamp = System.currentTimeMillis() * 1000;
                     }
+
+                    thresholdTimestamp = getThresholdTimestamp(maxTimeStamp);
 
                     if (maxTimeStamp != 0 && maxTimeStamp > thresholdTimestamp) {
                         updateStreamsList.add(createConfiguredAirbyteStream(stream));
                         streamNamesToPrint.add(stream.getName());
                     } else {
-                      processedStreams.add(stream.getName());
+                        processedStreams.add(stream.getName());
                     }
 
                 } catch (Exception e) {
@@ -290,12 +401,61 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
         return updateStreamsList;
     }
 
+    public long getTotalCount(BigQueryEventSourceConfig bigQueryEventSourceConfig, List<AirbyteStream> airbyteStreams)
+            throws IOException, InterruptedException {
+
+        try {
+            String projectId = bigQueryEventSourceConfig.getProjectId();
+            String datasetName = bigQueryEventSourceConfig.getDatasetId();
+            ServiceAccountCredentials credentials = ServiceAccountCredentials
+                    .fromStream(new ByteArrayInputStream
+                            (bigQueryEventSourceConfig.getCredentialsJson().getBytes(StandardCharsets.UTF_8)));
+
+            BigQuery bigquery = BigQueryOptions.newBuilder().setProjectId(projectId)
+                    .setCredentials(credentials)
+                    .build().getService();
+            long count = 0;
+            for (AirbyteStream stream : airbyteStreams) {
+                String tableName = stream.getName();
+                String query = "SELECT count(*) AS count FROM `"
+                        + projectId + "." + datasetName + "." + tableName + "`";
+                QueryJobConfiguration.Builder queryConfigBuilder = QueryJobConfiguration.newBuilder(query)
+                        .setPriority(QueryJobConfiguration.Priority.BATCH)
+                        .setDefaultDataset(datasetName);
+
+                // Run the query
+                TableResult result = bigquery.query(queryConfigBuilder.build());
+
+                for (FieldValueList row : result.iterateAll()) {
+                    count += row.get("count").getLongValue();
+                }
+
+            }
+            return count;
+        } catch (Exception e) {
+            throw e;
+        }
+
+    }
+
+    private long getThresholdTimestamp(long eventTime) {
+
+        String unit = identifyEpochTimeUnit(eventTime);
+        if (unit.equals(BigQueryStreamGetter.SECONDS)) {
+            return (System.currentTimeMillis() - LAST_1_DAY_MILLISECONDS) / 1000;
+        } else if (unit.equals(BigQueryStreamGetter.MILLIS)) {
+            return System.currentTimeMillis() - LAST_1_DAY_MILLISECONDS;
+        } else {
+            return (System.currentTimeMillis() - LAST_1_DAY_MILLISECONDS) * 1000;
+        }
+    }
+
     private boolean doReadStream(String[] matchStreamNames, String currentStreamName) {
         if (matchStreamNames == null) {
             return true;
         }
 
-        for (String matchStreamPattern: matchStreamNames) {
+        for (String matchStreamPattern : matchStreamNames) {
             if (currentStreamName.matches(matchStreamPattern)) {
                 return true;
             }
@@ -348,6 +508,28 @@ public class GoogleAnalyticsV4DataFormatter implements DataFormatter {
         } catch (Exception e) {
             logger.error("Unable to publish state metrics for GA", e);
         }
+    }
+
+    private String identifyEpochTimeUnit(long epochTime) {
+        // Defining rough boundaries for each unit
+        long upperLimitSeconds = 2_000_000_000L; // 2 billion
+        long upperLimitMillis = 2_000_000_000_000L; // 2 trillion
+        long upperLimitMicros = 2_000_000_000_000_000L; // 2 quadrillion
+
+        if (epochTime < upperLimitSeconds) {
+            return BigQueryStreamGetter.SECONDS;
+        } else if (epochTime < upperLimitMillis) {
+            return BigQueryStreamGetter.MILLIS;
+        } else if (epochTime < upperLimitMicros) {
+            return BigQueryStreamGetter.MICROS;
+        } else {
+            return BigQueryStreamGetter.MICROS;
+        }
+    }
+
+    @Override
+    public DataFormatterConfig getDataFormatterConfig() {
+        return dataFormatterConfig;
     }
 
     @Override

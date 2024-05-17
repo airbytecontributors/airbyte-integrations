@@ -16,6 +16,9 @@ public class BigQueryStreamGetter implements Runnable {
 
     private static final Logger logger = LoggerFactory.getLogger(BigQueryStreamGetter.class.getName());
     public static final long LAST_1_DAY_MILLISECONDS = 1 * 24 * 60 * 60 * 1000;
+    public static final String SECONDS = "seconds";
+    public static final String MILLIS = "millis";
+    public static final String MICROS = "micros";
     private final JsonNode config;
     private final BigQueryEventSource bigQueryEventSource;
     private final String connectorId;

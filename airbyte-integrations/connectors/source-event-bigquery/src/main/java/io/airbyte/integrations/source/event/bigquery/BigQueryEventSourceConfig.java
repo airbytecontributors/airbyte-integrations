@@ -1,6 +1,7 @@
 package io.airbyte.integrations.source.event.bigquery;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatter;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatterConfig;
 import io.airbyte.integrations.source.event.bigquery.data.formatter.DataFormatterFactory;
@@ -12,6 +13,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import static io.airbyte.integrations.source.event.bigquery.BicycleBigQueryWrapper.CURSOR_FIELD;
+import static io.airbyte.integrations.source.event.bigquery.BicycleBigQueryWrapper.CUSTOM_DIMENSION_MAPPING_COLUMN_NAME;
+import static io.airbyte.integrations.source.event.bigquery.BicycleBigQueryWrapper.CUSTOM_DIMENSION_MAPPING_COLUMN_NAME_DEFAULT;
 
 /**
  * @author sumitmaheshwari
@@ -20,6 +23,7 @@ import static io.airbyte.integrations.source.event.bigquery.BicycleBigQueryWrapp
 public class BigQueryEventSourceConfig {
 
     private static final Logger logger = LoggerFactory.getLogger(BigQueryEventSourceConfig.class.getName());
+    private static final ObjectMapper objectMapper = new ObjectMapper();
     private final String projectId;
     private final String datasetId;
     private final String credentialsJson;
@@ -27,8 +31,9 @@ public class BigQueryEventSourceConfig {
     private final int defaultLimit;
     private String cursorField;
     private DataFormatter dataFormatter;
+    private boolean isBackFillEnabled;
 
-    public BigQueryEventSourceConfig(JsonNode config, String cursorField) {
+    public BigQueryEventSourceConfig(JsonNode config, String cursorField, boolean isBackFillEnabled) {
         this.projectId = config.has(BicycleBigQueryWrapper.CONFIG_PROJECT_ID) ?
                 config.get(BicycleBigQueryWrapper.CONFIG_PROJECT_ID).asText() : null;
         this.datasetId = config.has(BicycleBigQueryWrapper.CONFIG_DATASET_ID) ?
@@ -47,19 +52,24 @@ public class BigQueryEventSourceConfig {
             String syncType = syncMode.get(BicycleBigQueryWrapper.SYNC_TYPE).asText();
             if (StringUtils.isNotEmpty(syncType) && syncType.equals(BicycleBigQueryWrapper.INCREMENTAL_SYNC_TYPE)) {
                 this.cursorField = syncMode.has(CURSOR_FIELD) ?
-                        syncMode.get(CURSOR_FIELD).asText() : null;
+                        syncMode.get(CURSOR_FIELD).asText() : cursorField;
             }
         }
 
         initializeDataFormatter(config, this.cursorField);
 
-        if (this.cursorField == null) {
+      /*  if (this.cursorField == null) {
             if (this.dataFormatter != null) {
                 this.cursorField = dataFormatter.getCursorFieldName();
             } else {
                 this.cursorField = cursorField;
             }
-        }
+        }*/
+        this.isBackFillEnabled = isBackFillEnabled;
+
+    }
+    public BigQueryEventSourceConfig(JsonNode config, String cursorField) {
+       this(config, cursorField, false);
     }
 
     private void initializeDataFormatter(JsonNode config, String cursorField) {
@@ -76,11 +86,31 @@ public class BigQueryEventSourceConfig {
                                 dataFormatterObject.get(BicycleBigQueryWrapper.UNMAP_COLUMNS_NAME).asText() : null;
                         String matchStreamNames = dataFormatterObject.has(BicycleBigQueryWrapper.MATCH_STREAMS_NAME) ?
                                 dataFormatterObject.get(BicycleBigQueryWrapper.MATCH_STREAMS_NAME).asText() : null;
+                        String customDimensionMapping =
+                                dataFormatterObject.has(BicycleBigQueryWrapper.CUSTOM_DIMENSION_MAPPING) ?
+                                        dataFormatterObject.get(BicycleBigQueryWrapper.CUSTOM_DIMENSION_MAPPING)
+                                                .asText() : null;
+                        String customDimensionMappingColumnName =
+                                dataFormatterObject.has(CUSTOM_DIMENSION_MAPPING_COLUMN_NAME) ?
+                                        dataFormatterObject.get(BicycleBigQueryWrapper.CUSTOM_DIMENSION_MAPPING_COLUMN_NAME)
+                                                .asText() : CUSTOM_DIMENSION_MAPPING_COLUMN_NAME_DEFAULT;
                         if (StringUtils.isNotEmpty(unMapColumnsName)) {
                             dataFormatterConfigMap.put(BicycleBigQueryWrapper.UNMAP_COLUMNS_NAME, unMapColumnsName);
                         }
                         if (StringUtils.isNotEmpty(matchStreamNames)) {
                             dataFormatterConfigMap.put(BicycleBigQueryWrapper.MATCH_STREAMS_NAME, matchStreamNames);
+                        }
+                        dataFormatterConfigMap.put(CUSTOM_DIMENSION_MAPPING_COLUMN_NAME,
+                                customDimensionMappingColumnName);
+                        if (StringUtils.isNotEmpty(customDimensionMapping)) {
+                            try {
+                                Map<String, String> customDimensionMappingMap =
+                                        objectMapper.readValue(customDimensionMapping, Map.class);
+                                dataFormatterConfigMap.put(BicycleBigQueryWrapper.CUSTOM_DIMENSION_MAPPING,
+                                        customDimensionMappingMap);
+                            } catch (Exception e) {
+                                logger.error("Unable to deserialize custom dimension mapping string");
+                            }
                         }
                     }
                     if (cursorField != null) {
@@ -124,5 +154,23 @@ public class BigQueryEventSourceConfig {
 
     public DataFormatter getDataFormatter() {
         return dataFormatter;
+    }
+
+    public boolean isBackFillEnabled() {
+        return isBackFillEnabled;
+    }
+
+    @Override
+    public String toString() {
+        return "BigQueryEventSourceConfig{" +
+                "projectId='" + projectId + '\'' +
+                ", datasetId='" + datasetId + '\'' +
+                ", credentialsJson='" + credentialsJson + '\'' +
+                ", defaultCursorValue='" + defaultCursorValue + '\'' +
+                ", defaultLimit=" + defaultLimit +
+                ", cursorField='" + cursorField + '\'' +
+                ", dataFormatter=" + dataFormatter +
+                ", isBackFillEnabled=" + isBackFillEnabled +
+                '}';
     }
 }

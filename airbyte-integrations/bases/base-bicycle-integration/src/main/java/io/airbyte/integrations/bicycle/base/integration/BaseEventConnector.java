@@ -39,6 +39,7 @@ import io.airbyte.integrations.base.Source;
 import io.airbyte.integrations.bicycle.base.integration.reader.EventSourceReader;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.AirbyteStateMessage;
+import io.airbyte.protocol.models.AirbyteStream;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.ai.model.tenant.summary.discovery.*;
 import io.bicycle.blob.store.client.BlobStoreApiClient;
@@ -1047,6 +1048,24 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             } else {
                 ((ObjectNode) state).remove(key);
             }
+        }
+    }
+
+    protected void updateTotalRecordsInReadState(String connectorId, long totalRecords) throws JsonProcessingException {
+        try {
+            JsonNode jsonNode = getStateAsJsonNode(getAuthInfo(), connectorId);
+            ObjectNode objectNode = (ObjectNode) jsonNode;
+            objectNode.put(TOTAL_RECORDS, totalRecords);
+            setStateAsString(getAuthInfo(), connectorId, jsonNode);
+        } catch (Exception e) {
+            throw e;
+        }
+    }
+    protected void updateTotalRecordsInReadState(long totalRecords) throws JsonProcessingException {
+        try {
+            saveState(TOTAL_RECORDS, totalRecords);
+        } catch (Exception e) {
+            throw e;
         }
     }
 
