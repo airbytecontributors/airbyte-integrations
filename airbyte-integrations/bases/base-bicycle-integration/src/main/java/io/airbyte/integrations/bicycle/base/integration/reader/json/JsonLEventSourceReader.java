@@ -7,6 +7,9 @@ import io.airbyte.integrations.bicycle.base.integration.reader.EventSourceReader
 import io.airbyte.integrations.bicycle.base.integration.reader.csv.CSVEventSourceReader;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,11 +23,11 @@ public class JsonLEventSourceReader extends EventSourceReader<RawEvent> {
 
     protected String connectorId;
     protected File jsonFile;
-    RandomAccessFile accessFile = null;
     protected RawEvent nextEvent;
     protected String name;
     protected long counter = 0;
     protected long nullRows = 0;
+    protected BufferedReader bufferedReader;
 
     public JsonLEventSourceReader(String name, File jsonFile, String connectorId,
                                   BaseEventConnector connector,
@@ -35,11 +38,11 @@ public class JsonLEventSourceReader extends EventSourceReader<RawEvent> {
         initialize();
     }
 
-    protected void initialize() {
+    private void initialize() {
         try {
-            accessFile = new RandomAccessFile(jsonFile, "r");
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed to read csv file [" + jsonFile + "]", e);
+            bufferedReader = new BufferedReader(new FileReader(jsonFile));
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -47,8 +50,8 @@ public class JsonLEventSourceReader extends EventSourceReader<RawEvent> {
         reset();
         do {
             try {
-                offset = accessFile.getFilePointer();
-                row = accessFile.readLine();
+              //  offset = accessFile.getFilePointer();
+                row = bufferedReader.readLine();
                 rowCounter++;
                 if (!StringUtils.isEmpty(row)) {
                     return true;
@@ -126,8 +129,8 @@ public class JsonLEventSourceReader extends EventSourceReader<RawEvent> {
 
     @Override
     public void close() throws Exception {
-        if (accessFile != null) {
+       /* if (accessFile != null) {
             accessFile.close();
-        }
+        }*/
     }
 }
