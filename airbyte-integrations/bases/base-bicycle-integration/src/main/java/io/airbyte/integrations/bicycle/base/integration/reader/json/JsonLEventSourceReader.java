@@ -8,14 +8,14 @@ import io.airbyte.integrations.bicycle.base.integration.reader.csv.CSVEventSourc
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
+import java.io.IOException;
+import java.nio.charset.Charset;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.File;
-import java.io.RandomAccessFile;
 
 public class JsonLEventSourceReader extends EventSourceReader<RawEvent> {
 
@@ -40,8 +40,10 @@ public class JsonLEventSourceReader extends EventSourceReader<RawEvent> {
 
     private void initialize() {
         try {
-            bufferedReader = new BufferedReader(new FileReader(jsonFile));
+            bufferedReader = new BufferedReader(new FileReader(jsonFile, Charset.defaultCharset()));
         } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
