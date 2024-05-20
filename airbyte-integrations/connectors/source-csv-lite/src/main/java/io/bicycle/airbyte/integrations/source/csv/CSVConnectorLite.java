@@ -419,8 +419,10 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             updateConnectorState(READ_STATUS, Status.IN_PROGRESS, 0);
             int queueSize = getQueueSize(config);
             int requestSize = getRequestSize(config);
-            long totalRecords = calculateTotalrecords(files, queueSize);
-            saveState(TOTAL_RECORDS, totalRecords);
+            long totalRecords = 0;
+            //Commenting out as this would be updated when we process the records
+         /*  long totalRecords = calculateTotalrecords(files, queueSize);
+            saveState(TOTAL_RECORDS, totalRecords);*/
             try {
                 long processed = publishEvents(files, queueSize, requestSize, threads, totalRecords);
                 updateConnectorState(READ_STATUS, Status.COMPLETE);
