@@ -86,7 +86,13 @@ import io.bicycle.server.event.mapping.models.publisher.EventPublisherResult;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
@@ -103,8 +109,8 @@ import org.slf4j.LoggerFactory;
  */
 public abstract class BaseEventConnector extends BaseConnector implements Source {
     private static final int MAX_RETRY = 3;
-    private static final int CONNECT_TIMEOUT_IN_MILLIS = 60000;
-    private static final int READ_TIMEOUT_IN_MILLIS = 60000;
+    private static final int CONNECT_TIMEOUT_IN_MILLIS = 300000;
+    private static final int READ_TIMEOUT_IN_MILLIS = 300000;
     private final Logger logger = LoggerFactory.getLogger(this.getClass().getName());
     private final ConfigHelper configHelper = new ConfigHelper();
     protected PreviewStoreClient previewStoreClient;
@@ -424,25 +430,36 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return connectorConfigService.getConnectorStreamConfigById(authInfo, configurationId);
     }
 
-    protected File storeFile(String fileName, String signedUrl) {
+    protected File storeFile(String fileName, String signedUrl, JsonNode config) {
         try {
-            int index = fileName.indexOf(".");
-            int lastDotIndex = fileName.indexOf(".");
 
-            String extension = index != -1 ? fileName.substring(index) : ".csv";
-            extension = extension != null && !extension.isEmpty() ? extension : ".csv";
+            String directory = System.getProperty("java.io.tmpdir");
+            Path tempFilePath = Paths.get(directory, fileName);
+            if (Files.exists(tempFilePath)) {
+                logger.info("Deleting file with path {}", tempFilePath);
+                File tempFile = new File(directory, fileName);
+                tempFile.delete();
+            }
 
-            File file = File.createTempFile(fileName.substring(0, lastDotIndex), fileName.substring(lastDotIndex));
+            File file = Files.createFile(tempFilePath).toFile();
             file.deleteOnExit();
-            final JsonNode provider = config.get("provider");
+
             long startTime = System.currentTimeMillis();
             logger.info("[{}] : File Download Start [{}] to [{}]", getConnectorId(), fileName, file.getName());
-            if (provider !=null && provider.get("storage").asText().equals("GCS")) {
+
+            FileUtils.copyURLToFile(new URL(signedUrl), file, CONNECT_TIMEOUT_IN_MILLIS, READ_TIMEOUT_IN_MILLIS);
+
+        /*    if (provider !=null && provider.get("storage").asText().equals("GCS")) {
                 //csvConnector.storeToFile(config, file);
             } else {
-                FileUtils.copyURLToFile(new URL(signedUrl), file, CONNECT_TIMEOUT_IN_MILLIS, READ_TIMEOUT_IN_MILLIS);
-            }
-            printCheckSum(file);
+                if (StringUtils.isEmpty(dateTimeFormat)) {
+                    FileUtils.copyURLToFile(new URL(signedUrl), file, CONNECT_TIMEOUT_IN_MILLIS, READ_TIMEOUT_IN_MILLIS);
+                } else {
+                    copyFile(new URL(signedUrl), file);
+                }
+            }*/
+            //printCheckSum(file);
+
             logger.info("[{}] : File Download Complete [{}] to [{}] time [{}]", getConnectorId(), fileName,
                     file.getName(), (System.currentTimeMillis() - startTime));
             return file;
@@ -450,12 +467,31 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             throw new RuntimeException("Unable to read file from GCS", e);
         }
     }
+
+    private File copyFile(URL url, File outputFile) throws IOException {
+        getLogger().info("Copying the file without any utility function, input {}, output {}", url.toString(),
+                outputFile.getPath());
+        try (
+                InputStream is = url.openStream();
+                FileOutputStream fos = new FileOutputStream(outputFile);
+        ) {
+            byte[] buffer = new byte[4028];
+            int len;
+            while (true) {
+                if (!((len = is.read(buffer)) != -1)) break;
+                fos.write(buffer, 0, len);
+            }
+        }
+        return outputFile;
+    }
+
     private void printCheckSum(File file) {
         try {
             ByteSource byteSource = com.google.common.io.Files.asByteSource(file);
             HashCode hc = byteSource.hash(Hashing.md5());
             String checksum = hc.toString();
-            logger.info("Checksum for file {} is {}", file.getPath(), checksum);
+            logger.info("Checksum for file {} is {} and size is {} and length is {}", file.getPath(), checksum, byteSource.size(),
+                    file.length());
         } catch (Exception e) {
             logger.error("Unable to get the checksum of file", e);
         }
