@@ -112,7 +112,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 Map<String, File> csvFiles = FilesHandler.getCSVFiles("Apr25_TD_PAYMENT_PROCESS_LOG_01-07_01.csv.gz", new File("/home/ravi/Downloads/api-conversion-0.23.0/Apr25_TD_PAYMENT_PROCESS_LOG_01-07_01.csv.gz"));
                 files.putAll(csvFiles);
             } else {
-                downloadFiles(files, SYNC_STATUS, SYNC_TOTAL_RECORDS);
+                downloadFiles(files, SYNC_STATUS, SYNC_TOTAL_RECORDS, config);
             }
             if (files.isEmpty()) {
                 LOGGER.info("[{}] : files already synced [{}]", getConnectorId(), files);
@@ -229,7 +229,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         AtomicLong invalidCount = new AtomicLong(0);
         AtomicBoolean finished = new AtomicBoolean(false);
         long batch = totalRecords / 20;
-        long logbatch = batch > 1000 ? 1000 : batch;
+        long logbatch = batch > 1000 || batch == 0 ? 1000 : batch;
 
         for (int i = 0; i < threads; i++) {
             LOGGER.info("[{}] : Creating Consumers [{}]", getConnectorId(), i);
@@ -387,6 +387,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 CatalogHelpers.createAirbyteStream(datasetName, Field.of("value", JsonSchemaType.STRING))
                         .withSupportedSyncModes(Lists.newArrayList(SyncMode.FULL_REFRESH, SyncMode.INCREMENTAL))
         );
+
         return new AirbyteCatalog().withStreams(streams);
     }
 
@@ -408,7 +409,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 files.putAll(FilesHandler.getCSVFiles("Apr25_TD_PAYMENT_PROCESS_LOG_01-07_02.csv.gz", new File("/home/ravi/Downloads/api-conversion-0.23.0/Apr25_TD_PAYMENT_PROCESS_LOG_01-07_02.csv.gz")));
                 files.put("export-8dc3fbdf3ee9aff.csv", new File("/home/ravi/Downloads/system-error/export-8dc3fbdf3ee9aff.csv"));
             } else {
-                downloadFiles(files, READ_STATUS, READ_TOTAL_RECORDS);
+                downloadFiles(files, READ_STATUS, READ_TOTAL_RECORDS, config);
             }
 
             if (files.isEmpty()) {
@@ -450,12 +451,12 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         return null;
     }
 
-    private void downloadFiles(Map<String, File> files, String statusKey, String totalRecordsKey) throws IOException {
+    private void downloadFiles(Map<String, File> files, String statusKey, String totalRecordsKey, JsonNode config) throws IOException {
         Map<String, String> fileVsSignedUrls = readFilesConfig();
         //Map<String, String> fileVsSignedUrls = Collections.singletonMap("Apr25_TD_PAYMENT_PROCESS_LOG_01-07_01.csv.gz", "https://storage.googleapis.com/kdev-blob-store/emt-e9e4ef6c-63c4-4930-b331-2df3af1e788e/integration/8a3f3c11-6709-4cf5-aa92-b155e8dcb08e?GoogleAccessId=alert-store-bucket-access@pivotal-canto-171605.iam.gserviceaccount.com&Expires=1714138961&Signature=rOi%2BfML7L9%2BQqPJD9%2BnP2pyQ5f3TN3n7zpsH7HEdvrgqiLpP20XqEobPhDxjvGIHLtFhz7W910B3ejgkjgoeEDbO%2FCLxCM%2B3fPGL%2BrTN1MC5ihCc1gRrE8ny%2FXwTA7X2cI4GmULISnRXJHa5OSauNhc%2F4TFhhIbVs8zNr70hmnN8ek979epMDzWudYaEpsfXaCeCBrNBmV5sYokb1NY1JPC6fc5dVJl6E6dUBjbJu2ufSSowW1UtV%2FGoZa%2ByxpUTXTYYN36gQ22WDSqJf7ss3WYq%2Bkk%2F7AgeES%2FZeg1xQXYjq%2B9OAoR3s2304m1iuHfcM%2FucflsEt9IXtS6OrLFNLA%3D%3D");
         LOGGER.info("[{}] : Read Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
         for (String fileName : fileVsSignedUrls.keySet()) {
-            File file = storeFile(fileName, fileVsSignedUrls.get(fileName));
+            File file = storeFile(fileName, fileVsSignedUrls.get(fileName), config);
             files.putAll(FilesHandler.getCSVFiles(fileName, file));
         }
         LOGGER.info("[{}] : Downloading files [{}]", getConnectorId(), files);
@@ -639,7 +640,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 }
                 long totalRecords = metrics.getTotalRecords();
                 long batch = totalRecords / 20;
-                long logbatch = batch > 1000 ? 1000 : batch;
+                long logbatch = batch > 1000 || batch == 0 ? 1000 : batch;
 
                 EventSourceInfo eventSourceInfo = new EventSourceInfo(getConnectorId(), getEventSourceType());
                 EventProcessorResult eventProcessorResult = convertRawEventsToBicycleEvents(getAuthInfo(),
@@ -681,7 +682,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
         long totalRecords = metrics.getTotalRecords();
         long batch = totalRecords / 20;
-        long logbatch = batch > 1000 ? 1000 : batch;
+        long logbatch = batch > 1000 || batch == 0 ? 1000 : batch;
 
         AtomicLong records = new AtomicLong(0);
         AtomicLong counter = new AtomicLong(0);
