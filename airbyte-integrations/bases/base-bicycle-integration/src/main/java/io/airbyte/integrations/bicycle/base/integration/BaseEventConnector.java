@@ -5,6 +5,7 @@ import static io.airbyte.integrations.bicycle.base.integration.CommonConstants.C
 import static io.airbyte.integrations.bicycle.base.integration.CommonConstants.CONNECTOR_PROCESS_RAW_EVENTS_WITH_RULES_DOWNLOAD;
 import static io.airbyte.integrations.bicycle.base.integration.CommonConstants.CONNECTOR_PUBLISH_EVENTS;
 import static io.airbyte.integrations.bicycle.base.integration.CommonConstants.CONNECTOR_USER_SERVICE_RULES_DOWNLOAD;
+import static io.airbyte.integrations.bicycle.base.integration.CommonUtils.getObjectMapper;
 import static io.airbyte.integrations.bicycle.base.integration.MetricAsEventsGenerator.SOURCE_TYPE;
 import static io.bicycle.integration.common.bicycleconfig.BicycleConfig.SAAS_API_ROLE;
 import static io.bicycle.integration.common.constants.EventConstants.SOURCE_ID;
@@ -14,6 +15,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.hash.HashCode;
+import com.google.common.hash.Hashing;
+import com.google.common.io.ByteSource;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.util.JsonFormat;
 import com.inceptiion.server.cohort.service.FieldCohortServiceClient;
@@ -39,7 +43,6 @@ import io.airbyte.integrations.base.Source;
 import io.airbyte.integrations.bicycle.base.integration.reader.EventSourceReader;
 import io.airbyte.protocol.models.AirbyteMessage;
 import io.airbyte.protocol.models.AirbyteStateMessage;
-import io.airbyte.protocol.models.AirbyteStream;
 import io.airbyte.protocol.models.ConfiguredAirbyteCatalog;
 import io.bicycle.ai.model.tenant.summary.discovery.*;
 import io.bicycle.blob.store.client.BlobStoreApiClient;
@@ -141,7 +144,6 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected static final String READ_TOTAL_RECORDS = "readTotalRecords";
     protected static final String SYNC_TOTAL_RECORDS = "syncTotalRecords";
 
-
     protected List<String> listOfConnectorsWithSleepEnabled = new ArrayList<>();
 
     protected EventSourceInfo eventSourceInfo;
@@ -151,6 +153,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected ConfiguredAirbyteCatalog catalog;
     protected Map<String, Object> additionalProperties;
     protected JsonNode state;
+    protected GCSBucketReader gcsBucketReader = new GCSBucketReader();
 
     protected ConnectionServiceClient connectionServiceClient;
 
@@ -384,9 +387,38 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                 fileNameVsSignedUrl.put(fileMetadata.getName(), signedUrl);
                 //LOGGER.info("{} Got the file content {}", traceInfo, fileContent);
             }
+        } else {
+            try {
+                String connectionConfiguration = connectorStream.getConfiguredConnection().getConnectionConfiguration();
+                ObjectNode connectionConfigJson = (ObjectNode)getObjectMapper().readTree(connectionConfiguration);
+                if (connectionConfigJson.hasNonNull("data_source") && !connectionConfigJson.get("data_source").isNull()) {
+                    JsonNode dataSourceConfig = connectionConfigJson.get("data_source");
+                    logger.info("Found data source config {}", dataSourceConfig);
+                    String sourceType = dataSourceConfig.get("source_type").textValue();
+                    String filePattern = dataSourceConfig.has("file_pattern") ?
+                            dataSourceConfig.get("file_pattern").textValue() : ".*";
+                    if (sourceType.equals("URL")) {
+                        String gcsUrl = dataSourceConfig.get("URL").textValue();
+                        final JsonNode provider = dataSourceConfig.get("provider");
+                        if (provider.get("storage").asText().equals("GCS")) {
+                            String serviceAccount = provider.get("service_account_json").asText();
+                            fileNameVsSignedUrl = gcsBucketReader.getFileNameVsSignedUrlForFilesInGCPBucket(serviceAccount, gcsUrl, filePattern);
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                logger.error("Unable to read files from gcs url", e);
+            }
+
+            //check for data source and if data source is url
+            //in url if its gcs, get the gcs token
+            //get the matching file pattern
         }
+
         return fileNameVsSignedUrl;
     }
+
+
 
     protected ConfiguredConnectorStream getConfiguredConnectorStream(AuthInfo authInfo, String configurationId) {
         return connectorConfigService.getConnectorStreamConfigById(authInfo, configurationId);
@@ -395,9 +427,12 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
     protected File storeFile(String fileName, String signedUrl) {
         try {
             int index = fileName.indexOf(".");
+            int lastDotIndex = fileName.indexOf(".");
+
             String extension = index != -1 ? fileName.substring(index) : ".csv";
             extension = extension != null && !extension.isEmpty() ? extension : ".csv";
-            File file = File.createTempFile(UUID.randomUUID().toString(), extension);
+
+            File file = File.createTempFile(fileName.substring(0, lastDotIndex), fileName.substring(lastDotIndex));
             file.deleteOnExit();
             final JsonNode provider = config.get("provider");
             long startTime = System.currentTimeMillis();
@@ -407,11 +442,22 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             } else {
                 FileUtils.copyURLToFile(new URL(signedUrl), file, CONNECT_TIMEOUT_IN_MILLIS, READ_TIMEOUT_IN_MILLIS);
             }
+            printCheckSum(file);
             logger.info("[{}] : File Download Complete [{}] to [{}] time [{}]", getConnectorId(), fileName,
                     file.getName(), (System.currentTimeMillis() - startTime));
             return file;
         } catch (Exception e) {
             throw new RuntimeException("Unable to read file from GCS", e);
+        }
+    }
+    private void printCheckSum(File file) {
+        try {
+            ByteSource byteSource = com.google.common.io.Files.asByteSource(file);
+            HashCode hc = byteSource.hash(Hashing.md5());
+            String checksum = hc.toString();
+            logger.info("Checksum for file {} is {}", file.getPath(), checksum);
+        } catch (Exception e) {
+            logger.error("Unable to get the checksum of file", e);
         }
     }
 

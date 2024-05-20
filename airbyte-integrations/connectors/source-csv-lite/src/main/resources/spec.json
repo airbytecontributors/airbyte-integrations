@@ -124,6 +124,11 @@
                 "type": "string",
                 "const": "URL"
               },
+              "file_pattern": {
+                "type": "string",
+                "title": "File Pattern",
+                "description": "Regex pattern to read files that matches the regex"
+              },
               "URL": {
                 "type": "string",
                 "title": "URL",

@@ -7,8 +7,11 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class FilesHandler {
+    private static final Logger logger = LoggerFactory.getLogger(FilesHandler.class.getName());
     public static Map<String, File> getCSVFiles(String name, File inputFile) throws IOException {
         Map<String, File> csvFiles = new HashMap<>();
 
@@ -44,6 +47,7 @@ public class FilesHandler {
 
     private static File decompressGzip(File inputFile) throws IOException {
         File outputFile = new File(inputFile.getParent(), inputFile.getName().replace(".gz", ""));
+        logger.info("Input file to decompress is {} and output file is {}", inputFile.getPath(), outputFile.getPath());
         try (
                 FileInputStream fis = new FileInputStream(inputFile);
                 GZIPInputStream gis = new GZIPInputStream(fis);
