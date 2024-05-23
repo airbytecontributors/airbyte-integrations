@@ -14,9 +14,9 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.RandomAccessFile;
 import java.io.StringReader;
+import java.net.URL;
 import java.util.*;
 
 
@@ -25,7 +25,7 @@ public class CSVEventSourceReader extends EventSourceReader<RawEvent> {
     private static final Logger LOGGER = LoggerFactory.getLogger(CSVEventSourceReader.class);
 
     protected String connectorId;
-    protected File csvFile;
+    protected URL url;
     RandomAccessFile accessFile = null;
     protected Map<String, Integer> headerNameToIndexMap;
     protected RawEvent nextEvent;
@@ -34,25 +34,26 @@ public class CSVEventSourceReader extends EventSourceReader<RawEvent> {
     protected long counter = 0;
     protected long nullRows = 0;
 
-    public CSVEventSourceReader(String name, File csvFile, String connectorId,
+    public CSVEventSourceReader(String name, URL url, String connectorId,
                                 BaseEventConnector connector, BaseCSVEventConnector.APITYPE apiType) {
-        super(csvFile.getName(), connectorId, connector, apiType);
+        super(name, connectorId, connector, apiType);
         this.name = name;
-        this.csvFile = csvFile;
+        this.url = url;
         initialize();
     }
 
     protected void initialize() {
         try {
+            String csvFile = url.getFile();
             accessFile = new RandomAccessFile(csvFile, "r");
             String headersLine = accessFile.readLine();
             rowCounter++;
             headerNameToIndexMap = getHeaderNameToIndexMap(headersLine);
             if (headerNameToIndexMap.isEmpty()) {
-                throw new RuntimeException("Unable to read headers from csv file " + csvFile + " for " + connectorId);
+                throw new RuntimeException("Unable to read headers from csv file " + name + " for " + connectorId);
             }
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to read csv file [" + csvFile + "]", e);
+            throw new IllegalStateException("Failed to read csv file [" + name + "]", e);
         }
     }
 

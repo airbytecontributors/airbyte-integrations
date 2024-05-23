@@ -59,7 +59,7 @@ public class GCSBucketReader {
             // Match the file name with the regex pattern
             Matcher matcher = pattern.matcher(fileName);
             if (matcher.matches()) {
-                URL signedUrl = storage.signUrl(blob, 2, TimeUnit.HOURS);
+                URL signedUrl = storage.signUrl(blob, 4, TimeUnit.HOURS);
                 //URL signedUrl = blob.signUrl(2, TimeUnit.HOURS, Storage.SignUrlOption.withV4Signature());
                 fileNameToSignedUrl.put(fileName, signedUrl.toString());
             }

@@ -28,6 +28,8 @@ import io.bicycle.integration.connector.SyncDataResponse;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
+
+import java.net.URL;
 import java.nio.charset.Charset;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -107,13 +109,8 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             if (syncStatus != null) {
                 LOGGER.info("Already preview ingesting records [{}] [{}]", getConnectorId(), syncStatus);
             }
-            Map<String, File> files = new HashMap<>();
-            if ("true".equalsIgnoreCase(System.getProperty("dev.mode", "false"))) {
-                Map<String, File> csvFiles = FilesHandler.getCSVFiles("Apr25_TD_PAYMENT_PROCESS_LOG_01-07_01.csv.gz", new File("/home/ravi/Downloads/api-conversion-0.23.0/Apr25_TD_PAYMENT_PROCESS_LOG_01-07_01.csv.gz"));
-                files.putAll(csvFiles);
-            } else {
-                downloadFiles(files, SYNC_STATUS, SYNC_TOTAL_RECORDS, config);
-            }
+            Map<String, URL> files = new HashMap<>();
+            downloadFiles(files, SYNC_STATUS, SYNC_TOTAL_RECORDS, config, true);
             if (files.isEmpty()) {
                 LOGGER.info("[{}] : files already synced [{}]", getConnectorId(), files);
                 return SyncDataResponse.newBuilder()
@@ -125,13 +122,13 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             LOGGER.info("[{}] : Local files Url [{}]", getConnectorId(), files);
             List<RawEvent> vcEvents = new ArrayList<>();
             for (String fileName : files.keySet()) {
-                File file = files.get(fileName);
+                URL url = files.get(fileName);
                 EventSourceReader csvReader = null;
                 try {
                     csvReader = null;
                     try {
-                        csvReader = getReader(fileName, file, getConnectorId(), this, SYNC_DATA);
-                        publishPreviewEvents(fileVsDiscoverRecordNumbers, fileName, file, csvReader, vcEvents, PREVIEW_RECORDS,
+                        csvReader = getReader(fileName, url, getConnectorId(), this, SYNC_DATA);
+                        publishPreviewEvents(fileVsDiscoverRecordNumbers, fileName, csvReader, vcEvents, PREVIEW_RECORDS,
                                 1, 0, false, true, true, false);
                     } finally {
                         if (csvReader != null) {
@@ -168,15 +165,15 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 .build();
     }
 
-    private SyncDataResponse validateFileFormats(Map<String, File> files) {
+    private SyncDataResponse validateFileFormats(Map<String, URL> files) {
         List<UnsupportedFormatException> unsupportedFormatExceptions = new ArrayList<>();
         for (String fileName : files.keySet()) {
-            File file = files.get(fileName);
+            URL url = files.get(fileName);
             EventSourceReader csvReader = null;
             try {
                 csvReader = null;
                 try {
-                    csvReader = getReader(fileName, file, getConnectorId(), this, SYNC_DATA);
+                    csvReader = getReader(fileName, url, getConnectorId(), this, SYNC_DATA);
                     csvReader.validateFileFormat();
                 } finally {
                     if (csvReader != null) {
@@ -199,7 +196,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         return null;
     }
 
-    private Map<String, Future> processFiles(int threads, Map<String, File> files) {
+    private Map<String, Future> processFiles(int threads, Map<String, URL> files) {
         BaseEventConnector connector = this;
         int batchSize = getBatchSize(config);
         int queueSize = getQueueSize(config);
@@ -302,7 +299,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
 
         for (String fileName : files.keySet()) {
             LOGGER.info("[{}] : Creating Producers [{}]", getConnectorId(), fileName);
-            File file = files.get(fileName);
+            URL url = files.get(fileName);
             Future future = eventsProcessor.submit(new ProducerJob<WrapperEvent>() {
 
                 AtomicLong recordsCount = new AtomicLong(0);
@@ -312,7 +309,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                         try {
                             updateConnectorFileState(fileName, SYNC_STATUS, Status.IN_PROGRESS.name());
                             List<Long> recordOffsets = fileVsDiscoverRecordNumbers.get(fileName);
-                            reader = getReader(fileName, file, getConnectorId(), connector, READ);
+                            reader = getReader(fileName, url, getConnectorId(), connector, READ);
                             while (reader.hasNext()) {
                                 RawEvent next = reader.next();
                                 if (recordOffsets != null && recordOffsets.contains(reader.getOffset())) {
@@ -403,15 +400,8 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
                 LOGGER.info("Already ingesting records [{}] [{}] [{}]", getConnectorId(), config, state);
             }
             updateConnectorState(READ_STATUS, Status.STARTED, 0);
-            Map<String, File> files = new HashMap<>();
-            if ("true".equalsIgnoreCase(System.getProperty("dev.mode", "false"))) {
-                files.putAll(FilesHandler.getCSVFiles("Apr25_TD_PAYMENT_PROCESS_LOG_01-07_01.csv.gz", new File("/home/ravi/Downloads/api-conversion-0.23.0/Apr25_TD_PAYMENT_PROCESS_LOG_01-07_01.csv.gz")));
-                files.putAll(FilesHandler.getCSVFiles("Apr25_TD_PAYMENT_PROCESS_LOG_01-07_02.csv.gz", new File("/home/ravi/Downloads/api-conversion-0.23.0/Apr25_TD_PAYMENT_PROCESS_LOG_01-07_02.csv.gz")));
-                files.put("export-8dc3fbdf3ee9aff.csv", new File("/home/ravi/Downloads/system-error/export-8dc3fbdf3ee9aff.csv"));
-            } else {
-                downloadFiles(files, READ_STATUS, READ_TOTAL_RECORDS, config);
-            }
-
+            Map<String, URL> files = new HashMap<>();
+            downloadFiles(files, READ_STATUS, READ_TOTAL_RECORDS, config, false);
             if (files.isEmpty()) {
                 success = true;
                 LOGGER.info("[{}] : doRead no files to read [{}]", getConnectorId());
@@ -451,13 +441,19 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         return null;
     }
 
-    private void downloadFiles(Map<String, File> files, String statusKey, String totalRecordsKey, JsonNode config) throws IOException {
+    private void downloadFiles(Map<String, URL> files, String statusKey, String totalRecordsKey,
+                               JsonNode config, boolean downloadFiles) throws IOException {
         Map<String, String> fileVsSignedUrls = readFilesConfig();
         //Map<String, String> fileVsSignedUrls = Collections.singletonMap("Apr25_TD_PAYMENT_PROCESS_LOG_01-07_01.csv.gz", "https://storage.googleapis.com/kdev-blob-store/emt-e9e4ef6c-63c4-4930-b331-2df3af1e788e/integration/8a3f3c11-6709-4cf5-aa92-b155e8dcb08e?GoogleAccessId=alert-store-bucket-access@pivotal-canto-171605.iam.gserviceaccount.com&Expires=1714138961&Signature=rOi%2BfML7L9%2BQqPJD9%2BnP2pyQ5f3TN3n7zpsH7HEdvrgqiLpP20XqEobPhDxjvGIHLtFhz7W910B3ejgkjgoeEDbO%2FCLxCM%2B3fPGL%2BrTN1MC5ihCc1gRrE8ny%2FXwTA7X2cI4GmULISnRXJHa5OSauNhc%2F4TFhhIbVs8zNr70hmnN8ek979epMDzWudYaEpsfXaCeCBrNBmV5sYokb1NY1JPC6fc5dVJl6E6dUBjbJu2ufSSowW1UtV%2FGoZa%2ByxpUTXTYYN36gQ22WDSqJf7ss3WYq%2Bkk%2F7AgeES%2FZeg1xQXYjq%2B9OAoR3s2304m1iuHfcM%2FucflsEt9IXtS6OrLFNLA%3D%3D");
         LOGGER.info("[{}] : Read Signed files Url [{}]", getConnectorId(), fileVsSignedUrls);
         for (String fileName : fileVsSignedUrls.keySet()) {
-            File file = storeFile(fileName, fileVsSignedUrls.get(fileName), config);
-            files.putAll(FilesHandler.getCSVFiles(fileName, file));
+            if (downloadFiles) {
+                File file = storeFile(fileName, fileVsSignedUrls.get(fileName), config);
+                files.put(fileName, file.toURI().toURL());
+            } else {
+                String signedUrl = fileVsSignedUrls.get(fileName);
+                files.put(fileName, new URL(signedUrl));
+            }
         }
         LOGGER.info("[{}] : Downloading files [{}]", getConnectorId(), files);
         List<String> fileNames = new ArrayList<>();
@@ -517,7 +513,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         return propValue;
     }
 
-    private long publishEvents(Map<String, File> files, int queueSize, int requestSize, int threads, long totalRecords) {
+    private long publishEvents(Map<String, URL> files, int queueSize, int requestSize, int threads, long totalRecords) {
         EventProcessMetrics metrics = new EventProcessMetrics(totalRecords);
         String connectorId = getConnectorId();
         ConsumerConfig consumerConfig = ConsumerConfig.newBuilder().setName("bicycle-events-processor")
@@ -554,8 +550,8 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         }
         Map<String, Future<Boolean>> futures = new HashMap<>();
         for (String fileName : files.keySet()) {
-            File file = files.get(fileName);
-            Future<Boolean> future = rulesProcessor.submit(getRulesProducerJob(fileName, file, this));
+            URL url = files.get(fileName);
+            Future<Boolean> future = rulesProcessor.submit(getRulesProducerJob(fileName, url, this));
             futures.put(fileName, future);
         }
         for (String fileName : futures.keySet()) {
@@ -571,13 +567,13 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         return metrics.getSuccess();
     }
 
-    private ProducerJob<RawEvent> getRulesProducerJob(String fileName, File file, BaseEventConnector connector) {
+    private ProducerJob<RawEvent> getRulesProducerJob(String fileName, URL url, BaseEventConnector connector) {
         return new ProducerJob<RawEvent>() {
             public void process(Producer<RawEvent> producer) {
                 EventSourceReader<RawEvent> reader = null;
                 long count = 0;
                 try {
-                    reader = getReader(fileName, file, getConnectorId(), connector, READ);
+                    reader = getReader(fileName, url, getConnectorId(), connector, READ);
                     updateConnectorFileState(fileName, READ_STATUS, Status.IN_PROGRESS.name());
                     while (reader.hasNext()) {
                         RawEvent rawEvent = reader.next();
@@ -720,7 +716,7 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
         };
     }
 
-    private long calculateTotalrecords(Map<String, File> files, int batchSize) {
+    private long calculateTotalrecords(Map<String, URL> files, int batchSize) {
         long totalRecords = getStateAsLong(TOTAL_RECORDS);
         if (totalRecords == -1) {
             long start = System.currentTimeMillis();
@@ -728,11 +724,11 @@ public class CSVConnectorLite extends BaseCSVEventConnector {
             AtomicLong failedCounter = new AtomicLong(0);
             Map<String, Future<Void>> futures = new HashMap<>();
             for (String fileName : files.keySet()) {
-                File file = files.get(fileName);
+                URL url = files.get(fileName);
                 Future<Void> future = executorService.submit(new Callable<Void>() {
                     @Override
                     public Void call() throws Exception {
-                        readFileRecords(fileName, file, successCounter);
+                        readFileRecords(fileName, url, successCounter);
                         return null;
                     }
                 });

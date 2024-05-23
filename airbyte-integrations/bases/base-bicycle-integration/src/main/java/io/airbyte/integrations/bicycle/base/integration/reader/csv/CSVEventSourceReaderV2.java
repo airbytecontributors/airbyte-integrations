@@ -14,6 +14,8 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.Reader;
+import java.net.URL;
 import java.nio.charset.Charset;
 import java.util.Iterator;
 
@@ -22,24 +24,26 @@ public class CSVEventSourceReaderV2 extends CSVEventSourceReader {
     private static final Logger LOGGER = LoggerFactory.getLogger(CSVEventSourceReaderV2.class);
 
     private CSVParser csvParser;
+
+    private Reader fileReader;
     private Iterator<CSVRecord> iterator;
 
-    public CSVEventSourceReaderV2(String name, File csvFile, String connectorId,
+    public CSVEventSourceReaderV2(String name, URL url, String connectorId,
                                   BaseEventConnector connector, BaseCSVEventConnector.APITYPE apiType) {
-        super(name, csvFile, connectorId, connector, apiType);
+        super(name, url, connectorId, connector, apiType);
     }
 
     protected void initialize() {
         try {
-            csvParser = CSVParser.parse(new FileReader(csvFile, Charset.defaultCharset()),
-                                                                CSVFormat.DEFAULT.withFirstRecordAsHeader());
+            fileReader = getFileReader(name, url);
+            csvParser = CSVParser.parse(fileReader, CSVFormat.DEFAULT.withFirstRecordAsHeader());
             headerNameToIndexMap = csvParser.getHeaderMap();
             if (headerNameToIndexMap.isEmpty()) {
-                throw new RuntimeException("Unable to read headers from csv file " + csvFile + " for " + connectorId);
+                throw new RuntimeException("Unable to read headers from csv file " + name + " for " + connectorId);
             }
             iterator = csvParser.iterator();
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to read csv file ["+csvFile+"]", e);
+            throw new IllegalStateException("Failed to read csv file ["+name+"]", e);
         }
     }
 
@@ -51,7 +55,7 @@ public class CSVEventSourceReaderV2 extends CSVEventSourceReader {
                 count++;
             }
         } catch (Exception e) {
-            throw new UnsupportedFormatException(csvFile.getName() + " - line number ["+rowCounter+"] ["+count+"]");
+            throw new UnsupportedFormatException(name + " - line number ["+rowCounter+"] ["+count+"]");
         }
     }
 
@@ -104,6 +108,9 @@ public class CSVEventSourceReaderV2 extends CSVEventSourceReader {
     }
 
     public void close() throws Exception {
+        if (fileReader != null) {
+            fileReader.close();
+        }
         if (csvParser != null && !csvParser.isClosed()) {
             csvParser.close();
         }

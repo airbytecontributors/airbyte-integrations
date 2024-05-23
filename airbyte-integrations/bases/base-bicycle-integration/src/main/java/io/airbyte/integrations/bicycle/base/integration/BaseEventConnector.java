@@ -1375,7 +1375,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return bicycleConfig;
     }
 
-    protected int publishPreviewEvents(Map<String, List<Long>> fileVsRecordNumbers, String fileName, File file,
+    protected int publishPreviewEvents(Map<String, List<Long>> fileVsRecordNumbers, String fileName,
                                        EventSourceReader<RawEvent> reader, List<RawEvent> vcEvents,
                                        int maxRecords, long totalRecords, int valid_count,
                                        boolean saveState, boolean shouldFlush, boolean updateVC,
@@ -1408,17 +1408,17 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
                 }
                 count++;
                 if (validEvents.size() >= BATCH_SIZE) {
-                    publishPreviewEvents(file, totalRecords, valid_count, invalid_count, saveState,
+                    publishPreviewEvents(fileName, totalRecords, valid_count, invalid_count, saveState,
                                         shouldFlush, publishErrors, validEvents, inValidEvents);
                 }
                 if (valid_count >= maxRecords) {
                     break;
                 }
             }
-            publishPreviewEvents(file, totalRecords, valid_count, invalid_count, saveState,
+            publishPreviewEvents(fileName, totalRecords, valid_count, invalid_count, saveState,
                     shouldFlush, publishErrors, validEvents, inValidEvents);
             logger.info("[{}] : Sample Raw events total - Total Count [{}] Valid[{}] Invalid[{}]",
-                    getConnectorId(), file.getName(), valid_count, invalid_count);
+                    getConnectorId(), fileName, valid_count, invalid_count);
         } finally {
             if (reader != null) {
                 reader.close();
@@ -1454,7 +1454,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
         return outputRecordsList;
     }
 
-    private void publishPreviewEvents(File file, long totalRecords, int valid_count, int invalid_count,
+    private void publishPreviewEvents(String fileName, long totalRecords, int valid_count, int invalid_count,
                                       boolean saveState, boolean shouldFlush, boolean publishErrors,
                                       List<RawEvent> validEvents, List<RawEvent> inValidEvents) {
         int retries = 0;
@@ -1462,7 +1462,7 @@ public abstract class BaseEventConnector extends BaseConnector implements Source
             try {
                 submitRecordsToPreviewStore(getConnectorId(), validEvents, shouldFlush);
                 logger.info("[{}] : Sample Raw events total - published count [{}] Valid[{}] Invalid[{}]",
-                        getConnectorId(), file.getName(), valid_count, invalid_count);
+                        getConnectorId(), fileName, valid_count, invalid_count);
                 validEvents.clear();
                 if (saveState) {
                     updateConnectorState(SYNC_STATUS, Status.IN_PROGRESS, (double) valid_count / (double) totalRecords);

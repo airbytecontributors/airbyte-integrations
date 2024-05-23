@@ -13,6 +13,8 @@ import io.bicycle.server.event.mapping.constants.BicycleEventPublisherType;
 import io.bicycle.server.event.mapping.models.processor.EventProcessorResult;
 import io.bicycle.server.event.mapping.models.processor.EventSourceInfo;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
+
+import java.net.URL;
 import java.nio.charset.Charset;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -64,7 +66,7 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
     }
 
-    protected long processCSVFile(int index, Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, File> files,
+    protected long processCSVFile(int index, Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap, Map<String, URL> files,
                                   long totalRecords, int batchSize, AtomicLong successCounter, AtomicLong failedCounter)
                                   throws IOException {
         int records = 0;
@@ -139,11 +141,11 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         }
     }
 
-    protected long readFileRecords(String fileName, File csvFile, AtomicLong counter) {
+    protected long readFileRecords(String fileName, URL url, AtomicLong counter) {
         EventSourceReader<RawEvent> reader = null;
         try {
             long start = System.currentTimeMillis();
-            reader = getReader(fileName, csvFile, getConnectorId(), this, READ);
+            reader = getReader(fileName, url, getConnectorId(), this, READ);
             while (reader.hasNext()) {
                 //RawEvent next = reader.next();
                 if (counter.get() % 1000 == 0) {
@@ -167,13 +169,13 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
     }
 
     protected long readTimestampToFileOffset(Map<Long, List<FileRecordOffset>> timestampToFileOffsetsMap,
-                                             String fileName, File csvFile, int batchSize, AtomicLong successCounter,
+                                             String fileName, URL url, int batchSize, AtomicLong successCounter,
                                              AtomicLong failedCounter)
                                              throws Exception {
         EventSourceReader<RawEvent> reader = null;
         try {
             long start = System.currentTimeMillis();
-            reader = getReader(fileName, csvFile, getConnectorId(), this, READ);
+            reader = getReader(fileName, url, getConnectorId(), this, READ);
             List<RawEvent> invalidEvents = new ArrayList<>();
             while (reader.hasNext()) {
                 RawEvent next = reader.next();
@@ -251,24 +253,25 @@ public abstract class BaseCSVEventConnector extends BaseEventConnector {
         return userserviceRules;
     }
 
-    protected EventSourceReader<RawEvent> getReader(String fileName, File file, String connectorId,
+    protected EventSourceReader<RawEvent> getReader(String fileName, URL url, String connectorId,
                                                     BaseEventConnector connector,
                                                     APITYPE apitype) {
         FileType fileType = getFileType(config, fileName);
         if (fileType.equals(FileType.JSONL)) {
-            LOGGER.info("[{}] using jsonl reader", getConnectorId());
-            return new JsonLEventSourceReader(fileName, file, connectorId, connector, apitype);
+            LOGGER.info("[{}] using jsonl reader {}", getConnectorId(), fileName);
+            return new JsonLEventSourceReader(fileName, url, connectorId, connector, apitype);
         } else {
-            LOGGER.info("[{}] using csv reader", getConnectorId());
-            return new CSVEventSourceReaderV2(fileName, file, connectorId, connector, apitype);
+            LOGGER.info("[{}] using csv reader {}", getConnectorId(), fileName);
+            return new CSVEventSourceReaderV2(fileName, url, connectorId, connector, apitype);
         }
     }
 
     private FileType getFileType(JsonNode config, String fileName) {
         String fileType = null;
-        if (fileName.endsWith("csv")) {
+        if (fileName.endsWith("csv") || fileName.endsWith("csv.gz")) {
             fileType = "csv";
-        } else if (fileName.endsWith("jsonl") || fileName.endsWith("json")) {
+        } else if (fileName.endsWith("jsonl") || fileName.endsWith("json")
+                || fileName.endsWith("json.gz") || fileName.endsWith("jsonl.gz")) {
             fileType = "jsonl";
         } else {
             fileType = config.get("format") != null ? config.get("format").asText() : "csv";

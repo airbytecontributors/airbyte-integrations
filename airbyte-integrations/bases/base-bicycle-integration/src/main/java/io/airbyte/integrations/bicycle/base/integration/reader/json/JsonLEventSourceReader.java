@@ -7,11 +7,9 @@ import io.airbyte.integrations.bicycle.base.integration.reader.EventSourceReader
 import io.airbyte.integrations.bicycle.base.integration.reader.csv.CSVEventSourceReader;
 import io.bicycle.event.rawevent.impl.JsonRawEvent;
 import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
+
+import java.io.*;
+import java.net.URL;
 import java.nio.charset.Charset;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -22,25 +20,25 @@ public class JsonLEventSourceReader extends EventSourceReader<RawEvent> {
     private static final Logger LOGGER = LoggerFactory.getLogger(CSVEventSourceReader.class);
 
     protected String connectorId;
-    protected File jsonFile;
+    protected URL url;
     protected RawEvent nextEvent;
     protected String name;
     protected long counter = 0;
     protected long nullRows = 0;
     protected BufferedReader bufferedReader;
 
-    public JsonLEventSourceReader(String name, File jsonFile, String connectorId,
+    public JsonLEventSourceReader(String name, URL url, String connectorId,
                                   BaseEventConnector connector,
                                   BaseCSVEventConnector.APITYPE apiType) {
-        super(jsonFile.getName(), connectorId, connector, apiType);
+        super(name, connectorId, connector, apiType);
         this.name = name;
-        this.jsonFile = jsonFile;
+        this.url = url;
         initialize();
     }
 
     private void initialize() {
         try {
-            bufferedReader = new BufferedReader(new FileReader(jsonFile, Charset.defaultCharset()));
+            bufferedReader = getFileReader(name, url);
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
         } catch (IOException e) {
@@ -131,8 +129,8 @@ public class JsonLEventSourceReader extends EventSourceReader<RawEvent> {
 
     @Override
     public void close() throws Exception {
-       /* if (accessFile != null) {
-            accessFile.close();
-        }*/
+       if (bufferedReader != null) {
+           bufferedReader.close();
+       }
     }
 }
