@@ -55,9 +55,10 @@ public class GCSBucketReader {
         // List all blobs in the bucket with the given prefix (if any)
         for (Blob blob : bucket.list(Storage.BlobListOption.prefix(prefix)).iterateAll()) {
             String fileName = blob.getName();
+            String originalFileName = fileName;
             fileName = extractFileName(fileName);
             // Match the file name with the regex pattern
-            Matcher matcher = pattern.matcher(fileName);
+            Matcher matcher = pattern.matcher(originalFileName);
             if (matcher.matches()) {
                 URL signedUrl = storage.signUrl(blob, 4, TimeUnit.HOURS);
                 //URL signedUrl = blob.signUrl(2, TimeUnit.HOURS, Storage.SignUrlOption.withV4Signature());
