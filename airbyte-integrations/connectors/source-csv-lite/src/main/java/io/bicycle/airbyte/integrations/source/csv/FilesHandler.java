@@ -62,4 +62,12 @@ public class FilesHandler {
         return outputFile;
     }
 
+    public static void main(String[] args) throws IOException {
+        long start = System.currentTimeMillis();
+        File file = new File("/home/ravi/Downloads/payslips/clean-mar1-apr5_lively-encoder-854.86772807_ga_sessions_20240306_v2_000000000000.jsonl.gz");
+        Map<String, File> csvFiles = FilesHandler.getCSVFiles("clean-mar1-apr5_lively-encoder-854.86772807_ga_sessions_20240306_v2_000000000000.jsonl.gz", file);
+        System.out.println("Tioime :::: "+(System.currentTimeMillis() - start)/1000);
+
+    }
+
 }

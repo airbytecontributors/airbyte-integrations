@@ -16,9 +16,13 @@ import io.bicycle.server.event.mapping.rawevent.api.RawEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.*;
+import java.net.URL;
+import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.GZIPInputStream;
 
 import static io.airbyte.integrations.bicycle.base.integration.BaseCSVEventConnector.APITYPE.READ;
 
@@ -54,6 +58,16 @@ public abstract class EventSourceReader<T> {
 
     public boolean isValidEvent() {
         return validEvent;
+    }
+
+    protected BufferedReader getFileReader(String fileName, URL url) throws IOException {
+        BufferedReader fileReader;
+        if (fileName.endsWith(".gz")) {
+            fileReader = new BufferedReader(new InputStreamReader(new GZIPInputStream(url.openStream()), Charset.defaultCharset()), 65536);
+        } else {
+            fileReader = new BufferedReader(new InputStreamReader(new BufferedInputStream(url.openStream()), Charset.defaultCharset()), 65536);
+        }
+        return fileReader;
     }
 
     public long getRecordUTCTimestampInMillis(RawEvent event) {
